@@ -1,177 +1,215 @@
+--get the addon namespace
+local _, ns = ...
 
-  --get the addon namespace
-  local addon, ns = ...
+--get oUF namespace (just in case needed)
+local oUF = ns.oUF or oUF
 
-  --get oUF namespace (just in case needed)
-  local oUF = ns.oUF or oUF
+--get the config
+local cfg = ns.cfg
 
-  --get the config
-  local cfg = ns.cfg
+--get the functions
+local func = ns.func
 
-  --get the functions
-  local func = ns.func
+--get the unit container
+local unit = ns.unit
 
-  --get the unit container
-  local unit = ns.unit
+---------------------------------------------
+-- UNIT SPECIFIC FUNCTIONS
+---------------------------------------------
 
-  ---------------------------------------------
-  -- UNIT SPECIFIC FUNCTIONS
-  ---------------------------------------------
+--init parameters
+local initUnitParameters = function(self)
+	self:SetFrameStrata("BACKGROUND")
+	self:SetFrameLevel(1)
+	self:SetSize(self.cfg.width, self.cfg.height)
+	self:SetScale(self.cfg.scale)
+	self:SetPoint(self.cfg.pos.a1, self.cfg.pos.af, self.cfg.pos.a2, self.cfg.pos.x, self.cfg.pos.y)
+	self:RegisterForClicks("AnyDown")
+	self:SetScript("OnEnter", UnitFrame_OnEnter)
+	self:SetScript("OnLeave", UnitFrame_OnLeave)
+	func.applyDragFunctionality(self)
+end
 
-  --init parameters
-  local initUnitParameters = function(self)
-    self:SetFrameStrata("BACKGROUND")
-    self:SetFrameLevel(1)
-    self:SetSize(self.cfg.width, self.cfg.height)
-    self:SetScale(self.cfg.scale)
-    self:SetPoint(self.cfg.pos.a1,self.cfg.pos.af,self.cfg.pos.a2,self.cfg.pos.x,self.cfg.pos.y)
-    self:RegisterForClicks("AnyDown")
-    self:SetScript("OnEnter", UnitFrame_OnEnter)
-    self:SetScript("OnLeave", UnitFrame_OnLeave)
-    func.applyDragFunctionality(self)
-  end
+--actionbar background
+local createArtwork = function(self)
+	local t = self:CreateTexture(nil, "BACKGROUND", nil, -8)
+	t:SetAllPoints(self)
+	t:SetTexture("Interface\\AddOns\\DiabolusUnits\\media\\targettarget")
+end
 
-  --actionbar background
-  local createArtwork = function(self)
-    local t = self:CreateTexture(nil,"BACKGROUND",nil,-8)
-    t:SetAllPoints(self)
-    t:SetTexture("Interface\\AddOns\\DiabolusUnits\\media\\targettarget")
-  end
+--create health frames
+local createHealthFrame = function(self)
+	local cfg = self.cfg.health
 
-  --create health frames
-  local createHealthFrame = function(self)
-
-    local cfg = self.cfg.health
-
-    --health
-    local h = CreateFrame("StatusBar", nil, self)
-    h:SetPoint("TOP",0,-21.9)
-    h:SetPoint("LEFT",24.5,0)
-    h:SetPoint("RIGHT",-24.5,0)
-    h:SetPoint("BOTTOM",0,28.7)
+	--health
+	local h = CreateFrame("StatusBar", nil, self)
+	h:SetPoint("TOP", 0, -21.9)
+	h:SetPoint("LEFT", 24.5, 0)
+	h:SetPoint("RIGHT", -24.5, 0)
+	h:SetPoint("BOTTOM", 0, 28.7)
 	h:SetFrameStrata("LOW")
 
-    h:SetStatusBarTexture(cfg.texture)
-    h.bg = h:CreateTexture(nil,"BACKGROUND",nil,-6)
-    h.bg:SetTexture(cfg.texture)
-    h.bg:SetAllPoints(h)
+	h:SetStatusBarTexture(cfg.texture)
+	h.bg = h:CreateTexture(nil, "BACKGROUND", nil, -6)
+	h.bg:SetTexture(cfg.texture)
+	h.bg:SetAllPoints(h)
 
-    h.glow = h:CreateTexture(nil,"OVERLAY",nil,-5)
-    h.glow:SetTexture("Interface\\AddOns\\DiabolusUnits\\media\\targettarget_hpglow")
-    h.glow:SetAllPoints(self)
-    h.glow:SetVertexColor(0,0,0,1)
+	h.glow = h:CreateTexture(nil, "OVERLAY", nil, -5)
+	h.glow:SetTexture("Interface\\AddOns\\DiabolusUnits\\media\\targettarget_hpglow")
+	h.glow:SetAllPoints(self)
+	h.glow:SetVertexColor(0, 0, 0, 1)
 
-    h.highlight = h:CreateTexture(nil,"OVERLAY",nil,-4)
-    h.highlight:SetTexture("Interface\\AddOns\\DiabolusUnits\\media\\targettarget_highlight")
-    h.highlight:SetAllPoints(self)
+	h.highlight = h:CreateTexture(nil, "OVERLAY", nil, -4)
+	h.highlight:SetTexture("Interface\\AddOns\\DiabolusUnits\\media\\targettarget_highlight")
+	h.highlight:SetAllPoints(self)
 
-    self.Health = h
-    self.Health.Smooth = true
-  end
+	self.Health = h
+	self.Health.Smooth = true
+end
 
-  --create power frames
-  local createPowerFrame = function(self)
-    local cfg = self.cfg.power
+--create power frames
+local createPowerFrame = function(self)
+	local cfg = self.cfg.power
 
-    --power
-    local h = CreateFrame("StatusBar", nil, self)
-    h:SetPoint("TOP",0,-38.5)
-    h:SetPoint("LEFT",24.5,0)
-    h:SetPoint("RIGHT",-24.5,0)
-    h:SetPoint("BOTTOM",0,21.9)
+	--power
+	local h = CreateFrame("StatusBar", nil, self)
+	h:SetPoint("TOP", 0, -38.5)
+	h:SetPoint("LEFT", 24.5, 0)
+	h:SetPoint("RIGHT", -24.5, 0)
+	h:SetPoint("BOTTOM", 0, 21.9)
 
-    h:SetStatusBarTexture(cfg.texture)
+	h:SetStatusBarTexture(cfg.texture)
 
-    h.bg = h:CreateTexture(nil,"BACKGROUND",nil,-6)
-    h.bg:SetTexture(cfg.texture)
-    h.bg:SetAllPoints(h)
+	h.bg = h:CreateTexture(nil, "BACKGROUND", nil, -6)
+	h.bg:SetTexture(cfg.texture)
+	h.bg:SetAllPoints(h)
 
-    h.glow = h:CreateTexture(nil,"OVERLAY",nil,-5)
-    h.glow:SetTexture("Interface\\AddOns\\DiabolusUnits\\media\\targettarget_ppglow")
-    h.glow:SetAllPoints(self)
-    h.glow:SetVertexColor(0,0,0,1)
+	h.glow = h:CreateTexture(nil, "OVERLAY", nil, -5)
+	h.glow:SetTexture("Interface\\AddOns\\DiabolusUnits\\media\\targettarget_ppglow")
+	h.glow:SetAllPoints(self)
+	h.glow:SetVertexColor(0, 0, 0, 1)
 
-    self.Power = h
-    self.Power.Smooth = true
+	self.Power = h
+	self.Power.Smooth = true
+end
 
-  end
+func.updatePetTargetText = function(self)
+	if not self or not self.hpval then
+		return
+	end
+	local hFmt = (self.cfg and self.cfg.healthFormat) or "deficit"
 
-  --create health power strings
-  local createHealthPowerStrings = function(self)
+	self:Untag(self.hpval)
+	self.hpval:SetText("")
 
-    local name = func.createFontString(self, cfg.font, 14, "THINOUTLINE")
-    name:SetPoint("BOTTOM", self, "TOP", 0, -13)
-    name:SetPoint("LEFT", self.Health, 0, 0)
-    name:SetPoint("RIGHT", self.Health, 0, 0)
-    self.Name = name
+	if hFmt == "deficit" then
+		self:Tag(self.hpval, "[diablo:misshp]")
+		self.hpval:Show()
+	elseif hFmt == "percent" then
+		self:Tag(self.hpval, "[perphp]")
+		self.hpval:Show()
+	elseif hFmt == "value" then
+		self:Tag(self.hpval, "[diablo:hpval]")
+		self.hpval:Show()
+	elseif hFmt == "current" then
+		self:Tag(self.hpval, "[curshp]")
+		self.hpval:Show()
+	elseif hFmt == "both" then
+		self:Tag(self.hpval, "[cmaxshp]")
+		self.hpval:Show()
+	elseif hFmt == "none" then
+		self.hpval:Hide()
+	end
 
-    local hpval = func.createFontString(self.Health, cfg.font, 11, "THINOUTLINE")
-    hpval:SetPoint("RIGHT", -2,0)
+	if self.hpval.UpdateTag then
+		self.hpval:UpdateTag()
+	end
+	if self.Name and self.Name.UpdateTag then
+		self.Name:UpdateTag()
+	end
+end
 
-    self:Tag(name, "[diablo:name]")
-    self:Tag(hpval, self.cfg.health.tag or "")
+func.refreshPetTargetFrame = function()
+	local self = unit.pettarget or rawget(_G, "Roth_UIPetTargetFrame")
+	if not self then
+		return
+	end
+	func.updatePetTargetText(self)
+end
 
-  end
+--create health power strings
+local createHealthPowerStrings = function(self)
+	local name = func.createFontString(self, cfg.font, 14, "THINOUTLINE")
+	name:SetPoint("BOTTOM", self, "TOP", 0, -13)
+	name:SetPoint("LEFT", self.Health, 0, 0)
+	name:SetPoint("RIGHT", self.Health, 0, 0)
+	self.Name = name
 
-  ---------------------------------------------
-  -- PETTARGET STYLE FUNC
-  ---------------------------------------------
+	local hpval = func.createFontString(self.Health, cfg.font, 11, "THINOUTLINE")
+	hpval:SetPoint("RIGHT", -2, 0)
+	self.hpval = hpval
 
-  local function createStyle(self)
+	self:Tag(name, "[diablo:name]")
+	func.updatePetTargetText(self)
+end
 
-    --apply config to self
-    self.cfg = cfg.units.pettarget
-    self.cfg.style = "pettarget"
+---------------------------------------------
+-- PETTARGET STYLE FUNC
+---------------------------------------------
 
-    --init
-    initUnitParameters(self)
+local function createStyle(self)
+	--apply config to self
+	self.cfg = cfg.units.pettarget
+	self.cfg.style = "pettarget"
 
-    --create the art
-    createArtwork(self)
+	--init
+	initUnitParameters(self)
 
-    --createhealthPower
-    createHealthFrame(self)
-    createPowerFrame(self)
+	--create the art
+	createArtwork(self)
 
-    --health power strings
-    createHealthPowerStrings(self)
+	--createhealthPower
+	createHealthFrame(self)
+	createPowerFrame(self)
 
-    --health power update
-    self.Health.PostUpdate = func.updateHealth
-    self.Power.PostUpdate = func.updatePower
+	--health power strings
+	createHealthPowerStrings(self)
 
-    --create portrait
-    if self.cfg.portrait.show then
-      func.createPortrait(self)
-      self:SetHitRectInsets(0, 0, -100, 0);
-    end
+	--health power update
+	self.Health.PostUpdate = func.updateHealth
+	self.Power.PostUpdate = func.updatePower
 
-    --auras
-    if self.cfg.auras.show then
-      func.createDebuffs(self)
-      self.Debuffs.PostCreateIcon = func.createAuraIcon
-    end
+	--create portrait
+	if self.cfg.portrait.show then
+		func.createPortrait(self)
+		self:SetHitRectInsets(0, 0, -100, 0)
+	end
 
-    --debuffglow
-    func.createDebuffGlow(self)
+	--auras
+	if self.cfg.auras.show then
+		func.createDebuffs(self)
+		self.Debuffs.PostCreateIcon = func.createAuraIcon
+	end
 
-    --icons
-    self.RaidIcon = func.createIcon(self,"BACKGROUND",18,self.Name,"BOTTOM","TOP",0,0,-1)
+	--debuffglow
+	func.createDebuffGlow(self)
 
-    --add heal prediction
-    func.healPrediction(self)
+	--icons
+	self.RaidIcon = func.createIcon(self, "BACKGROUND", 18, self.Name, "BOTTOM", "TOP", 0, 0, -1)
 
-    --add self to unit container (maybe access to that unit is needed in another style)
-    unit.pettarget = self
+	--add heal prediction
+	func.healPrediction(self)
 
-  end
+	--add self to unit container (maybe access to that unit is needed in another style)
+	unit.pettarget = self
+end
 
-  ---------------------------------------------
-  -- SPAWN PETTARGET UNIT
-  ---------------------------------------------
+---------------------------------------------
+-- SPAWN PETTARGET UNIT
+---------------------------------------------
 
-  if cfg.units.pettarget.show then
-    oUF:RegisterStyle("diablo:pettarget", createStyle)
-    oUF:SetActiveStyle("diablo:pettarget")
-    oUF:Spawn("pettarget", "Roth_UIPetTargetFrame")
-  end
+if cfg.units.pettarget.show then
+	oUF:RegisterStyle("diablo:pettarget", createStyle)
+	oUF:SetActiveStyle("diablo:pettarget")
+	oUF:Spawn("pettarget", "Roth_UIPetTargetFrame")
+end

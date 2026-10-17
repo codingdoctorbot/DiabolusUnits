@@ -699,6 +699,12 @@ func.createPortrait = function(self)
 	else
 		back:SetPoint("BOTTOM", self, "TOP", 0, -35)
 	end
+	-- cfg.portrait.size shrinks the whole portrait (art, border, offsets) from the
+	-- frame-wide default; the anchor offset is in the holder's scale, so it shrinks too
+	local size = self.cfg.portrait and self.cfg.portrait.size
+	if size and self.cfg.style ~= "party" and size < self.cfg.width then
+		back:SetScale(size / self.cfg.width)
+	end
 	self.PortraitHolder = back
 
 	local t = back:CreateTexture(nil, "BACKGROUND", nil, -8)

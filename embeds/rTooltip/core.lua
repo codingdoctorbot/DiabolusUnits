@@ -147,13 +147,22 @@ end)
 -- context, which taints the tooltip's fields. Only the position is changed.
 -- The cursor-following tooltip needs its own SetOwner, so it stays a mouse
 -- mode option: in the gamepad UI there is no cursor to follow.
+-- Anchor choices (cfg.rtooltip.anchor), each clear of the bottom HUD: above the bag wing and
+-- belt, its mirror above the game menu wing (above the pet frame's height), or centred above
+-- the action bar / cast bar / swing timer stack.
+local TOOLTIP_POINTS = {
+	bottomleft = { "BOTTOMLEFT", UIParent, "BOTTOMLEFT", 10, 257 },
+	center = { "BOTTOM", UIParent, "BOTTOM", 0, 310 },
+}
+
 hooksecurefunc("GameTooltip_SetDefaultAnchor", function(tooltip, parent)
 	local pad = ns.Pad and ns.Pad:IsActive()
-	if cfg.rtooltip.cursorfocus and not pad then
+	local anchor = cfg.rtooltip.anchor
+	if (anchor == "cursor" or cfg.rtooltip.cursorfocus) and not pad then
 		tooltip:SetOwner(parent, "ANCHOR_CURSOR")
 	else
 		tooltip:ClearAllPoints()
-		tooltip:SetPoint(unpack(cfg.rtooltip.pos))
+		tooltip:SetPoint(unpack(TOOLTIP_POINTS[anchor] or cfg.rtooltip.pos))
 	end
 end)
 

@@ -71,6 +71,9 @@
   ---------------------------------------------
 
   oUF.Tags.Methods["diablo:name"] = function(unit)
+    if unit == "target" and cfg and cfg.units and cfg.units.target and cfg.units.target.details and cfg.units.target.details.showName == false then
+      return ""
+    end
     local color = oUF.Tags.Methods["diablo:color"](unit)
     if hasTRP3 == nil then hasTRP3 = IsAddOnLoadedCompat("Totalrp3") and true or false end
     local fullName

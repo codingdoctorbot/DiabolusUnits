@@ -54,9 +54,12 @@ local function Update(self, event)
 		return
 	end
 
+	-- WoW Forever has only C_PetInfo.GetPetHappiness (the global GetPetHappiness is gone,
+	-- which kept this hidden); Blizzard_FrameXML/PetHappiness.lua reads it the same way
 	local happiness, damagePercentage, loyaltyRate
-	if type(GetPetHappiness) == "function" then
-		happiness, damagePercentage, loyaltyRate = GetPetHappiness()
+	local get = (C_PetInfo and C_PetInfo.GetPetHappiness) or rawget(_G, "GetPetHappiness")
+	if get then
+		happiness, damagePercentage, loyaltyRate = get()
 	end
 	local hasPetUI = false
 	if type(HasPetUI) == "function" then
@@ -79,6 +82,13 @@ local function Update(self, event)
 		end
 
 		element.tooltip = _G["PET_HAPPINESS" .. happyNum] or ("Happiness " .. happyNum)
+		-- what the pet eats, as Blizzard's indicator shows it
+		local diet = C_PetInfo and C_PetInfo.GetPetFoodTypes and C_PetInfo.GetPetFoodTypes()
+		if type(diet) == "table" and #diet > 0 and _G.PET_DIET_TEMPLATE then
+			element.tooltipDiet = format(_G.PET_DIET_TEMPLATE, table.concat(diet, _G.PET_FOOD_DELIMIT or ", "))
+		else
+			element.tooltipDiet = nil
+		end
 		if dmgNum and _G.PET_DAMAGE_PERCENTAGE then
 			element.tooltipDamage = format(_G.PET_DAMAGE_PERCENTAGE, dmgNum)
 		else
@@ -106,7 +116,7 @@ local function Update(self, event)
 	* damagePercentage - damage modifier, happiness affects this (unhappy = 75%, content = 100%, happy = 125%) (number)
 	--]]
 	if element.PostUpdate then
-		return element:PostUpdate(unit, happiness, damagePercentage)
+		return element:PostUpdate(self.unit, happiness, damagePercentage)
 	end
 end
 
@@ -134,6 +144,8 @@ local function Enable(self)
 		if self.unit == "pet" then
 			self:RegisterEvent("UNIT_HAPPINESS", Path, true)
 			self:RegisterEvent("PET_UI_UPDATE", Path, true)
+			-- a newly summoned pet: the frame's unit does not change, so oUF does not update
+			self:RegisterEvent("UNIT_PET", Path, true)
 		else
 			return
 		end
@@ -158,6 +170,9 @@ local function Enable(self)
 				if element.tooltipLoyalty then
 					GameTooltip:AddLine(element.tooltipLoyalty, "", 1, 1, 1)
 				end
+				if element.tooltipDiet then
+					GameTooltip:AddLine(element.tooltipDiet, 1, 1, 1, true)
+				end
 				GameTooltip:Show()
 			end
 		end)
@@ -176,7 +191,8 @@ local function Disable(self)
 		element:Hide()
 
 		self:UnregisterEvent("UNIT_HAPPINESS", Path)
-		self:UnregisterEvent("PET_UI_UPDATE", Path, true)
+		self:UnregisterEvent("PET_UI_UPDATE", Path)
+		self:UnregisterEvent("UNIT_PET", Path)
 	end
 end
 

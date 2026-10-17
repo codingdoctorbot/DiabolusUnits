@@ -1,7 +1,7 @@
 ---------------------------------------------
 --  DiabolusUnits - Potion Belt
 ---------------------------------------------
--- Diablo's belt: five glass flasks holding the best of each from your bags:
+-- Diablo's belt: five sockets holding the best of each from your bags:
 --   1 health potion   2 healthstone   3 mana potion (rage potion for warriors,
 --   Thistle Tea for rogues, mana gems first for mages)   4 food   5 bandage
 -- "Best" comes from ranked item lists (core/beltdata.lua); an item that is not
@@ -9,17 +9,17 @@
 -- battleground the free draughts and bandages are used first. Items you are too
 -- low level for are skipped. Bandages always go on yourself.
 --
--- Each flask shows the item's icon, how many you carry and its cooldown (the
--- liquid drains and refills). The food flask is about the Well Fed buff, not
--- about eating to regenerate: it prefers buff food, its liquid shows how much of
--- the buff is left, and it pulses when the buff is missing or about to run out
--- (cfg.belt.foodWarnMinutes) while you carry buff food. Key bindings: Key
--- Bindings > AddOns > DiabolusUnits: Belt 1-5.
+-- Each socket shows the item's icon, how many you carry and its cooldown (round
+-- swipe); its rim glows in the slot's colour and goes dark when you have none. The
+-- food socket is about the Well Fed buff, not about eating to regenerate: it prefers
+-- buff food, its swipe shows how much of the buff is left, and its rim pulses when the
+-- buff is missing or about to run out (cfg.belt.foodWarnMinutes) while you carry buff
+-- food. Key bindings: Key Bindings > AddOns > DiabolusUnits: Belt 1-5.
 --
 -- The buttons are secure; what they hold can only change out of combat, so an
 -- item looted in a fight takes its slot when the fight ends. Counts and
 -- cooldowns update in combat. Auras are secret in combat on Forever, so the food
--- flask keeps its last known buff state until the fight ends.
+-- socket keeps its last known buff state until the fight ends.
 
 local _, ns = ...
 
@@ -32,7 +32,7 @@ ns.Belt = Belt
 
 local MEDIA = "Interface\\AddOns\\DiabolusUnits\\media\\"
 local SLOTS = { "health", "healthstone", "mana", "food", "bandage" }
-local SIZE, GAP = 34, 6
+local SIZE, GAP = 34, 8
 local LIQUID = {
 	health = { 0.85, 0.08, 0.05 },
 	healthstone = { 0.3, 0.85, 0.2 },
@@ -42,7 +42,6 @@ local LIQUID = {
 	food = { 0.85, 0.55, 0.15 },
 	bandage = { 0.85, 0.78, 0.6 },
 }
-local FILL_W, FILL_H, FILL_Y = 76 / 128, 87 / 128, (64 - 60.5) / 128
 
 local CONSUMABLE = (Enum and Enum.ItemClass and Enum.ItemClass.Consumable) or 0
 local SUB = (Enum and Enum.ItemConsumableSubclass) or {}
@@ -50,7 +49,7 @@ local POTION, BANDAGE = SUB.Potion or 1, SUB.Bandage or 7
 local MANA_GEMS = { "mana agate", "mana jade", "mana citrine", "mana ruby", "mana emerald" }
 
 local _, playerClass = UnitClass("player")
--- what the third flask holds for this class
+-- what the third socket holds for this class
 local THIRD = (playerClass == "WARRIOR" and "rage") or (playerClass == "ROGUE" and "energy") or "mana"
 
 local function Opt(key, default)
@@ -190,7 +189,9 @@ local function ScanUnlisted(want)
 				local name, _, _, itemLevel = C_Item.GetItemInfo(itemID)
 				local cat = ClassifyBeltItem(name, classID, subclassID, ItemSpellName(itemID))
 				if cat and want[cat] then
-					local lvl = (Secrets and Secrets.Number(itemLevel)) or (type(itemLevel) == "number" and itemLevel) or 0
+					local lvl = (Secrets and Secrets.Number(itemLevel))
+						or (type(itemLevel) == "number" and itemLevel)
+						or 0
 					if not best[cat] or lvl > best[cat].level then
 						best[cat] = { itemID = itemID, level = lvl }
 					end
@@ -312,13 +313,22 @@ function Belt.DebugFood()
 		if not aura then
 			break
 		end
-		print(("  %s  %s  %s%s"):format(tostring(aura.name), tostring(aura.spellId), tostring(aura.icon), IsWellFed(aura) and "  <- Well Fed" or ""))
+		print(
+			("  %s  %s  %s%s"):format(
+				tostring(aura.name),
+				tostring(aura.spellId),
+				tostring(aura.icon),
+				IsWellFed(aura) and "  <- Well Fed" or ""
+			)
+		)
 	end
 end
 
 local holder = CreateFrame("Frame", "Roth_UIBelt", UIParent)
 holder:SetSize(#SLOTS * SIZE + (#SLOTS - 1) * GAP, SIZE)
 holder:SetFrameStrata("MEDIUM")
+holder:SetClampedToScreen(true)
+holder:SetClampRectInsets(-44, 44, 0, 0)
 Belt.holder = holder
 Belt.buttons = {}
 holder.defaultPosition = { a1 = "BOTTOMLEFT", af = "Roth_UIPlayerFrame", a2 = "BOTTOMRIGHT", x = -12, y = 26 }
@@ -377,6 +387,13 @@ do
 	end
 end
 
+-- One socket per slot: dark stone socket, the item's icon masked round inside a metal
+-- ring, a rim glowing in the slot's colour, round cooldown swipe, count and key binding.
+-- An empty slot is a dim socket with no rim.
+local ART = SIZE * 2.25 -- socket art is 128 px with a 64 px ring: ring ~38 px across
+local ICON = SIZE - 6
+local MASK = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
+
 for i, cat in ipairs(SLOTS) do
 	local b = CreateFrame("Button", "Roth_UIBelt" .. i, holder, "SecureActionButtonTemplate")
 	b:SetSize(SIZE, SIZE)
@@ -386,83 +403,90 @@ for i, cat in ipairs(SLOTS) do
 	b.cat = cat
 	b.liquidKey = (cat == "mana") and THIRD or cat
 
-	local bg = b:CreateTexture(nil, "BACKGROUND", nil, -8)
-	bg:SetTexture(MEDIA .. "combo_pot_bg")
-	bg:SetPoint("CENTER")
-	bg:SetSize(SIZE * 1.5, SIZE * 1.5)
+	local socket = b:CreateTexture(nil, "BACKGROUND", nil, -8)
+	socket:SetTexture(MEDIA .. "combo_orb_bg")
+	socket:SetPoint("CENTER")
+	socket:SetSize(ART, ART)
 
-	local liquid = CreateFrame("StatusBar", nil, b)
-	liquid:SetSize(SIZE * 1.5 * FILL_W, SIZE * 1.5 * FILL_H)
-	liquid:SetPoint("CENTER", b, "CENTER", 0, SIZE * 1.5 * FILL_Y)
-	liquid:SetOrientation("VERTICAL")
-	liquid:SetStatusBarTexture(MEDIA .. "combo_pot_fill1")
-	local c = LIQUID[b.liquidKey]
-	liquid:SetStatusBarColor(c[1], c[2], c[3])
-	liquid:SetMinMaxValues(0, 1)
-	liquid:SetValue(1)
-	liquid:SetFrameLevel(b:GetFrameLevel())
-	b.liquid = liquid
+	local mask = b:CreateMaskTexture()
+	mask:SetTexture(MASK, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+	mask:SetPoint("CENTER")
+	mask:SetSize(ICON, ICON)
+
+	local icon = b:CreateTexture(nil, "ARTWORK")
+	icon:SetPoint("CENTER")
+	icon:SetSize(ICON, ICON)
+	icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+	icon:AddMaskTexture(mask)
+	b.icon = icon
 
 	local over = CreateFrame("Frame", nil, b)
 	over:SetAllPoints(b)
-	over:SetFrameLevel(liquid:GetFrameLevel() + 2)
+	over:SetFrameLevel(b:GetFrameLevel() + 2)
 
-	local icons = Opt("icons", true)
-	local icon = over:CreateTexture(nil, "ARTWORK")
-	icon:SetPoint("CENTER")
-	icon:SetSize(SIZE - 14, SIZE - 14)
-	icon:SetTexCoord(0.1, 0.9, 0.1, 0.9)
-	icon:SetShown(icons)
-	b.icon = icon
-
-	local cd = CreateFrame("Cooldown", nil, over, "CooldownFrameTemplate")
-	cd:SetAllPoints(icon)
+	local cd = CreateFrame("Cooldown", nil, b, "CooldownFrameTemplate")
+	cd:SetPoint("CENTER")
+	cd:SetSize(ICON, ICON)
+	cd:SetSwipeTexture(MASK)
+	cd:SetSwipeColor(0, 0, 0, 0.75)
+	cd:SetUseCircularEdge(true)
 	cd:SetDrawEdge(false)
-	cd:SetAlpha(icons and 1 or 0)
+	cd:SetHideCountdownNumbers(true)
+	cd:SetFrameLevel(b:GetFrameLevel() + 1)
 	b.cooldown = cd
-	local border = over:CreateTexture(nil, "OVERLAY", nil, -2)
-	border:SetTexture(MEDIA .. "combo_pot_border")
-	border:SetPoint("CENTER")
-	border:SetSize(SIZE * 1.5, SIZE * 1.5)
+
+	-- rim in the slot's colour, under the metal ring
+	local rim = over:CreateTexture(nil, "OVERLAY", nil, -3)
+	rim:SetTexture(MEDIA .. "combo_orb_glow")
+	rim:SetPoint("CENTER")
+	rim:SetSize(ART, ART)
+	rim:SetBlendMode("ADD")
+	local c = LIQUID[b.liquidKey]
+	rim:SetVertexColor(c[1], c[2], c[3])
+	rim:SetAlpha(0.55)
+	b.rim = rim
+
+	local ring = over:CreateTexture(nil, "OVERLAY", nil, -2)
+	ring:SetTexture(MEDIA .. "combo_orb_border")
+	ring:SetPoint("CENTER")
+	ring:SetSize(ART, ART)
+
 	local gloss = over:CreateTexture(nil, "OVERLAY", nil, -1)
-	gloss:SetTexture(MEDIA .. "combo_pot_highlight")
-	gloss:SetAllPoints(border)
+	gloss:SetTexture(MEDIA .. "combo_orb_highlight")
+	gloss:SetPoint("CENTER")
+	gloss:SetSize(ART, ART)
 	gloss:SetBlendMode("ADD")
-	gloss:SetAlpha(0.5)
+	gloss:SetAlpha(0.35)
 
 	local count = over:CreateFontString(nil, "OVERLAY")
 	count:SetFont(cfg.font, 12, "THINOUTLINE")
-	count:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", 1, -1)
+	count:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", 3, -3)
 	count:SetTextColor(1, 0.9, 0.7)
 	b.count = count
 
 	local key = over:CreateFontString(nil, "OVERLAY")
 	key:SetFont(cfg.font, 10, "THINOUTLINE")
-	key:SetPoint("TOPLEFT", b, "TOPLEFT", 1, 0)
+	key:SetPoint("TOPLEFT", b, "TOPLEFT", -2, 2)
 	key:SetTextColor(0.7, 0.6, 0.5)
 	b.key = key
 
 	local hl = b:CreateTexture(nil, "HIGHLIGHT")
-	hl:SetTexture(MEDIA .. "combo_pot_glow")
-	hl:SetAllPoints(border)
+	hl:SetTexture(MEDIA .. "combo_orb_glow")
+	hl:SetPoint("CENTER")
+	hl:SetSize(ART, ART)
 	hl:SetBlendMode("ADD")
+	hl:SetAlpha(0.6)
 
 	if cat == "food" then
-		-- pulses while Well Fed is missing or running out and you carry buff food
-		local warn = over:CreateTexture(nil, "OVERLAY", nil, 1)
-		warn:SetTexture(MEDIA .. "combo_pot_glow")
-		warn:SetAllPoints(border)
-		warn:SetBlendMode("ADD")
-		warn:SetVertexColor(1, 0.6, 0.15)
-		warn:SetAlpha(0)
-		local pulse = warn:CreateAnimationGroup()
+		-- the rim pulses while Well Fed is missing or running out and you carry buff food
+		local pulse = rim:CreateAnimationGroup()
 		pulse:SetLooping("BOUNCE")
 		local fade = pulse:CreateAnimation("Alpha")
-		fade:SetFromAlpha(0.15)
-		fade:SetToAlpha(0.9)
+		fade:SetFromAlpha(0.25)
+		fade:SetToAlpha(1)
 		fade:SetDuration(0.8)
 		fade:SetSmoothing("IN_OUT")
-		b.warn, b.warnPulse = warn, pulse
+		b.warnPulse = pulse
 	end
 
 	b:SetScript("OnEnter", function(self)
@@ -485,90 +509,66 @@ local function Num(v)
 	return type(v) == "number" and v or nil
 end
 
-local function Level(b, now)
-	if b.cat == "food" then
-		-- the food flask shows how much Well Fed is left, not the food's cooldown
-		return (WellFedState(now))
+-- empty slot: dim socket, no icon, no rim
+local function ShowStock(b)
+	local have = (b.have or 0) > 0
+	b.icon:SetDesaturated(not have)
+	b.icon:SetAlpha(have and 1 or 0.35)
+	if not (b.warnPulse and b.warnPulse:IsPlaying()) then
+		b.rim:SetAlpha(have and 0.55 or 0)
 	end
-	if (b.have or 0) == 0 then
-		return 0, false
-	end
-	local start, duration = b.cdStart, b.cdDuration
-	if start and duration and duration > 1.5 then
-		local p = (now - start) / duration
-		if p < 1 then
-			return math.max(0, p), true
-		end
-	end
-	return 1, false
 end
-
-local driver = CreateFrame("Frame", nil, holder)
-driver:Hide()
-driver:SetScript("OnUpdate", function()
-	local now, running = GetTime(), false
-	for _, b in ipairs(Belt.buttons) do
-		local v, busy = Level(b, now)
-		b.liquid:SetValue(v)
-		running = running or busy
-	end
-	if not running then
-		driver:Hide()
-	end
-end)
 
 function Belt:Update()
 	for _, b in ipairs(self.buttons) do
 		local id = b.itemID
-		b.cdStart, b.cdDuration = nil, nil
 		if id then
 			local n = Num(C_Item.GetItemCount(id, false, true)) or 0
 			b.have = n
 			b.count:SetText(n > 1 and n or "")
-			b.icon:SetDesaturated(n == 0)
-			local start, duration, enable = C_Container.GetItemCooldown(id)
-			start, duration, enable = Num(start), Num(duration), Num(enable)
-			if enable and enable ~= 0 and start and duration and duration > 0 then
-				b.cdStart, b.cdDuration = start, duration
-				b.cooldown:SetCooldown(start, duration)
-			else
-				b.cooldown:Clear()
+			if b.cat ~= "food" then
+				local start, duration, enable = C_Container.GetItemCooldown(id)
+				start, duration, enable = Num(start), Num(duration), Num(enable)
+				if enable and enable ~= 0 and start and duration and duration > 0 then
+					b.cooldown:SetCooldown(start, duration)
+				else
+					b.cooldown:Clear()
+				end
 			end
 		else
 			b.have = 0
 			b.count:SetText("")
 			b.cooldown:Clear()
 		end
-		local v = Level(b, GetTime())
-		b.liquid:SetValue(v)
-		local c = LIQUID[b.liquidKey]
-		if (b.have or 0) == 0 then
-			b.liquid:SetStatusBarColor(0.3, 0.3, 0.3)
-		else
-			b.liquid:SetStatusBarColor(c[1], c[2], c[3])
-		end
+		ShowStock(b)
 		local bound = GetBindingKey("CLICK " .. b:GetName() .. ":LeftButton")
 		b.key:SetText(bound and GetBindingText(bound, true) or "")
 	end
 	self:UpdateFoodWarning()
-	driver:Show()
 end
 
--- Food flask: liquid follows Well Fed's time left; pulse when it is missing or low
--- and buff food is in the bags. Out of combat only (that is when you can eat).
+-- Food socket: the swipe shows how much of Well Fed is left (lit part = time left), the
+-- rim pulses when it is missing or low and buff food is in the bags. Out of combat only.
 function Belt:UpdateFoodWarning()
 	for _, b in ipairs(self.buttons) do
 		if b.cat == "food" then
-			local fraction, low = WellFedState(GetTime())
-			b.liquid:SetValue(fraction)
+			local wf = self.wellFed
+			if wf and wf.duration and wf.duration > 0 and wf.expires and wf.expires > 0 then
+				b.cooldown:SetReverse(true)
+				b.cooldown:SetCooldown(wf.expires - wf.duration, wf.duration)
+			else
+				b.cooldown:SetReverse(false)
+				b.cooldown:Clear()
+			end
+			local _, low = WellFedState(GetTime())
 			local buffFood = b.itemID and self.isBuffFood and self.isBuffFood[b.itemID]
 			local warn = low and buffFood and (b.have or 0) > 0 and not InCombatLockdown()
 			if warn and not b.warnPulse:IsPlaying() then
 				b.warnPulse:Play()
 			elseif not warn and b.warnPulse:IsPlaying() then
 				b.warnPulse:Stop()
-				b.warn:SetAlpha(0)
 			end
+			ShowStock(b)
 		end
 	end
 end
@@ -693,7 +693,7 @@ for i = 1, #SLOTS do
 	_G["BINDING_NAME_CLICK Roth_UIBelt" .. i .. ":LeftButton"] = "Belt " .. i
 end
 
--- which item IDs give Well Fed (only those make the food flask pulse)
+-- which item IDs give Well Fed (only those make the food socket pulse)
 Belt.isBuffFood = {}
 for _, id in ipairs(Data.FOOD_BUFF) do
 	Belt.isBuffFood[id] = true
@@ -704,4 +704,3 @@ C_Timer.NewTicker(5, function()
 	Belt:ScanWellFed()
 	Belt:UpdateFoodWarning()
 end)
-

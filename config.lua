@@ -75,7 +75,7 @@ cfg.swingTimer = {
 	enabled = true,
 	ranged = true, -- Auto Shot, wands and throwing too
 	scale = 1,
-	gap = 10, -- above the player cast bar
+	gap = 24, -- above the player cast bar (clears the cast bar's stone frame)
 }
 
 -- Out of combat, missing class buffs: icons on each member's frame and a
@@ -93,8 +93,7 @@ cfg.buffCoverage = {
 -- for warriors / rogues), buff food, bandage (Key Bindings > AddOns > DiabolusUnits: Belt 1-5).
 cfg.belt = {
 	show = true,
-	icons = true, -- item icons and cooldown swipe inside the flasks
-	foodWarnMinutes = 10, -- food flask pulses when Well Fed has less than this left (or is missing)
+	foodWarnMinutes = 10, -- food socket rim pulses when Well Fed has less than this left (or is missing)
 	x = 6, -- offset relative to health orb BOTTOMRIGHT (clear of the orb rim)
 	y = 24, -- above bottom stone ledge / XP bar
 }
@@ -121,12 +120,27 @@ cfg.standardMode = {
 	integrateBags = true, -- dock Bag slots + Backpack on the right outer stone wing
 	integratePetBar = true, -- anchor PetActionBar to the top-left of the uppermost active actionbar row
 	beltAnchor = "bags", -- "bags" = above Roth_UIBagDock in Standard Mode; "actionbar" = top-left of top actionbar
+	petBarAnchor = "center", -- pet bar over the top action row: "left", "center" or "right"
+	targetScale = 0.9, -- target frame default scale (the edit layout's size wins)
+	microDockOffset = 215, -- game menu wing: centre's distance outward from the demon statue
+	bagDockOffset = 220, -- bag wing: centre's distance outward from the angel statue
+	dockY = -6, -- game menu and bag wings: vertical offset (negative tucks the bottom rim under the screen edge)
+	microButtonsX = 0, -- game menu buttons inside their bay (0 = cleanly centered in the recessed bay)
+	bagButtonsX = 0, -- bag buttons inside their bay (0 = cleanly centered in the recessed bay)
+	beltDockX = 18, -- horizontal offset of potion belt over bag dock (shifts right to clear angel statue)
+	beltDockY = 8, -- vertical offset of potion belt above bag dock (8px gives clean gap above bag icons)
+	petFrameOrbGap = -10, -- pet frame above an orb: its bottom edge vs the orb frame's top (both have empty margins; -10 leaves ~10 px of air)
+	petFrameAnchor = "healthOrb", -- "healthOrb" = above the health orb; "orb" = above the power orb;
+	-- "petbarLeft" / "petbarRight" = up and left / right of the pet bar
+	targetFrameAnchor = "powerOrb", -- "powerOrb" = above power orb; "healthOrb" = above health orb; "top" = top of screen
+	targetTargetFrameAnchor = "topright", -- "topright" = top-right over target; "topleft" = top-left; "left" = left; "right" = right
+	targetFrameOrbGap = 12, -- target frame above power orb: its bottom edge vs the orb frame's top
 	dockFadeAlpha = 0.85, -- idle alpha for Micro Menu & Bag buttons (1.0 on mouseover)
 	padOrbX = 325, -- orb X offset in Gamepad mode (around crossbar)
 	standardOrbX = 325, -- orb X offset in Standard mode (hugging the 12-slot stone bar)
 	standardBarScale = 1.30, -- scale of the 12-slot stone bar & action buttons in Standard mode
 	standardOrbScale = 0.85, -- default scale of both orbs in Standard mode (edit layout scale wins)
-	standardStatueScale = 0.85, -- default scale of the demon & angel statues in Standard mode
+	standardStatueScale = 0.78, -- default scale of the demon & angel statues in Standard mode
 }
 
 ---------------------------------------------
@@ -289,8 +303,18 @@ cfg.units = {
 	target = {
 		show = true,
 		threatGlow = true, -- the frame glows red / orange while the target is attacking you
+		showDragonCrest = true, -- horned dragon crest atop boss / elite targets
+		healthFormat = "both", -- "both", "value", "percent", "deficit", "current", "none"
+		powerFormat = "both", -- "both", "value", "percent", "none"
+		details = {
+			showName = true,
+			showLevel = true,
+			showCreatureType = true,
+			showClassification = true,
+			showClass = true,
+		},
 		scale = 1.5,
-		width = 300,
+		width = 240, -- was 270 (originally 300)
 		height = 64,
 		pos = { a1 = "TOP", a2 = "TOP", af = "UIParent", x = 0, y = -80 }, -- Down 10px
 		health = {
@@ -334,6 +358,7 @@ cfg.units = {
 		auras = {
 			show = true,
 			size = 15,
+			placement = "right", -- "right", "above", "below", "left"
 			onlyShowPlayerBuffs = false,
 			showStealableBuffs = true,
 			onlyShowPlayerDebuffs = false,
@@ -392,10 +417,11 @@ cfg.units = {
 	--TARGETTARGET
 	targettarget = {
 		show = true,
+		healthFormat = "deficit", -- "deficit", "percent", "value", "current", "both", "none"
 		width = 150,
 		height = 64,
 		scale = 1.3,
-		pos = { a1 = "TOP", a2 = "TOP", af = "UIParent", x = -238, y = -90 }, -- Shift
+		pos = { a1 = "BOTTOMRIGHT", a2 = "TOPRIGHT", af = "Roth_UITargetFrame", x = 0, y = 6 }, -- top-right over target frame, follows it
 		auras = {
 			show = true,
 			size = 22,
@@ -423,7 +449,8 @@ cfg.units = {
 	--PET
 	pet = {
 		show = true,
-		scale = 0.85,
+		healthFormat = "deficit", -- "deficit", "percent", "value", "current", "both", "none"
+		scale = 0.64, -- 25% smaller than 0.85
 		width = 128,
 		height = 64,
 		pos = { a1 = "RIGHT", a2 = "RIGHT", af = "UIParent", x = -30, y = -150 }, -- Shift
@@ -433,9 +460,11 @@ cfg.units = {
 			onlyShowPlayerDebuffs = false,
 			showDebuffType = false,
 		},
+		nameSize = 12,
+		nameY = -23, -- name: offset of its bottom from the frame top (lower = closer to the health bar)
 		happiness = {
-			scale = 1.25,
-			pos = { a1 = "LEFT", a2 = "LEFT", af = "self.Name", x = -5, y = 0 },
+			scale = 1,
+			pos = { a1 = "RIGHT", a2 = "LEFT", af = "self.Name", x = -3, y = 0 }, -- just left of the name text
 		},
 		health = {
 			texture = (mediapath .. "statusbar3"),
@@ -454,6 +483,11 @@ cfg.units = {
 		portrait = {
 			show = true,
 			use3D = false,
+			size = 60, -- portrait width (the frame is 128 wide; full width was oversized)
+			lift = -14, -- portrait above the frame: move it down onto the health bar (frame units)
+			side = true, -- portrait beside the frame on the left instead of above it
+			sideX = 73, -- side portrait: horizontal offset (portrait units; higher = closer to the bars)
+			sideY = 13, -- side portrait: vertical offset (portrait units)
 		},
 		castbar = {
 			show = false,
@@ -478,6 +512,8 @@ cfg.units = {
 	--FOCUS
 	focus = {
 		show = true,
+		healthFormat = "both", -- "both", "percent", "deficit", "current", "value", "none"
+		powerFormat = "value", -- "value", "percent", "none"
 		width = 128,
 		height = 64,
 		scale = 0.85,
@@ -543,6 +579,7 @@ cfg.units = {
 	--PETTARGET
 	pettarget = {
 		show = false,
+		healthFormat = "deficit", -- "deficit", "percent", "value", "current", "both", "none"
 		width = 128,
 		height = 64,
 		scale = 0.85,
@@ -569,6 +606,7 @@ cfg.units = {
 	--FOCUSTARGET
 	focustarget = {
 		show = false,
+		healthFormat = "deficit", -- "deficit", "percent", "value", "current", "both", "none"
 		width = 128,
 		height = 64,
 		scale = 0.85,
@@ -595,6 +633,7 @@ cfg.units = {
 	--PARTY
 	party = {
 		show = true, -- Roth party frames (units/party.lua); Blizzard's are ghosted (DESIGN.md §5.3)
+		healthFormat = "deficit", -- "deficit", "percent", "value", "current", "both", "none"
 		vertical = true, -- read by shared helpers in core/lib.lua (aura watch, absorb); the party column is always vertical
 		alpha = {
 			notinrange = 0.5,
@@ -633,6 +672,7 @@ cfg.units = {
 	--RAID
 	raid = {
 		show = true,
+		healthFormat = "deficit", -- "deficit", "percent", "value", "current", "both", "none"
 		layout = "tiles", -- "tiles": square Diablo tiles, health filling upwards (fits 40); "bars": zork's bar frames
 		tiles = {
 			spacing = 4, -- gap between tiles
@@ -767,7 +807,10 @@ cfg.playercolor = RAID_CLASS_COLORS[cfg.playerclass]
 --rTooltip
 cfg.rtooltip = {
 	scale = 1.15,
-	pos = { "BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", -10, 150 },
+	-- where tooltips go: "bottomright" (above the belt / bag wing), "bottomleft" (mirrored, above
+	-- the game menu wing), "center" (above the action bars, cast bar and swing timer), "cursor"
+	anchor = "bottomright",
+	pos = { "BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", -10, 257 }, -- "bottomright"; also the fallback
 	cursorfocus = false,
 	itemDress = true, -- item tooltips: Diablo title plate, footer rule and the item's icon beside it, in its quality colour
 }

@@ -20,7 +20,7 @@
 -- Layout numbers come from SettingsListMixin:OnLoad (Blizzard_SettingsList.lua:53-82):
 -- 10px top and bottom padding, 25px left inset, 9px between rows.
 
-local ADDON_NAME, ns = ...
+local _, ns = ...
 
 local Panel = ns.UI.Panel
 local Theme = Panel.Theme
@@ -54,6 +54,15 @@ function Content.Create(parent)
 	header.Divider = divider
 
 	frame.Header = header
+
+	-- Subtab bar: for pages that declare `tabs`
+	local tabBar = CreateFrame("Frame", nil, frame)
+	tabBar:SetHeight(28)
+	tabBar:SetPoint("TOPLEFT", header, "BOTTOMLEFT", Theme.HEADER_TITLE_X, 2)
+	tabBar:SetPoint("TOPRIGHT", header, "BOTTOMRIGHT", -Theme.HEADER_TITLE_X, 2)
+	tabBar:Hide()
+	frame.TabBar = tabBar
+	frame.tabButtons = {}
 
 	-- Scroll region.
 	local scroll = CreateFrame("ScrollFrame", nil, frame)
@@ -113,7 +122,50 @@ function Content.Create(parent)
 	return frame
 end
 
--- ── Page building ─────────────────────────────────────────────────────────────
+-- ── Unit Frame Highlight ─────────────────────────────────────────────────────
+
+local highlightFrame = nil
+local highlightTimer = nil
+local function flashUnitFrame(targetFrame)
+	if not targetFrame or not targetFrame:IsShown() then
+		return
+	end
+	if not highlightFrame then
+		highlightFrame = CreateFrame("Frame", nil, UIParent)
+		highlightFrame:SetFrameStrata("DIALOG")
+		local border = highlightFrame:CreateTexture(nil, "OVERLAY")
+		border:SetAllPoints()
+		border:SetColorTexture(Theme.COLOR_ACCENT.r, Theme.COLOR_ACCENT.g, Theme.COLOR_ACCENT.b, 0.8)
+		highlightFrame.Border = border
+	end
+	if highlightTimer then
+		highlightTimer:Cancel()
+		highlightTimer = nil
+	end
+	highlightFrame:ClearAllPoints()
+	highlightFrame:SetPoint("TOPLEFT", targetFrame, "TOPLEFT", -3, 3)
+	highlightFrame:SetPoint("BOTTOMRIGHT", targetFrame, "BOTTOMRIGHT", 3, -3)
+	highlightFrame:SetAlpha(0.9)
+	highlightFrame:Show()
+
+	local steps = 8
+	local step = 0
+	highlightTimer = C_Timer.NewTicker(0.08, function()
+		step = step + 1
+		local alpha = 0.9 * (1 - (step / steps))
+		if highlightFrame and highlightFrame.SetAlpha then
+			highlightFrame:SetAlpha(math.max(0, alpha))
+		end
+		if step >= steps then
+			if highlightFrame then
+				highlightFrame:Hide()
+			end
+			highlightTimer = nil
+		end
+	end, steps)
+end
+
+-- ── Page & Tab building ───────────────────────────────────────────────────────
 
 -- Builds one page's rows, once. `page.build` (UI/Panel/Spec.lua) returns a flat array of
 -- row specs in render order, headers included.
@@ -135,11 +187,202 @@ function ContentMixin:EnsurePage(page)
 		end
 	end
 	page.rows = rows
-	-- Recorded, not only printed. Rows.Create swallows a bad spec so one broken row cannot
-	-- take its page down, which is right at runtime and wrong under test — a silently
-	-- missing control looks exactly like a clean build. The offline harness asserts zero.
 	page.skippedRows = skipped
 	return rows
+end
+
+function ContentMixin:EnsureTab(tab)
+	if tab.rows then
+		return tab.rows
+	end
+
+	local rows = {}
+	local skipped = 0
+	local specs = tab.build and tab.build() or {}
+	for _, spec in ipairs(specs) do
+		local row = Rows.Create(self.Child, spec)
+		if row then
+			row:Hide()
+			rows[#rows + 1] = row
+		else
+			skipped = skipped + 1
+		end
+	end
+	tab.rows = rows
+	tab.skippedRows = skipped
+	return rows
+end
+
+function ContentMixin:UpdateTabButtons()
+	local page = self.page
+	if not (page and page.tabs and #page.tabs > 0) then
+		self.TabBar:Hide()
+		return
+	end
+
+	self.TabBar:Show()
+	local prevBtn = nil
+
+	for i, tab in ipairs(page.tabs) do
+		local btn = self.tabButtons[i]
+		if not btn then
+			btn = CreateFrame("Button", nil, self.TabBar)
+			btn:SetHeight(24)
+
+			local bg = btn:CreateTexture(nil, "BACKGROUND")
+			bg:SetAllPoints(btn)
+			bg:SetColorTexture(Theme.COLOR_SURFACE.r, Theme.COLOR_SURFACE.g, Theme.COLOR_SURFACE.b, 0.95)
+			btn.Bg = bg
+
+			local border = btn:CreateTexture(nil, "BORDER")
+			border:SetPoint("TOPLEFT", btn, "TOPLEFT", 0, 0)
+			border:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", 0, 0)
+			border:SetColorTexture(Theme.COLOR_BORDER.r, Theme.COLOR_BORDER.g, Theme.COLOR_BORDER.b, 0.8)
+			btn.Border = border
+
+			local line = btn:CreateTexture(nil, "OVERLAY")
+			line:SetHeight(2)
+			line:SetPoint("BOTTOMLEFT", btn, "BOTTOMLEFT", 0, 0)
+			line:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", 0, 0)
+			line:SetColorTexture(Theme.COLOR_ACCENT.r, Theme.COLOR_ACCENT.g, Theme.COLOR_ACCENT.b, 1)
+			btn.ActiveLine = line
+
+			local text = btn:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+			text:SetPoint("CENTER", btn, "CENTER", 0, 1)
+			btn.Text = text
+
+			local hl = btn:CreateTexture(nil, "HIGHLIGHT")
+			hl:SetAllPoints(btn)
+			hl:SetColorTexture(Theme.COLOR_ACCENT.r, Theme.COLOR_ACCENT.g, Theme.COLOR_ACCENT.b, 0.15)
+			btn:SetHighlightTexture(hl)
+
+			local content = self
+			btn:SetScript("OnClick", function()
+				if SOUNDKIT and SOUNDKIT.IG_CHARACTER_INFO_TAB then
+					PlaySound(SOUNDKIT.IG_CHARACTER_INFO_TAB)
+				elseif SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION then
+					PlaySound(SOUNDKIT.IG_MAINMENU_OPTION)
+				end
+				content:SetTab(btn.tab)
+			end)
+
+			btn:SetScript("OnEnter", function()
+				if not btn.selected then
+					btn.Text:SetTextColor(
+						Theme.COLOR_TEXT_PRIMARY.r,
+						Theme.COLOR_TEXT_PRIMARY.g,
+						Theme.COLOR_TEXT_PRIMARY.b
+					)
+					btn.Border:SetColorTexture(
+						Theme.COLOR_ACCENT_DIM.r,
+						Theme.COLOR_ACCENT_DIM.g,
+						Theme.COLOR_ACCENT_DIM.b,
+						0.8
+					)
+				end
+			end)
+
+			btn:SetScript("OnLeave", function()
+				if not btn.selected then
+					btn.Text:SetTextColor(Theme.COLOR_TEXT_MUTED.r, Theme.COLOR_TEXT_MUTED.g, Theme.COLOR_TEXT_MUTED.b)
+					btn.Border:SetColorTexture(Theme.COLOR_BORDER.r, Theme.COLOR_BORDER.g, Theme.COLOR_BORDER.b, 0.8)
+				end
+			end)
+
+			self.tabButtons[i] = btn
+		end
+
+		btn.tab = tab
+		btn.Text:SetText(tab.label or "")
+		local strWidth = btn.Text:GetStringWidth() or 60
+		local btnWidth = math.max(74, math.floor(strWidth + 24))
+		btn:SetSize(btnWidth, 24)
+
+		btn:ClearAllPoints()
+		if prevBtn then
+			btn:SetPoint("LEFT", prevBtn, "RIGHT", 4, 0)
+		else
+			btn:SetPoint("LEFT", self.TabBar, "LEFT", 0, 0)
+		end
+		btn:Show()
+		prevBtn = btn
+	end
+
+	for j = #page.tabs + 1, #self.tabButtons do
+		self.tabButtons[j]:Hide()
+	end
+
+	self:UpdateTabButtonStates()
+end
+
+function ContentMixin:UpdateTabButtonStates()
+	for _, btn in ipairs(self.tabButtons) do
+		if btn:IsShown() then
+			local isSelected = (btn.tab == self.activeTab)
+			btn.selected = isSelected
+			if isSelected then
+				btn.Text:SetTextColor(Theme.COLOR_ACCENT.r, Theme.COLOR_ACCENT.g, Theme.COLOR_ACCENT.b)
+				btn.Text:SetFontObject("GameFontHighlight")
+				btn.Border:SetColorTexture(Theme.COLOR_ACCENT.r, Theme.COLOR_ACCENT.g, Theme.COLOR_ACCENT.b, 0.95)
+				btn.Bg:SetColorTexture(
+					Theme.COLOR_SURFACE.r + 0.04,
+					Theme.COLOR_SURFACE.g + 0.03,
+					Theme.COLOR_SURFACE.b + 0.02,
+					1
+				)
+				btn.ActiveLine:Show()
+			else
+				btn.Text:SetTextColor(Theme.COLOR_TEXT_MUTED.r, Theme.COLOR_TEXT_MUTED.g, Theme.COLOR_TEXT_MUTED.b)
+				btn.Text:SetFontObject("GameFontNormal")
+				btn.Border:SetColorTexture(Theme.COLOR_BORDER.r, Theme.COLOR_BORDER.g, Theme.COLOR_BORDER.b, 0.8)
+				btn.Bg:SetColorTexture(Theme.COLOR_SURFACE.r, Theme.COLOR_SURFACE.g, Theme.COLOR_SURFACE.b, 0.85)
+				btn.ActiveLine:Hide()
+			end
+		end
+	end
+end
+
+function ContentMixin:SetTab(tab)
+	if not tab or (self.activeTab == tab and tab.rows) then
+		return
+	end
+
+	if self.activeTab and self.activeTab.rows then
+		for _, row in ipairs(self.activeTab.rows) do
+			row:Hide()
+		end
+	end
+
+	self.activeTab = tab
+	if self.page then
+		self.page.activeTabId = tab.id
+	end
+
+	self:EnsureTab(tab)
+	self:RefreshRows()
+
+	self.Scroll:SetVerticalScroll(0)
+	self:LayoutRows()
+
+	self:UpdateTabButtonStates()
+	Panel.Gamepad.RefreshNavigation()
+
+	-- Highlight corresponding frame in game if available
+	if tab.frameName then
+		local f = rawget(_G, tab.frameName)
+		if f then
+			flashUnitFrame(f)
+		end
+	end
+end
+
+function ContentMixin:GetActiveRows()
+	if self.page and self.page.tabs and #self.page.tabs > 0 and self.activeTab then
+		return self.activeTab.rows or {}
+	elseif self.page then
+		return self.page.rows or {}
+	end
+	return {}
 end
 
 -- ── Showing a page ────────────────────────────────────────────────────────────
@@ -149,25 +392,58 @@ function ContentMixin:SetPage(page)
 		return
 	end
 
-	if self.page and self.page.rows then
-		for _, row in ipairs(self.page.rows) do
-			row:Hide()
+	if self.page then
+		if self.page.tabs and self.activeTab and self.activeTab.rows then
+			for _, row in ipairs(self.activeTab.rows) do
+				row:Hide()
+			end
+		elseif self.page.rows then
+			for _, row in ipairs(self.page.rows) do
+				row:Hide()
+			end
 		end
 	end
 
 	self.page = page
+	self.activeTab = nil
 	self.Header.Title:SetText(page and page.label or "")
 
-	if page then
-		self:EnsurePage(page)
-		self:RefreshRows()
+	if page and page.tabs and #page.tabs > 0 then
+		self.Header.Divider:ClearAllPoints()
+		self.Header.Divider:SetPoint("TOP", self.TabBar, "BOTTOM", 0, -2)
+		self.Scroll:ClearAllPoints()
+		self.Scroll:SetPoint("TOPLEFT", self.TabBar, "BOTTOMLEFT", Theme.LIST_TOP_X, -8)
+		self.Scroll:SetPoint("BOTTOMRIGHT", self, "BOTTOMRIGHT", Theme.LIST_BOTTOM_X, Theme.LIST_BOTTOM_Y)
+
+		self:UpdateTabButtons()
+
+		local targetTab = page.tabs[1]
+		if page.activeTabId then
+			for _, t in ipairs(page.tabs) do
+				if t.id == page.activeTabId then
+					targetTab = t
+					break
+				end
+			end
+		end
+		self:SetTab(targetTab)
+	else
+		self.TabBar:Hide()
+		self.Header.Divider:ClearAllPoints()
+		self.Header.Divider:SetPoint("TOP", self.Header, "TOP", 0, -Theme.HEADER_HEIGHT)
+		self.Scroll:ClearAllPoints()
+		self.Scroll:SetPoint("TOPLEFT", self.Header, "BOTTOMLEFT", Theme.LIST_TOP_X, Theme.LIST_TOP_Y)
+		self.Scroll:SetPoint("BOTTOMRIGHT", self, "BOTTOMRIGHT", Theme.LIST_BOTTOM_X, Theme.LIST_BOTTOM_Y)
+
+		if page then
+			self:EnsurePage(page)
+			self:RefreshRows()
+		end
+
+		self.Scroll:SetVerticalScroll(0)
+		self:LayoutRows()
+		Panel.Gamepad.RefreshNavigation()
 	end
-
-	self.Scroll:SetVerticalScroll(0)
-	self:LayoutRows()
-
-	-- The set of navigable buttons just changed wholesale.
-	Panel.Gamepad.RefreshNavigation()
 end
 
 -- ── Filtering ─────────────────────────────────────────────────────────────────
@@ -218,8 +494,8 @@ end
 -- ── Layout ────────────────────────────────────────────────────────────────────
 
 function ContentMixin:LayoutRows()
-	local page = self.page
-	if not page or not page.rows then
+	local rows = self:GetActiveRows()
+	if not self.page or #rows == 0 then
 		return
 	end
 
@@ -236,7 +512,7 @@ function ContentMixin:LayoutRows()
 	local shown = {}
 	local lastHeaderIndex = nil
 	local headerHasContent = false
-	for index, row in ipairs(page.rows) do
+	for index, row in ipairs(rows) do
 		if row.isHeader then
 			if lastHeaderIndex and not headerHasContent then
 				shown[lastHeaderIndex] = false
@@ -261,7 +537,7 @@ function ContentMixin:LayoutRows()
 	-- Second pass: place what is left.
 	local y = Theme.LIST_VERTICAL_PAD
 	local first = true
-	for index, row in ipairs(page.rows) do
+	for index, row in ipairs(rows) do
 		if shown[index] then
 			if not first then
 				y = y + Theme.LIST_SPACING
@@ -303,13 +579,13 @@ end
 -- flag rather than per change, so a profile switch — which notifies every cue and every
 -- tunable listener at once — costs one pass, not several hundred.
 function ContentMixin:RefreshRows()
-	local page = self.page
-	if not page or not page.rows then
+	local rows = self:GetActiveRows()
+	if not self.page or #rows == 0 then
 		return
 	end
 
 	local navigationChanged = false
-	for _, row in ipairs(page.rows) do
+	for _, row in ipairs(rows) do
 		if row.RefreshValue then
 			row:RefreshValue()
 		end

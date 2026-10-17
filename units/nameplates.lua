@@ -51,6 +51,12 @@ local HEALTH = { left = 24.5, right = -24.5, top = -21.9, bottom = 28.7 }
 local MAX_DEBUFFS = 5
 
 local function Opt(key, default)
+	if ns.Settings and ns.Settings.Get then
+		local val = ns.Settings.Get("nameplates." .. key)
+		if val ~= nil then
+			return val
+		end
+	end
 	local n = cfg.nameplates
 	if n and n[key] ~= nil then
 		return n[key]
@@ -443,7 +449,9 @@ function NP.StartCast(plate, channel)
 	local interpolation = Enum.StatusBarInterpolation and Enum.StatusBarInterpolation.Immediate or 0
 	local direction = Enum.StatusBarTimerDirection
 	direction = channel and (direction and direction.RemainingTime or 1) or (direction and direction.ElapsedTime or 0)
-	local ok = type(duration) ~= "nil" and cb.SetTimerDuration and pcall(cb.SetTimerDuration, cb, duration, interpolation, direction)
+	local ok = type(duration) ~= "nil"
+		and cb.SetTimerDuration
+		and pcall(cb.SetTimerDuration, cb, duration, interpolation, direction)
 	if not ok then
 		NP.StopCast(plate)
 		return false
@@ -566,7 +574,11 @@ local function Refade(frame)
 		frame:SetAlpha(0)
 	end
 end
-for _, name in ipairs({ "CompactUnitFrame_UpdateVisible", "CompactUnitFrame_UpdateCenterStatusIcon", "CompactUnitFrame_UpdateAll" }) do
+for _, name in ipairs({
+	"CompactUnitFrame_UpdateVisible",
+	"CompactUnitFrame_UpdateCenterStatusIcon",
+	"CompactUnitFrame_UpdateAll",
+}) do
 	if type(_G[name]) == "function" then
 		hooksecurefunc(name, Refade)
 	end
@@ -629,8 +641,18 @@ end
 -- EVENTS
 ---------------------------------------------
 
-local CAST_START = { UNIT_SPELLCAST_START = false, UNIT_SPELLCAST_DELAYED = false, UNIT_SPELLCAST_CHANNEL_START = true, UNIT_SPELLCAST_CHANNEL_UPDATE = true }
-local CAST_STOP = { UNIT_SPELLCAST_STOP = true, UNIT_SPELLCAST_FAILED = true, UNIT_SPELLCAST_INTERRUPTED = true, UNIT_SPELLCAST_CHANNEL_STOP = true }
+local CAST_START = {
+	UNIT_SPELLCAST_START = false,
+	UNIT_SPELLCAST_DELAYED = false,
+	UNIT_SPELLCAST_CHANNEL_START = true,
+	UNIT_SPELLCAST_CHANNEL_UPDATE = true,
+}
+local CAST_STOP = {
+	UNIT_SPELLCAST_STOP = true,
+	UNIT_SPELLCAST_FAILED = true,
+	UNIT_SPELLCAST_INTERRUPTED = true,
+	UNIT_SPELLCAST_CHANNEL_STOP = true,
+}
 local CAST_FLAG = { UNIT_SPELLCAST_INTERRUPTIBLE = true, UNIT_SPELLCAST_NOT_INTERRUPTIBLE = true }
 
 function NP.UpdateAllSoft()
@@ -709,16 +731,24 @@ end
 
 -- Re-applies to the plates on screen (the setting changed).
 function NP.Refresh()
+	local activeUnits = {}
 	for unit in pairs(NP.plates) do
+		activeUnits[#activeUnits + 1] = unit
+	end
+	for _, unit in ipairs(activeUnits) do
 		NP.Detach(unit)
 	end
-	for _, base in ipairs((C_NamePlate.GetNamePlates and C_NamePlate.GetNamePlates()) or {}) do
-		local unit = base.GetUnit and base:GetUnit()
-		if type(unit) == "string" then
-			NP.Attach(unit)
+	if C_NamePlate and C_NamePlate.GetNamePlates then
+		for _, base in ipairs(C_NamePlate.GetNamePlates()) do
+			local uf = base.UnitFrame
+			local unit = (base.GetUnit and base:GetUnit()) or (uf and uf.unit)
+			if type(unit) == "string" then
+				NP.Attach(unit)
+			end
 		end
 	end
 end
+NP.RefreshAll = NP.Refresh
 
 -- Events are always registered: the on / off setting is read per plate, so
 -- it can change in the game (the saved choice loads after this file).
@@ -757,7 +787,10 @@ if C_NamePlate and C_NamePlate.GetNamePlateForUnit then
 				n = n + 1
 			end
 			local other = NP.Yielding()
-			return ("nameplates: %s, %d on screen"):format(other and ("off (" .. other .. " draws them)") or (Opt("enabled", true) and "Roth" or "Blizzard"), n)
+			return ("nameplates: %s, %d on screen"):format(
+				other and ("off (" .. other .. " draws them)") or (Opt("enabled", true) and "Roth" or "Blizzard"),
+				n
+			)
 		end)
 	end
 end

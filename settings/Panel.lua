@@ -175,6 +175,43 @@ local function buildWindow()
 		f.ClosePanelButton:SetScript("OnClick", Panel.Close)
 	end
 
+	-- Window transparency toggle (Ghost Mode) for live visual feedback
+	local opacityBtn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+	opacityBtn:SetSize(110, 20)
+	if f.ClosePanelButton then
+		opacityBtn:SetPoint("RIGHT", f.ClosePanelButton, "LEFT", -4, 0)
+	else
+		opacityBtn:SetPoint("TOPRIGHT", f, "TOPRIGHT", -28, -4)
+	end
+	opacityBtn:SetText("Opacity: 100%")
+	Theme.StyleActionButton(opacityBtn, false)
+	local opacityLevels = { 1.0, 0.60, 0.35 }
+	local currentOpacityIdx = 1
+	opacityBtn:SetScript("OnClick", function()
+		currentOpacityIdx = (currentOpacityIdx % #opacityLevels) + 1
+		local alpha = opacityLevels[currentOpacityIdx]
+		f:SetAlpha(alpha)
+		local label = ("Opacity: %d%%"):format(math.floor(alpha * 100))
+		if alpha < 1.0 then
+			label = ("|cffdfaa46👁 %d%% Ghost|r"):format(math.floor(alpha * 100))
+		end
+		opacityBtn:SetText(label)
+		if SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON then
+			PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON)
+		end
+	end)
+	opacityBtn:SetScript("OnEnter", function()
+		Theme.ShowTooltip(
+			opacityBtn,
+			"Window Opacity (Ghost Mode)",
+			"Cycles window transparency (100% -> 60% -> 35%) so you can see your unit frames and HUD directly behind the settings panel while adjusting options."
+		)
+	end)
+	opacityBtn:SetScript("OnLeave", function()
+		Theme.HideTooltip()
+	end)
+	f.OpacityButton = opacityBtn
+
 	local closeButton = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
 	closeButton:SetSize(96, 22)
 	closeButton:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -16, 16)

@@ -221,7 +221,71 @@ local function CreatePower(self)
 	self.Power = p
 end
 
+function Group.GetTagForFormat(format)
+	if format == "deficit" then
+		return "[diablo:misshp]"
+	elseif format == "percent" then
+		return "[perphp]"
+	elseif format == "value" then
+		return "[diablo:hpval]"
+	elseif format == "current" then
+		return "[curshp]"
+	elseif format == "both" then
+		return "[cmaxshp]"
+	elseif format == "none" then
+		return ""
+	end
+	return "[diablo:misshp]"
+end
+
+function Group.RefreshHealthTags(kind)
+	local fmt = cfg.units[kind] and cfg.units[kind].healthFormat
+	local tag = Group.GetTagForFormat(fmt)
+	for _, frame in ipairs(Group.members or {}) do
+		if (not kind or frame.groupKind == kind) and frame.HealthValue then
+			frame:Untag(frame.HealthValue)
+			if tag ~= "" then
+				frame:Tag(frame.HealthValue, tag)
+				frame.HealthValue:Show()
+				if frame.HealthValue.UpdateTag then
+					frame.HealthValue:UpdateTag()
+				end
+			else
+				frame.HealthValue:SetText("")
+				frame.HealthValue:Hide()
+			end
+		end
+	end
+end
+
+function Group.RefreshRangeAlpha(kind)
+	local alpha = cfg.units[kind] and cfg.units[kind].alpha and cfg.units[kind].alpha.notinrange
+	if not alpha then
+		return
+	end
+	for _, frame in ipairs(Group.members or {}) do
+		if (not kind or frame.groupKind == kind) and frame.Range then
+			frame.Range.outsideAlpha = alpha
+		end
+	end
+end
+
+function Group.RefreshScale(kind)
+	local scale = cfg.units[kind] and cfg.units[kind].scale
+	if not scale or InCombatLockdown() then
+		return
+	end
+	if kind == "party" and ns.partyHeader then
+		ns.partyHeader:SetScale(scale)
+	elseif kind == "raid" and ns.raidHeaders then
+		for _, h in ipairs(ns.raidHeaders) do
+			h:SetScale(scale)
+		end
+	end
+end
+
 local function CreateTexts(self, layout)
+	local tag = Group.GetTagForFormat(self.cfg.healthFormat or "deficit")
 	if layout.tile then
 		-- inside the tile, over the bar: the name clipped to the tile, missing health below it
 		local over = self.RothTileOverlay
@@ -233,7 +297,9 @@ local function CreateTexts(self, layout)
 		self.Name = name
 		local hpval = func.createFontString(over, cfg.font, 9, "THINOUTLINE")
 		hpval:SetPoint("CENTER", self, "CENTER", 0, -5)
-		self:Tag(hpval, self.cfg.health.tag or "[diablo:misshp]")
+		if tag ~= "" then
+			self:Tag(hpval, tag)
+		end
 		self.HealthValue = hpval
 		return
 	end
@@ -246,7 +312,9 @@ local function CreateTexts(self, layout)
 
 	local hpval = func.createFontString(self.Health, cfg.font, 11, "THINOUTLINE")
 	hpval:SetPoint("RIGHT", -2, 0)
-	self:Tag(hpval, self.cfg.health.tag or "[diablo:misshp]")
+	if tag ~= "" then
+		self:Tag(hpval, tag)
+	end
 	self.HealthValue = hpval
 end
 
@@ -262,7 +330,21 @@ local function BuildBlacklist(list)
 	end
 end
 
-local function AuraFilter(icons, unit, icon, name, texture, count, dtype, duration, timeLeft, caster, isStealable, shouldConsolidate, spellID)
+local function AuraFilter(
+	icons,
+	unit,
+	icon,
+	name,
+	texture,
+	count,
+	dtype,
+	duration,
+	timeLeft,
+	caster,
+	isStealable,
+	shouldConsolidate,
+	spellID
+)
 	local id = Secrets.Number(spellID)
 	if id and blacklist[id] then
 		return false
@@ -297,10 +379,21 @@ local function CreateAuras(self)
 	if self.groupLayout.tile then
 		-- two debuffs along the bottom, your own HoTs / shields in the top right
 		local t = self.cfg.tiles or {}
-		self.Debuffs = CreateAuraFrame(self, Group.FILTER_DEBUFFS, t.debuffSize or 14, t.debuffs or 2,
-			{ a1 = "BOTTOM", a2 = "BOTTOM", x = 0, y = 4 })
-		self.Buffs = CreateAuraFrame(self, Group.FILTER_MY_BUFFS, t.buffSize or 10, t.buffs or 3,
-			{ a1 = "TOPRIGHT", a2 = "TOPRIGHT", x = -4, y = -4 }, "LEFT")
+		self.Debuffs = CreateAuraFrame(
+			self,
+			Group.FILTER_DEBUFFS,
+			t.debuffSize or 14,
+			t.debuffs or 2,
+			{ a1 = "BOTTOM", a2 = "BOTTOM", x = 0, y = 4 }
+		)
+		self.Buffs = CreateAuraFrame(
+			self,
+			Group.FILTER_MY_BUFFS,
+			t.buffSize or 10,
+			t.buffs or 3,
+			{ a1 = "TOPRIGHT", a2 = "TOPRIGHT", x = -4, y = -4 },
+			"LEFT"
+		)
 		local level = self.RothTileOverlay:GetFrameLevel() + 1
 		self.Debuffs:SetFrameLevel(level)
 		self.Buffs:SetFrameLevel(level)
@@ -322,7 +415,9 @@ end
 
 local function UpdateDispel(self, unit)
 	local glow = self.DispelGlow
-	local aura = C_UnitAuras and C_UnitAuras.GetAuraDataByIndex and C_UnitAuras.GetAuraDataByIndex(unit, 1, Group.FILTER_DISPELLABLE)
+	local aura = C_UnitAuras
+		and C_UnitAuras.GetAuraDataByIndex
+		and C_UnitAuras.GetAuraDataByIndex(unit, 1, Group.FILTER_DISPELLABLE)
 	if not aura then
 		glow:Hide()
 		return
@@ -465,7 +560,8 @@ local function CreateIcons(self)
 	self.ReadyCheck = func.createIcon(self.Health, "OVERLAY", 24, self.Health, "CENTER", "CENTER", 0, 0, 4)
 	if self.groupLayout.tile then
 		-- tiles touch: the role sits inside, bottom left
-		self.LFDRole = func.createIcon(self.RothTileOverlay, "OVERLAY", 10, self.Health, "BOTTOMLEFT", "BOTTOMLEFT", 0, 0, 3)
+		self.LFDRole =
+			func.createIcon(self.RothTileOverlay, "OVERLAY", 10, self.Health, "BOTTOMLEFT", "BOTTOMLEFT", 0, 0, 3)
 	else
 		self.LFDRole = func.createIcon(self.Health, "OVERLAY", 12, self.Health, "TOP", "BOTTOM", 0, -2, 3)
 	end
@@ -500,7 +596,12 @@ function Group.Style(self, kind)
 	if layout.tile then
 		self:SetHitRectInsets(0, 0, 0, 0)
 	else
-		self:SetHitRectInsets(layout.health.left - 6, -layout.health.right - 6, -layout.health.top - 14, layout.health.bottom - 8)
+		self:SetHitRectInsets(
+			layout.health.left - 6,
+			-layout.health.right - 6,
+			-layout.health.top - 14,
+			layout.health.bottom - 8
+		)
 	end
 
 	CreateArt(self)

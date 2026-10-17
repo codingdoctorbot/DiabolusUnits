@@ -180,7 +180,23 @@ function EditMode:GetScale(frame)
 	end
 	-- orbs, statues and stone bar are sized by the standard/gamepad layout
 	local def = name and ns.StandardMode and ns.StandardMode:DefaultScale(name)
-	return def or 1.0
+	if def then
+		return def
+	end
+	local cfgUnits = ns.cfg and ns.cfg.units
+	if cfgUnits and name then
+		local unitScales = {
+			Roth_UIPetFrame = cfgUnits.pet and cfgUnits.pet.scale,
+			Roth_UIPetTargetFrame = cfgUnits.pettarget and cfgUnits.pettarget.scale,
+			Roth_UITargetTargetFrame = cfgUnits.targettarget and cfgUnits.targettarget.scale,
+			Roth_UIFocusFrame = cfgUnits.focus and cfgUnits.focus.scale,
+			Roth_UIFocusTargetFrame = cfgUnits.focustarget and cfgUnits.focustarget.scale,
+		}
+		if unitScales[name] then
+			return unitScales[name]
+		end
+	end
+	return 1.0
 end
 
 function EditMode:SetScale(frame, scale)
@@ -597,6 +613,228 @@ function EditMode:GetSpacingInfo(entry)
 	end
 
 	return nil
+end
+
+-- Option rows (pick one of a list with < >) for frames whose placement is a choice
+-- rather than an offset. Each: { label, options = { {value, label}, ... }, get(), set(v) }.
+local function SetLayoutOption(path, value)
+	if ns.Settings then
+		ns.Settings.Set(path, value)
+	end
+	if ns.StandardMode and ns.StandardMode.Apply then
+		ns.StandardMode:Apply()
+	end
+end
+
+function EditMode:GetChoiceInfo(entry)
+	local sm = ns.StandardMode
+	if not (entry and sm and ns.Settings) then
+		return nil
+	end
+	if entry.id == "Roth_UIPetFrame" then
+		return {
+			{
+				label = "Anchor",
+				options = sm.PET_FRAME_ANCHORS,
+				get = function()
+					return ns.Settings.Get("standardMode.petFrameAnchor") or "healthOrb"
+				end,
+				set = function(v)
+					-- an anchor overrides a dragged position
+					local db = GetDB()
+					if db and db.framePositions then
+						db.framePositions["Roth_UIPetFrame"] = nil
+					end
+					SetLayoutOption("standardMode.petFrameAnchor", v)
+				end,
+			},
+			{
+				label = "Pet bar",
+				options = sm.PET_BAR_ANCHORS,
+				get = function()
+					return ns.Settings.Get("standardMode.petBarAnchor") or "center"
+				end,
+				set = function(v)
+					SetLayoutOption("standardMode.petBarAnchor", v)
+				end,
+			},
+			{
+				label = "Health text",
+				options = sm.TARGET_HEALTH_FORMATS or ns.TARGET_HEALTH_FORMATS,
+				get = function()
+					return (ns.Settings and ns.Settings.Get("units.pet.healthFormat")) or "deficit"
+				end,
+				set = function(v)
+					if ns.Settings then
+						ns.Settings.Set("units.pet.healthFormat", v)
+					end
+					if ns.func and ns.func.refreshPetFrame then
+						ns.func.refreshPetFrame()
+					end
+				end,
+			},
+		}
+	end
+	if entry.id == "Roth_UITargetFrame" then
+		return {
+			{
+				label = "Anchor",
+				options = sm.TARGET_FRAME_ANCHORS,
+				get = function()
+					return ns.Settings.Get("standardMode.targetFrameAnchor") or "powerOrb"
+				end,
+				set = function(v)
+					local db = GetDB()
+					if db and db.framePositions then
+						db.framePositions["Roth_UITargetFrame"] = nil
+					end
+					SetLayoutOption("standardMode.targetFrameAnchor", v)
+				end,
+			},
+			{
+				label = "Health text",
+				options = sm.TARGET_HEALTH_FORMATS or ns.TARGET_HEALTH_FORMATS,
+				get = function()
+					return (ns.Settings and ns.Settings.Get("units.target.healthFormat")) or "both"
+				end,
+				set = function(v)
+					if ns.Settings then
+						ns.Settings.Set("units.target.healthFormat", v)
+					end
+					if ns.func and ns.func.refreshTargetFrame then
+						ns.func.refreshTargetFrame()
+					end
+				end,
+			},
+			{
+				label = "Auras",
+				options = sm.TARGET_AURA_PLACEMENTS or ns.TARGET_AURA_PLACEMENTS,
+				get = function()
+					return (ns.Settings and ns.Settings.Get("units.target.auras.placement")) or "right"
+				end,
+				set = function(v)
+					if ns.Settings then
+						ns.Settings.Set("units.target.auras.placement", v)
+					end
+					if ns.func and ns.func.refreshTargetFrame then
+						ns.func.refreshTargetFrame()
+					end
+				end,
+			},
+		}
+	end
+	if entry.id == "Roth_UITargetTargetFrame" then
+		return {
+			{
+				label = "Anchor",
+				options = sm.TARGETTARGET_FRAME_ANCHORS,
+				get = function()
+					return ns.Settings.Get("standardMode.targetTargetFrameAnchor") or "topright"
+				end,
+				set = function(v)
+					local db = GetDB()
+					if db and db.framePositions then
+						db.framePositions["Roth_UITargetTargetFrame"] = nil
+					end
+					SetLayoutOption("standardMode.targetTargetFrameAnchor", v)
+				end,
+			},
+			{
+				label = "Health text",
+				options = sm.TARGET_HEALTH_FORMATS or ns.TARGET_HEALTH_FORMATS,
+				get = function()
+					return (ns.Settings and ns.Settings.Get("units.targettarget.healthFormat")) or "deficit"
+				end,
+				set = function(v)
+					if ns.Settings then
+						ns.Settings.Set("units.targettarget.healthFormat", v)
+					end
+					if ns.func and ns.func.refreshTargetTargetFrame then
+						ns.func.refreshTargetTargetFrame()
+					end
+				end,
+			},
+		}
+	end
+	if entry.id == "Roth_UIFocusFrame" then
+		return {
+			{
+				label = "Health text",
+				options = sm.TARGET_HEALTH_FORMATS or ns.TARGET_HEALTH_FORMATS,
+				get = function()
+					return (ns.Settings and ns.Settings.Get("units.focus.healthFormat")) or "both"
+				end,
+				set = function(v)
+					if ns.Settings then
+						ns.Settings.Set("units.focus.healthFormat", v)
+					end
+					if ns.func and ns.func.refreshFocusFrame then
+						ns.func.refreshFocusFrame()
+					end
+				end,
+			},
+		}
+	end
+	if entry.id == "Roth_UIPetTargetFrame" then
+		return {
+			{
+				label = "Health text",
+				options = sm.TARGET_HEALTH_FORMATS or ns.TARGET_HEALTH_FORMATS,
+				get = function()
+					return (ns.Settings and ns.Settings.Get("units.pettarget.healthFormat")) or "deficit"
+				end,
+				set = function(v)
+					if ns.Settings then
+						ns.Settings.Set("units.pettarget.healthFormat", v)
+					end
+					if ns.func and ns.func.refreshPetTargetFrame then
+						ns.func.refreshPetTargetFrame()
+					end
+				end,
+			},
+		}
+	end
+	if entry.id == "Roth_UIFocusTargetFrame" then
+		return {
+			{
+				label = "Health text",
+				options = sm.TARGET_HEALTH_FORMATS or ns.TARGET_HEALTH_FORMATS,
+				get = function()
+					return (ns.Settings and ns.Settings.Get("units.focustarget.healthFormat")) or "deficit"
+				end,
+				set = function(v)
+					if ns.Settings then
+						ns.Settings.Set("units.focustarget.healthFormat", v)
+					end
+					if ns.func and ns.func.refreshFocusTargetFrame then
+						ns.func.refreshFocusTargetFrame()
+					end
+				end,
+			},
+		}
+	end
+	return nil
+end
+
+function EditMode:StepChoice(index, delta)
+	local info = self:GetChoiceInfo(EDITABLE_FRAMES[selectedIdx])
+	local choice = info and info[index]
+	if not choice or InCombatLockdown() then
+		return
+	end
+	local current, pos = choice.get(), 1
+	for i, opt in ipairs(choice.options) do
+		if opt.value == current then
+			pos = i
+			break
+		end
+	end
+	pos = ((pos - 1 + delta) % #choice.options) + 1
+	choice.set(choice.options[pos].value)
+	-- the layout pass that places the frame runs on the next frame
+	C_Timer.After(0.05, function()
+		EditMode:UpdateDialog()
+	end)
 end
 
 function EditMode:NudgeSpacing(delta)
@@ -1099,6 +1337,36 @@ local function CreateSettingsDialog()
 	end)
 	d.spacePlus = spacePlus
 
+	-- Option rows (context-specific): "Label: value" with < > to step through choices
+	d.choiceRows = {}
+	for i = 1, 3 do
+		local row = CreateFrame("Frame", nil, d)
+		row:SetSize(312, 22)
+		local prev = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+		prev:SetSize(22, 20)
+		prev:SetPoint("LEFT", 0, 0)
+		prev:SetText("<")
+		prev:SetScript("OnClick", function()
+			EditMode:StepChoice(i, -1)
+		end)
+		local nextBtn = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+		nextBtn:SetSize(22, 20)
+		nextBtn:SetPoint("RIGHT", 0, 0)
+		nextBtn:SetText(">")
+		nextBtn:SetScript("OnClick", function()
+			EditMode:StepChoice(i, 1)
+		end)
+		local text = row:CreateFontString(nil, "OVERLAY")
+		text:SetFont(ns.cfg.font, 11, "THINOUTLINE")
+		text:SetPoint("LEFT", prev, "RIGHT", 8, 0)
+		text:SetPoint("RIGHT", nextBtn, "LEFT", -8, 0)
+		text:SetJustifyH("CENTER")
+		text:SetTextColor(1, 0.82, 0)
+		row.text = text
+		row:Hide()
+		d.choiceRows[i] = row
+	end
+
 	-- Bottom Row: Reset to Default
 	local resetBtn = CreateFrame("Button", nil, d, "UIPanelButtonTemplate")
 	resetBtn:SetSize(130, 22)
@@ -1175,14 +1443,35 @@ function EditMode:UpdateDialog()
 		settingsDialog.spaceSlider.settingValue = true
 		settingsDialog.spaceSlider:SetValue(spaceInfo.value)
 		settingsDialog.spaceSlider.settingValue = nil
-		settingsDialog:SetHeight(280)
 	else
 		settingsDialog.spaceText:Hide()
 		settingsDialog.spaceMinus:Hide()
 		settingsDialog.spaceSlider:Hide()
 		settingsDialog.spacePlus:Hide()
-		settingsDialog:SetHeight(235)
 	end
+
+	-- Option rows below the sliders
+	local choices = self:GetChoiceInfo(entry) or {}
+	local top = spaceInfo and -230 or -188
+	for i, row in ipairs(settingsDialog.choiceRows) do
+		local choice = choices[i]
+		if choice then
+			local current, shown = choice.get(), nil
+			for _, opt in ipairs(choice.options) do
+				if opt.value == current then
+					shown = opt.label
+					break
+				end
+			end
+			row.text:SetText(("%s: %s"):format(choice.label, shown or tostring(current)))
+			row:ClearAllPoints()
+			row:SetPoint("TOPLEFT", settingsDialog, "TOPLEFT", 14, top - (i - 1) * 28)
+			row:Show()
+		else
+			row:Hide()
+		end
+	end
+	settingsDialog:SetHeight((spaceInfo and 280 or 235) + #choices * 28)
 end
 
 -- Open dialog for clicked frame
@@ -1576,13 +1865,41 @@ local function RestoreSavedLayout()
 	-- One-time cleanup: "Reset UI" used to save a scale of 1 for every frame, which
 	-- would now pin the orbs, statues and stone bar below their layout default scale
 	if not db.layoutScaleDefaults and db.frameScales then
-		for _, name in ipairs({ "Roth_UIActionBarBackground", "Roth_UIPlayerFrame", "Roth_UIDemonFrame", "Roth_UIAngelFrame" }) do
+		for _, name in ipairs({
+			"Roth_UIActionBarBackground",
+			"Roth_UIPlayerFrame",
+			"Roth_UIDemonFrame",
+			"Roth_UIAngelFrame",
+		}) do
 			if db.frameScales[name] == 1 then
 				db.frameScales[name] = nil
 			end
 		end
 	end
 	db.layoutScaleDefaults = true
+	-- the cast bar joined the layout-scaled frames later; same reset-written 1 to drop
+	if not db.layoutScaleDefaults2 and db.frameScales and db.frameScales["Roth_UIPlayerFrameCastBarDragFrame"] == 1 then
+		db.frameScales["Roth_UIPlayerFrameCastBarDragFrame"] = nil
+	end
+	db.layoutScaleDefaults2 = true
+	if not db.layoutScaleDefaults3 and db.frameScales and db.frameScales["Roth_UITargetFrame"] == 1 then
+		db.frameScales["Roth_UITargetFrame"] = nil
+	end
+	db.layoutScaleDefaults3 = true
+	-- The wing docks were clamped to the screen until 2026-10-17, so positions saved for them
+	-- then are meaningless now (one was x = -836: off-screen once unclamped). Drop them once.
+	if not db.layoutDocksUnclamped and db.framePositions then
+		db.framePositions["Roth_UIMicroDock"] = nil
+		db.framePositions["Roth_UIBagDock"] = nil
+	end
+	db.layoutDocksUnclamped = true
+	-- Drop legacy target, target of target, and belt saved positions once so the new powerOrb default applies
+	if not db.layoutTargetAnchorInit and db.framePositions then
+		db.framePositions["Roth_UITargetFrame"] = nil
+		db.framePositions["Roth_UITargetTargetFrame"] = nil
+		db.framePositions["Roth_UIBelt"] = nil
+	end
+	db.layoutTargetAnchorInit = true
 
 	-- Restore global scale & individual scales
 	local gs = EditMode:GetGlobalScale()

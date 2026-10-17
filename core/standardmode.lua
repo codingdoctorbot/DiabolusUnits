@@ -33,6 +33,9 @@ local artHooked = setmetatable({}, { __mode = "k" })
 local layoutHooked = setmetatable({}, { __mode = "k" })
 local hoverHooked = setmetatable({}, { __mode = "k" })
 local anchorHooked = setmetatable({}, { __mode = "k" })
+local mouseDisabledHooked = setmetatable({}, { __mode = "k" })
+local krbHooked = setmetatable({}, { __mode = "k" })
+local krbTextureHooked = setmetatable({}, { __mode = "k" })
 
 local BAG_LIST = {
 	"MainMenuBarBackpackButton",
@@ -40,8 +43,188 @@ local BAG_LIST = {
 	"CharacterBag1Slot",
 	"CharacterBag2Slot",
 	"CharacterBag3Slot",
+	"CharacterReagentBag0Slot",
 	"KeyRingButton",
 }
+
+-- Drop Blizzard action bar containers to BACKGROUND and disable mouse input so they cannot
+-- intercept clicks over buttons situated in the stone grid (e.g. Action Bar 3 row)
+local function DeactivateBarContainerMouse(bar)
+	if not bar then
+		return
+	end
+	if not InCombatLockdown() then
+		bar:EnableMouse(false)
+		bar:SetFrameStrata("BACKGROUND")
+		bar:SetFrameLevel(0)
+	end
+	if not mouseDisabledHooked[bar] then
+		mouseDisabledHooked[bar] = true
+		hooksecurefunc(bar, "EnableMouse", function(self, enabled)
+			if enabled and not InCombatLockdown() then
+				self:EnableMouse(false)
+			end
+		end)
+		if bar.SetFrameStrata then
+			hooksecurefunc(bar, "SetFrameStrata", function(self, strata)
+				if strata ~= "BACKGROUND" and not InCombatLockdown() then
+					self:SetFrameStrata("BACKGROUND")
+				end
+			end)
+		end
+		if bar.SetFrameLevel then
+			hooksecurefunc(bar, "SetFrameLevel", function(self, level)
+				if level ~= 0 and not InCombatLockdown() then
+					self:SetFrameLevel(0)
+				end
+			end)
+		end
+	end
+end
+
+local KEY_ICON = "Interface\\Icons\\INV_Misc_Key_03"
+
+local function EnsureKeyRingTexture(krb)
+	if not krb then
+		return
+	end
+	local icon = krb.icon or _G.KeyRingButtonIconTexture or krb.Icon
+	if not icon and krb.CreateTexture then
+		icon = krb:CreateTexture(krb:GetName() and (krb:GetName() .. "IconTexture") or nil, "BORDER")
+		icon:SetAllPoints()
+		krb.icon = icon
+	end
+	if icon then
+		icon:SetTexture(KEY_ICON)
+		icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+		icon:SetAlpha(1)
+		icon:Show()
+		if not krbTextureHooked[icon] then
+			krbTextureHooked[icon] = true
+			if icon.SetTexture then
+				hooksecurefunc(icon, "SetTexture", function(self, tex)
+					if not tex or tex == "" or tex == "Interface\\PaperDoll\\UI-Backpack-EmptySlot" then
+						self:SetTexture(KEY_ICON)
+						self:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+					end
+				end)
+			end
+			if icon.SetAtlas then
+				hooksecurefunc(icon, "SetAtlas", function(self, atlas)
+					if not atlas or atlas == "" or (type(atlas) == "string" and atlas:find("Slot")) then
+						self:SetTexture(KEY_ICON)
+						self:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+					end
+				end)
+			end
+		end
+	end
+	if krb.GetNormalTexture then
+		local nt = krb:GetNormalTexture()
+		if nt and not nt:GetTexture() then
+			nt:SetTexture(KEY_ICON)
+			nt:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+			nt:SetAlpha(1)
+		end
+	end
+end
+
+local function CustomKeyRingOnClick(self, button)
+	if CursorHasItem and CursorHasItem() and PutKeyInKeyRing then
+		PutKeyInKeyRing()
+	elseif ToggleBag then
+		ToggleBag(KEYRING_CONTAINER or -2)
+	elseif OpenBag and CloseBag and IsBagOpen then
+		local id = KEYRING_CONTAINER or -2
+		if IsBagOpen(id) then
+			CloseBag(id)
+		else
+			OpenBag(id)
+		end
+	end
+end
+
+local function SetupKeyRingButton(krb)
+	if not krb then
+		return
+	end
+	if SetCVar and GetCVar and GetCVar("showKeyring") ~= nil then
+		pcall(SetCVar, "showKeyring", 1)
+	end
+	krb.includeInLayout = false
+	krb:Enable()
+	if not InCombatLockdown() then
+		krb:Show()
+		krb:SetAlpha(1)
+		krb:SetSize(33, 45)
+	end
+	EnsureKeyRingTexture(krb)
+
+	krb:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+	krb:SetScript("OnClick", CustomKeyRingOnClick)
+
+	if not krb:GetScript("OnEnter") then
+		krb:SetScript("OnEnter", function(self)
+			GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+			GameTooltip:SetText(KEYRING or "Keyring", 1, 1, 1)
+			GameTooltip:Show()
+		end)
+		krb:SetScript("OnLeave", function(self)
+			GameTooltip:Hide()
+		end)
+	else
+		if not krbHooked[krb] then
+			krb:HookScript("OnEnter", function(self)
+				if not GameTooltip:IsShown() then
+					GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+					GameTooltip:SetText(KEYRING or "Keyring", 1, 1, 1)
+					GameTooltip:Show()
+				end
+			end)
+		end
+	end
+
+	if not krbHooked[krb] then
+		krbHooked[krb] = true
+		hooksecurefunc(krb, "Disable", function(self)
+			self:Enable()
+		end)
+		hooksecurefunc(krb, "Hide", function(self)
+			if not InCombatLockdown() then
+				self:Show()
+			end
+		end)
+		hooksecurefunc(krb, "SetScript", function(self, scriptType, handler)
+			if scriptType == "OnClick" and handler ~= CustomKeyRingOnClick then
+				self:SetScript("OnClick", CustomKeyRingOnClick)
+			end
+		end)
+		if krb.UpdateTextures then
+			hooksecurefunc(krb, "UpdateTextures", function(self)
+				EnsureKeyRingTexture(self)
+			end)
+		end
+		if krb.OnBagUpdate then
+			hooksecurefunc(krb, "OnBagUpdate", function(self)
+				EnsureKeyRingTexture(self)
+			end)
+		end
+		if krb.Update then
+			hooksecurefunc(krb, "Update", function(self)
+				EnsureKeyRingTexture(self)
+			end)
+		end
+	end
+end
+
+local function StyleBagItemButton(btn)
+	if not btn or btn.__styled then
+		return
+	end
+	if rButtonTemplate and rButtonTemplate.StyleItemButton and ns.itemButtonConfig then
+		rButtonTemplate:StyleItemButton(btn, ns.itemButtonConfig)
+	end
+end
 
 -- True when WoW Forever's native Gamepad UI / Crossbar is active
 function StandardMode:IsGamepad()
@@ -72,6 +255,8 @@ function StandardMode:DefaultScales(isPad)
 			Roth_UIPlayerFrame = 1,
 			Roth_UIDemonFrame = 1,
 			Roth_UIAngelFrame = 1,
+			Roth_UIPlayerFrameCastBarDragFrame = 1,
+			Roth_UITargetFrame = sm.targetScale or 1,
 		}
 	end
 	return {
@@ -79,6 +264,9 @@ function StandardMode:DefaultScales(isPad)
 		Roth_UIPlayerFrame = sm.standardOrbScale or 1, -- both orbs: the power orb is its child
 		Roth_UIDemonFrame = sm.standardStatueScale or 1,
 		Roth_UIAngelFrame = sm.standardStatueScale or 1,
+		-- the cast bar is a child of the player frame: undo the orb scale so it keeps its size
+		Roth_UIPlayerFrameCastBarDragFrame = 1 / (sm.standardOrbScale or 1),
+		Roth_UITargetFrame = sm.targetScale or 1,
 	}
 end
 
@@ -118,6 +306,7 @@ local function HideBlizzardBarArt()
 	-- 1. WoW Forever (Camelot) MainActionBar EndCaps, BorderArt, and Dividers (keep ActionBarPageNumber for +/- paging!)
 	local mab = _G.MainActionBar
 	if mab then
+		DeactivateBarContainerMouse(mab)
 		if mab.BorderArt then
 			mab.BorderArt:SetAlpha(0)
 		end
@@ -337,13 +526,19 @@ local function FitActionBarRow(prefix, rowBottomY, barFrame)
 			Blizz.ClearAllPoints(btn)
 			local slotX = -173.0 + (i - 1) * 31.45
 			Blizz.SetPoint(btn, "CENTER", barFrame, "BOTTOM", slotX / unitScale, slotY / unitScale)
+			btn:SetFrameStrata("MEDIUM")
+			btn:SetFrameLevel(10)
 			StyleActionButtonForStoneSlot(btn)
 		end
 	end
 end
 
 local function HookActionBarForStandardMode(bar)
-	if not bar or layoutHooked[bar] then
+	if not bar then
+		return
+	end
+	DeactivateBarContainerMouse(bar)
+	if layoutHooked[bar] then
 		return
 	end
 	layoutHooked[bar] = true
@@ -381,6 +576,10 @@ local function CreateDock(name, labelText, defaultX, defaultY, artWidth, artHeig
 
 	if func and func.applyDragFunctionality then
 		func.applyDragFunctionality(dock)
+		-- applyDragFunctionality clamps to the screen, but a wing is wider than the room
+		-- beside its statue and is meant to run off the edge: clamped, the game pinned it
+		-- there, so outward / downward offsets (and the edit layout's X slider) did nothing
+		dock:SetClampedToScreen(false)
 		if dock.dragframe then
 			local lbl = dock.dragframe:CreateFontString(nil, "OVERLAY")
 			lbl:SetFont(cfg.font or "Fonts\\FRIZQT__.TTF", 10, "THINOUTLINE")
@@ -467,12 +666,16 @@ local function SetupMicroDock(isPad, demonX, statueScale)
 	if not (sm and sm.integrateMicroMenu) then
 		return
 	end
-	-- wing tucks behind the demon statue; a smaller statue needs the wing closer in
-	local defaultX = (demonX or -330) - (235 - 160 * (1 - (statueScale or 1)))
+	-- wing centre from the demon statue. Measured in game (2026-10-17): the dock used to be
+	-- clamped to the screen, which held it ~125 px further in than the old formula said;
+	-- these offsets reproduce that spot plus a little more room outward.
+	local defaultX = (demonX or -330) - (sm.microDockOffset or 215) * (statueScale or 1) / 0.85
 	if not microDock then
-		microDock = CreateDock("Roth_UIMicroDock", "Micro Menu Wing", defaultX, 0, 300, 114, false)
+		microDock = CreateDock("Roth_UIMicroDock", "Micro Menu Wing", defaultX, 0, 330, 114, false)
 	end
+	local dockY = sm.dockY or 0
 	microDock.defaultPosition.x = defaultX
+	microDock.defaultPosition.y = dockY
 	if isPad then
 		microDock:Hide()
 		return
@@ -480,7 +683,7 @@ local function SetupMicroDock(isPad, demonX, statueScale)
 	microDock:Show()
 	if not IsUserMoved("Roth_UIMicroDock") then
 		microDock:ClearAllPoints()
-		microDock:SetPoint("BOTTOM", UIParent, "BOTTOM", defaultX, 0)
+		microDock:SetPoint("BOTTOM", UIParent, "BOTTOM", defaultX, dockY)
 	end
 
 	local mm = _G.MicroMenu
@@ -525,10 +728,10 @@ local function SetupMicroDock(isPad, demonX, statueScale)
 			((mm and mm:GetWidth()) or container:GetWidth() or 275) * scale
 		)
 		Blizz.ClearAllPoints(container)
-		Blizz.SetPoint(container, "CENTER", microDock, "BOTTOM", shiftX / scale, 35 / scale)
+		Blizz.SetPoint(container, "CENTER", microDock, "BOTTOM", (shiftX + (sm.microButtonsX or 0)) / scale, 35 / scale)
 
 		-- Recessed bay is 68.75% of d3_wing_dock.tga width; add 24px breathing margin inside the stone bay
-		local wingW = math.max(295, (visW + 24) / 0.6875)
+		local wingW = math.max(330, (visW + 24) / 0.6875)
 		microDock:SetSize(wingW, 56)
 		if microDock.art then
 			microDock.art:SetSize(wingW, 114)
@@ -559,11 +762,13 @@ local function SetupBagDock(isPad, angelX, statueScale)
 	if not (sm and sm.integrateBags) then
 		return
 	end
-	local defaultX = (angelX or 325) + (210 - 160 * (1 - (statueScale or 1)))
+	local defaultX = (angelX or 325) + (sm.bagDockOffset or 220) * (statueScale or 1) / 0.85
 	if not bagDock then
-		bagDock = CreateDock("Roth_UIBagDock", "Bag Bar Wing", defaultX, 0, 260, 114, true)
+		bagDock = CreateDock("Roth_UIBagDock", "Bag Bar Wing", defaultX, 0, 330, 114, true)
 	end
+	local dockY = sm.dockY or 0
 	bagDock.defaultPosition.x = defaultX
+	bagDock.defaultPosition.y = dockY
 	if isPad then
 		bagDock:Hide()
 		return
@@ -571,24 +776,31 @@ local function SetupBagDock(isPad, angelX, statueScale)
 	bagDock:Show()
 	if not IsUserMoved("Roth_UIBagDock") then
 		bagDock:ClearAllPoints()
-		bagDock:SetPoint("BOTTOM", UIParent, "BOTTOM", defaultX, 0)
+		bagDock:SetPoint("BOTTOM", UIParent, "BOTTOM", defaultX, dockY)
 	end
 
-	-- Hide KeyRingButton when player has no keys so only the 5 main bags sit cleanly in the bay
-	if _G.KeyRingButton and (not _G.HasKey or not _G.HasKey()) then
-		_G.KeyRingButton.includeInLayout = false
-		_G.KeyRingButton:SetAlpha(0)
-		_G.KeyRingButton:SetSize(0.001, 0.001)
-		_G.KeyRingButton:Hide()
+	-- Keyholder (KeyRingButton) setup & styling
+	local krb = _G.KeyRingButton
+	if krb then
+		SetupKeyRingButton(krb)
+		StyleBagItemButton(krb)
 	end
 
-	local activeBtns = {}
-	for _, name in ipairs(BAG_LIST) do
-		local btn = _G[name]
-		if btn and btn:IsShown() and (btn:GetAlpha() or 1) > 0.05 then
-			Blizz.SetScale(btn, 1.0)
-			activeBtns[#activeBtns + 1] = btn
-		end
+	-- Restore CharacterReagentBag0Slot
+	local reagentBag = _G.CharacterReagentBag0Slot
+	if reagentBag then
+		reagentBag.includeInLayout = false
+		reagentBag:SetAlpha(1)
+		reagentBag:SetSize(45, 45)
+		reagentBag:Show()
+		StyleBagItemButton(reagentBag)
+	end
+
+	if _G.BagBarExpandToggle then
+		_G.BagBarExpandToggle.includeInLayout = false
+		_G.BagBarExpandToggle:SetAlpha(0)
+		_G.BagBarExpandToggle:SetSize(0.001, 0.001)
+		_G.BagBarExpandToggle:Hide()
 	end
 
 	local bb = _G.BagsBar
@@ -597,33 +809,52 @@ local function SetupBagDock(isPad, angelX, statueScale)
 		if bb.BorderArt then
 			bb.BorderArt:SetAlpha(0)
 		end
-		if _G.CharacterReagentBag0Slot then
-			_G.CharacterReagentBag0Slot.includeInLayout = false
-			_G.CharacterReagentBag0Slot:SetAlpha(0)
-			_G.CharacterReagentBag0Slot:SetSize(0.001, 0.001)
-			_G.CharacterReagentBag0Slot:Hide()
-		end
-		if _G.BagBarExpandToggle then
-			_G.BagBarExpandToggle.includeInLayout = false
-			_G.BagBarExpandToggle:SetAlpha(0)
-			_G.BagBarExpandToggle:SetSize(0.001, 0.001)
-			_G.BagBarExpandToggle:Hide()
-		end
 		if bb.Layout then
 			pcall(bb.Layout, bb)
 		end
 		HideDividerPools(bb)
 
+		-- Anchor CharacterReagentBag0Slot directly to the left of CharacterBag3Slot
+		local bag3 = _G.CharacterBag3Slot
+		if reagentBag and bag3 then
+			reagentBag:ClearAllPoints()
+			reagentBag:SetPoint("RIGHT", bag3, "LEFT", -2, 0)
+			reagentBag:SetSize(45, 45)
+			reagentBag:SetAlpha(1)
+			reagentBag:Show()
+		end
+
+		-- Anchor KeyRingButton directly to the left of CharacterReagentBag0Slot (or bag3 fallback)
+		if krb then
+			local anchorTarget = (reagentBag and reagentBag:IsShown()) and reagentBag or bag3
+			if anchorTarget then
+				krb:ClearAllPoints()
+				krb:SetPoint("RIGHT", anchorTarget, "LEFT", -2, 0)
+				krb:SetSize(33, 45)
+				krb:SetAlpha(1)
+				krb:Show()
+			end
+		end
+
 		local scale = 0.72
 		Blizz.SetScale(bb, scale)
 		Blizz.ClearAllPoints(bb)
-		Blizz.SetPoint(bb, "CENTER", bagDock, "BOTTOM", 0, 35 / scale)
+		Blizz.SetPoint(bb, "CENTER", bagDock, "BOTTOM", 0, 39 / scale)
 
-		local visW, shiftX = MeasureVisibleButtonsBounds(bb, activeBtns, 165 * scale)
+		local activeBtns = {}
+		for _, name in ipairs(BAG_LIST) do
+			local btn = _G[name]
+			if btn and btn:IsShown() and (btn:GetAlpha() or 1) > 0.05 then
+				Blizz.SetScale(btn, 1.0)
+				activeBtns[#activeBtns + 1] = btn
+			end
+		end
+
+		local visW, shiftX = MeasureVisibleButtonsBounds(bb, activeBtns, 185 * scale)
 		Blizz.ClearAllPoints(bb)
-		Blizz.SetPoint(bb, "CENTER", bagDock, "BOTTOM", shiftX / scale, 35 / scale)
+		Blizz.SetPoint(bb, "CENTER", bagDock, "BOTTOM", (shiftX + (sm.bagButtonsX or 0)) / scale, 39 / scale)
 
-		local wingW = math.max(255, (visW + 24) / 0.6875)
+		local wingW = math.max(330, (visW + 24) / 0.6875)
 		bagDock:SetSize(wingW, 56)
 		if bagDock.art then
 			bagDock.art:SetSize(wingW, 114)
@@ -635,6 +866,33 @@ local function SetupBagDock(isPad, angelX, statueScale)
 			hooksecurefunc(bb, "ApplySystemAnchor", function()
 				if not StandardMode:IsGamepad() and not InCombatLockdown() then
 					SetupBagDock(false, angelX, statueScale)
+				end
+			end)
+		end
+		if bb.Layout and not layoutHooked[bb] then
+			layoutHooked[bb] = true
+			hooksecurefunc(bb, "Layout", function()
+				if not StandardMode:IsGamepad() and not InCombatLockdown() then
+					local b3 = _G.CharacterBag3Slot
+					local rb = _G.CharacterReagentBag0Slot
+					if rb and b3 then
+						rb:ClearAllPoints()
+						rb:SetPoint("RIGHT", b3, "LEFT", -2, 0)
+						rb:SetSize(45, 45)
+						rb:SetAlpha(1)
+						rb:Show()
+					end
+					local kr = _G.KeyRingButton
+					if kr then
+						local target = (rb and rb:IsShown()) and rb or b3
+						if target then
+							kr:ClearAllPoints()
+							kr:SetPoint("RIGHT", target, "LEFT", -2, 0)
+							kr:SetSize(33, 45)
+							kr:SetAlpha(1)
+							kr:Show()
+						end
+					end
 				end
 			end)
 		end
@@ -681,6 +939,12 @@ function StandardMode:AnchorPetBar()
 	if not topBtn then
 		return
 	end
+	-- cfg.standardMode.petBarAnchor: "center" (default; button 6's right edge is the row's
+	-- middle, which keeps the bar's left end clear of the chat box over the health orb),
+	-- "left" or "right" end of the row
+	local side = sm.petBarAnchor or "center"
+	local prefix = (topBtn:GetName() or ""):gsub("1$", "")
+	local midBtn, lastBtn = _G[prefix .. "6"], _G[prefix .. "12"]
 	inPetAnchor = true
 	HideDividerPools(petBar)
 	if petBar.BorderArt then
@@ -694,7 +958,13 @@ function StandardMode:AnchorPetBar()
 	end
 	Blizz.SetScale(petBar, 0.85)
 	Blizz.ClearAllPoints(petBar)
-	Blizz.SetPoint(petBar, "BOTTOMLEFT", topBtn, "TOPLEFT", 0, 6)
+	if side == "right" and lastBtn then
+		Blizz.SetPoint(petBar, "BOTTOMRIGHT", lastBtn, "TOPRIGHT", 0, 6)
+	elseif side == "center" and midBtn then
+		Blizz.SetPoint(petBar, "BOTTOM", midBtn, "TOPRIGHT", 1, 6)
+	else
+		Blizz.SetPoint(petBar, "BOTTOMLEFT", topBtn, "TOPLEFT", 0, 6)
+	end
 	inPetAnchor = false
 end
 
@@ -746,7 +1016,29 @@ function StandardMode:AnchorBelt()
 	if self:IsGamepad() then
 		belt:SetPoint("BOTTOMLEFT", pframe, "BOTTOMRIGHT", cfg.belt.x or 6, cfg.belt.y or 24)
 	elseif sm.beltAnchor ~= "actionbar" and bagDock and bagDock:IsShown() then
-		belt:SetPoint("BOTTOM", bagDock, "TOP", 0, -2)
+		local offsetX = sm.beltDockX or 18
+		local offsetY = sm.beltDockY or 8 -- 8px elevation ensures potion sockets do not clip into bag buttons below
+
+		-- Backup screen-edge protection:
+		-- If the belt's right gothic bracket would clear/exceed the screen edge,
+		-- calculate the inward offset so it automatically corrects and stays on screen.
+		local uiWidth = UIParent:GetWidth() or 1440
+		local dockRelX = (bagDock.defaultPosition and bagDock.defaultPosition.x) or 540
+		local bScale = belt:GetEffectiveScale() or 1
+		local uScale = UIParent:GetEffectiveScale() or 1
+		local scaleRatio = (uScale > 0) and (bScale / uScale) or 1
+
+		-- Belt visual half-width: 101px holder half-width + 44px right gothic bracket = 145px
+		local beltVisualHalfW = 145 * scaleRatio
+		local screenRightLimit = (uiWidth * 0.5) - 6 -- 6px margin from the screen edge
+		local desiredRight = (dockRelX + offsetX) * scaleRatio + beltVisualHalfW
+
+		if desiredRight > screenRightLimit then
+			local overflow = desiredRight - screenRightLimit
+			offsetX = offsetX - (overflow / scaleRatio)
+		end
+
+		belt:SetPoint("BOTTOM", bagDock, "TOP", offsetX, offsetY)
 	else
 		belt:SetPoint("BOTTOMLEFT", self:GetTopRowFirstButton() or pframe, "TOPLEFT", -4, 8)
 	end
@@ -842,6 +1134,255 @@ function StandardMode:Apply()
 	HookPetBarMovers()
 	self:AnchorPetBar()
 	self:AnchorBelt()
+	-- frame edges are only known once the anchors above have resolved
+	C_Timer.After(0, function()
+		StandardMode:PlaceStack()
+	end)
+end
+
+-- Top of a frame in UIParent units (nil until it has a position)
+local function TopInUI(f)
+	local top = f and f:GetTop()
+	if not top then
+		return nil
+	end
+	return top * f:GetEffectiveScale() / UIParent:GetEffectiveScale()
+end
+
+-- The bottom stack above the stone bar, keyboard layout only:
+--   top action row -> pet bar (space kept even without a pet, so nothing jumps when one
+--   is summoned) -> player cast bar -> swing timer (core/swingtimer.lua anchors it to
+--   the cast bar's top).
+-- The pet frame sits above the power orb: the right side is empty, while the chat box
+-- covers the area above the health orb and the quest tracker the right edge higher up.
+-- Frames moved in the edit layout keep their place.
+function StandardMode:PlaceStack()
+	local sm = cfg.standardMode
+	if not (sm and sm.enabled) or self:IsGamepad() then
+		return
+	end
+	if InCombatLockdown() then
+		pendingApply = true
+		return
+	end
+
+	local rowTop = TopInUI(self:GetTopRowFirstButton())
+	if rowTop then
+		local pb = _G.PetActionButton1
+		local petH = (pb and pb:GetHeight() > 0)
+				and (pb:GetHeight() * pb:GetEffectiveScale() / UIParent:GetEffectiveScale())
+			or 32
+		local stackTop = rowTop + 6 + petH + 6
+		local cast = _G.Roth_UIPlayerFrameCastBarDragFrame
+		if cast and not IsUserMoved("Roth_UIPlayerFrameCastBarDragFrame") then
+			-- centred; the cast bar's stone frame reaches ~24 below its centre line
+			PlaceAtBottom(cast, 0, stackTop + 24)
+		end
+		self:PlacePetFrame(rowTop, petH)
+	end
+	self:PlaceTargetFrame()
+	self:PlaceTargetTargetFrame()
+end
+
+-- Choices shared by the settings window and the edit layout's pet and target dialogs
+StandardMode.PET_FRAME_ANCHORS = {
+	{ value = "healthOrb", label = "Above the health orb" },
+	{ value = "orb", label = "Above the power orb" },
+	{ value = "petbarLeft", label = "Left of the pet bar" },
+	{ value = "petbarRight", label = "Right of the pet bar" },
+}
+StandardMode.PET_BAR_ANCHORS = {
+	{ value = "left", label = "Left end of the row" },
+	{ value = "center", label = "Centred" },
+	{ value = "right", label = "Right end of the row" },
+}
+StandardMode.TARGET_FRAME_ANCHORS = {
+	{ value = "powerOrb", label = "Above the power orb" },
+	{ value = "healthOrb", label = "Above the health orb" },
+	{ value = "top", label = "Top of the screen" },
+}
+StandardMode.TARGETTARGET_FRAME_ANCHORS = {
+	{ value = "topright", label = "Top-right above target" },
+	{ value = "topleft", label = "Top-left above target" },
+	{ value = "left", label = "Left of target" },
+	{ value = "right", label = "Right of target" },
+}
+
+StandardMode.TARGET_HEALTH_FORMATS = {
+	{ value = "both", label = "Both (cur/max & %)" },
+	{ value = "value", label = "Value (cur/max)" },
+	{ value = "percent", label = "Percent (%)" },
+	{ value = "deficit", label = "Deficit (-loss)" },
+	{ value = "current", label = "Current HP" },
+	{ value = "none", label = "None" },
+}
+ns.TARGET_HEALTH_FORMATS = StandardMode.TARGET_HEALTH_FORMATS
+
+StandardMode.TARGET_POWER_FORMATS = {
+	{ value = "both", label = "Both (cur/max & %)" },
+	{ value = "value", label = "Value (cur/max)" },
+	{ value = "percent", label = "Percent (%)" },
+	{ value = "none", label = "None" },
+}
+ns.TARGET_POWER_FORMATS = StandardMode.TARGET_POWER_FORMATS
+
+StandardMode.TARGET_AURA_PLACEMENTS = {
+	{ value = "right", label = "Right" },
+	{ value = "above", label = "Above" },
+	{ value = "below", label = "Below" },
+	{ value = "left", label = "Left" },
+}
+ns.TARGET_AURA_PLACEMENTS = StandardMode.TARGET_AURA_PLACEMENTS
+
+StandardMode.UNIT_HEALTH_FORMATS = {
+	{ value = "deficit", label = "Deficit (-loss)" },
+	{ value = "percent", label = "Percent (%)" },
+	{ value = "value", label = "Value (cur/max)" },
+	{ value = "current", label = "Current HP" },
+	{ value = "both", label = "Both (cur/max & %)" },
+	{ value = "none", label = "None" },
+}
+ns.UNIT_HEALTH_FORMATS = StandardMode.UNIT_HEALTH_FORMATS
+
+StandardMode.RAID_LAYOUT_OPTIONS = {
+	{ value = "tiles", label = "Diablo square tiles (upward liquid fill)" },
+	{ value = "bars", label = "Classic horizontal iron bars" },
+}
+ns.RAID_LAYOUT_OPTIONS = StandardMode.RAID_LAYOUT_OPTIONS
+
+-- Pet frame, choices (cfg.standardMode.petFrameAnchor):
+--   "orb"    above the power orb. The right side is empty: the chat box covers the
+--            area above the health orb and the quest tracker the right edge higher up.
+--   "healthOrb" above the health orb, by the player's own orb; under a chat box that
+--            sits at the bottom left.
+--   "petbarLeft" / "petbarRight"  up and to the left / right of the pet bar, next to
+--            the pet's own buttons. On the left it can reach under a chat box at the
+--            bottom left; on the right it can meet the cast bar when the bar is centred.
+function StandardMode:PlacePetFrame(rowTop, petH)
+	local sm = cfg.standardMode
+	local pet = _G.Roth_UIPetFrame
+	if not pet or IsUserMoved("Roth_UIPetFrame") then
+		return
+	end
+	local uiEff = UIParent:GetEffectiveScale()
+	local mode = sm.petFrameAnchor
+	if mode == "petbar" then
+		mode = "petbarLeft" -- earlier name
+	end
+	if mode == "petbarLeft" or mode == "petbarRight" then
+		-- where the pet bar's left end is, from the buttons it is anchored to (the bar itself
+		-- may be hidden without a pet and then has no position)
+		local first = self:GetTopRowFirstButton()
+		local prefix = first and (first:GetName() or ""):gsub("1$", "") or ""
+		local petBar = _G.PetActionBar or _G.PetActionBarFrame
+		local side = sm.petBarAnchor or "center"
+		local ref, edge
+		if side == "right" then
+			ref, edge = _G[prefix .. "12"], "right"
+		elseif side == "center" then
+			ref, edge = _G[prefix .. "6"], "center"
+		else
+			ref, edge = first, "left"
+		end
+		local refX = ref and ((edge == "left") and ref:GetLeft() or ref:GetRight())
+		if refX and petBar then
+			local x = refX * ref:GetEffectiveScale() / uiEff - UIParent:GetWidth() / 2
+			local barW = petBar:GetWidth() * petBar:GetEffectiveScale() / uiEff
+			local barLeft = (edge == "left" and x) or (edge == "right" and x - barW) or (x - barW / 2)
+			local petW = pet:GetWidth() * pet:GetEffectiveScale() / uiEff
+			-- overlapping the bar's end by 16, bottom a little above the bar's top
+			local px
+			if mode == "petbarRight" then
+				px = barLeft + barW - 16 + petW / 2
+			else
+				px = barLeft + 16 - petW / 2
+			end
+			PlaceAtBottom(pet, px, rowTop + 6 + petH + 8)
+			return
+		end
+	end
+	local onHealth = mode ~= "orb"
+	local orbTop = TopInUI(onHealth and _G.Roth_UIHealthOrb or _G.Roth_UIPowerOrb)
+	if orbTop then
+		-- with the portrait beside the frame, centre portrait + frame together over the orb
+		local shift = 0
+		local holder = pet.portraitSide and pet.PortraitHolder
+		if holder then
+			shift = holder:GetWidth() * 0.6 * holder:GetEffectiveScale() / uiEff / 2
+		end
+		PlaceAtBottom(
+			pet,
+			(onHealth and -1 or 1) * (sm.standardOrbX or 325) + shift,
+			orbTop + (sm.petFrameOrbGap or -10)
+		)
+	end
+end
+
+-- Target frame, choices (cfg.standardMode.targetFrameAnchor):
+--   "powerOrb"  above the power orb (default: symmetrical to pet frame above health orb)
+--   "healthOrb" above the health orb
+--   "top"       top of the screen (classic Roth UI layout)
+function StandardMode:PlaceTargetFrame()
+	local sm = cfg.standardMode
+	local target = _G.Roth_UITargetFrame
+	if not target or IsUserMoved("Roth_UITargetFrame") then
+		return
+	end
+	if InCombatLockdown() then
+		pendingApply = true
+		return
+	end
+	local mode = sm.targetFrameAnchor or "powerOrb"
+	if mode == "top" then
+		target:ClearAllPoints()
+		local pos = (cfg.units and cfg.units.target and cfg.units.target.pos) or {}
+		target:SetPoint(pos.a1 or "TOP", (pos.af and _G[pos.af]) or UIParent, pos.a2 or "TOP", pos.x or 0, pos.y or -80)
+		self:PlaceTargetTargetFrame()
+		return
+	end
+	local onHealth = (mode == "healthOrb")
+	local orb = onHealth and _G.Roth_UIHealthOrb or _G.Roth_UIPowerOrb
+	local orbTop = TopInUI(orb)
+	if orbTop then
+		local x = (onHealth and -1 or 1) * (sm.standardOrbX or 325)
+		if not onHealth then
+			-- over the power orb: 25% of the frame left of the orb's midpoint, 75% to the right
+			local w = target:GetWidth() * target:GetEffectiveScale() / UIParent:GetEffectiveScale()
+			x = x + w * 0.25
+		end
+		PlaceAtBottom(target, x, orbTop + (sm.targetFrameOrbGap or -10))
+		self:PlaceTargetTargetFrame()
+	end
+end
+
+-- Target of Target frame, choices (cfg.standardMode.targetTargetFrameAnchor):
+--   "topright"  top-right above target frame (BOTTOMRIGHT -> TOPRIGHT, 0, 6)
+--   "topleft"   top-left above target frame (BOTTOMLEFT -> TOPLEFT, 0, 6)
+--   "left"      left of target frame (TOPRIGHT -> TOPLEFT, -6, -10)
+--   "right"     right of target frame (TOPLEFT -> TOPRIGHT, 6, -10)
+function StandardMode:PlaceTargetTargetFrame()
+	local sm = cfg.standardMode
+	local tot = _G.Roth_UITargetTargetFrame
+	local target = _G.Roth_UITargetFrame
+	if not tot or not target or IsUserMoved("Roth_UITargetTargetFrame") then
+		return
+	end
+	if InCombatLockdown() then
+		pendingApply = true
+		return
+	end
+	local mode = sm.targetTargetFrameAnchor or "topright"
+	tot:ClearAllPoints()
+	if mode == "topleft" then
+		tot:SetPoint("BOTTOMLEFT", target, "TOPLEFT", 0, 6)
+	elseif mode == "left" then
+		tot:SetPoint("TOPRIGHT", target, "TOPLEFT", -6, -10)
+	elseif mode == "right" then
+		tot:SetPoint("TOPLEFT", target, "TOPRIGHT", 6, -10)
+	else
+		-- "topright" default
+		tot:SetPoint("BOTTOMRIGHT", target, "TOPRIGHT", 0, 6)
+	end
 end
 
 local ev = CreateFrame("Frame")

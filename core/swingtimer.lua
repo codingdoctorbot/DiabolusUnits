@@ -211,7 +211,7 @@ function Swing.Place()
 	holder:ClearAllPoints()
 	local castbar = rawget(_G, "Roth_UIPlayerFrameCastBarDragFrame")
 	if castbar then
-		holder:SetPoint("BOTTOM", castbar, "TOP", 0, Opt("gap", 10))
+		holder:SetPoint("BOTTOM", castbar, "TOP", 0, Opt("gap", 24))
 	else
 		holder:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 260)
 	end
