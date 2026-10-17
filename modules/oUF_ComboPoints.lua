@@ -112,7 +112,7 @@ local Path = function(self, ...)
 end
 
 local ForceUpdate = function(element)
-	return Path(element.__owner, "ForceUpdate", element.__owner.unit, "COMBO_POINTS")
+	return Path(element.__owner, "ForceUpdate", element.__owner.__unit, "COMBO_POINTS")
 end
 
 local function Enable(self, unit)
@@ -127,7 +127,7 @@ local function Enable(self, unit)
 		self:RegisterEvent("SPELLS_CHANGED", Visibility, true)
 		self:RegisterEvent("UNIT_ENTERED_VEHICLE", Visibility)
 		self:RegisterEvent("UNIT_EXITED_VEHICLE", Visibility)
-		self:RegisterEvent("UPDATE_SHAPESHIFT_FORM", Visibility)
+		self:RegisterEvent("UPDATE_SHAPESHIFT_FORM", Visibility, true)
 
 		local helper = CreateFrame("Frame") --this is needed...adding player_login to the visivility events does not do anything
 		helper:RegisterEvent("PLAYER_ENTERING_WORLD")

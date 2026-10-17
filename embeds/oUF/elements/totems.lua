@@ -5,16 +5,12 @@ Handles the updating and visibility of totems.
 
 ## Widget
 
-Totems - A `table` to hold sub-widgets.
+Totems - A `table` to hold widgets of any kind.
 
 ## Sub-Widgets
 
-Totem - Any UI widget.
-
-## Sub-Widget Options
-
-.Icon     - A `Texture` representing the totem icon.
-.Cooldown - A `Cooldown` representing the duration of the totem.
+.Icon     - An optional `Texture` widget representing the totem icon.
+.Cooldown - An optional `Cooldown` widget representing the duration of the totem.
 
 ## Notes
 
@@ -23,7 +19,7 @@ OnEnter and OnLeave script handlers will be set to display a Tooltip if the `Tot
 ## Examples
 
     local Totems = {}
-    for index = 1, 5 do
+    for index = 1, 4 do
         -- Position and size of the totem indicator
         local Totem = CreateFrame('Button', nil, self)
         Totem:SetSize(40, 40)
@@ -48,18 +44,26 @@ OnEnter and OnLeave script handlers will be set to display a Tooltip if the `Tot
 local _, ns = ...
 local oUF = ns.oUF
 
+-- sourced from Blizzard_FrameXMLBase/Constants.lua
+local TOTEM_PRIORITIES = _G.STANDARD_TOTEM_PRIORITIES
+if(UnitClassBase('player') == 'SHAMAN') then
+	TOTEM_PRIORITIES = _G.SHAMAN_TOTEM_PRIORITIES
+end
+
 local function UpdateTooltip(self)
 	GameTooltip:SetTotem(self:GetID())
 end
 
 local function OnEnter(self)
-	if(not self:IsVisible()) then return end
+	if(GameTooltip:IsForbidden() or not self:IsVisible()) then return end
 
 	GameTooltip:SetOwner(self, 'ANCHOR_BOTTOMRIGHT')
 	self:UpdateTooltip()
 end
 
 local function OnLeave()
+	if(GameTooltip:IsForbidden()) then return end
+
 	GameTooltip:Hide()
 end
 
@@ -75,50 +79,32 @@ local function UpdateTotem(self, event, slot)
 	--]]
 	if(element.PreUpdate) then element:PreUpdate(slot) end
 
-	local totem = element[slot]
-	local haveTotem, name, start, duration, icon = GetTotemInfo(slot)
-	if(haveTotem and duration > 0) then
-		if(totem.Icon) then
-			totem.Icon:SetTexture(icon)
-		end
+	local totem = element[TOTEM_PRIORITIES[slot]]
+	local haveTotem, name, _, _, icon = GetTotemInfo(slot)
+	local duration = GetTotemDuration(slot)
 
-		if(totem.Cooldown) then
-			totem.Cooldown:SetCooldown(start, duration)
-		end
+	totem:SetAlphaFromBoolean(haveTotem, 1, 0)
 
-		if totem:IsObjectType("Statusbar") then
-			totem:SetValue(0)
-			totem:SetScript("OnUpdate",function(self,elapsed)
-				self.total = (self.total or 0) + elapsed
-				if (self.total >= .01) then
-					self.total = 0
-					local _, _, startTime, expiration = GetTotemInfo(slot)
-					if ((GetTime() - startTime) == 0) then
-						self:SetValue(0)
-					else
-						self:SetValue(1 - ((GetTime() - startTime) / expiration))
-					end
-				end
-			end)
-		end
-	else
-		totem.Icon:SetTexture(nil)
-		totem.Cooldown:SetCooldown(0,0)
+	if(totem.Icon) then
+		totem.Icon:SetTexture(icon)
 	end
 
-	--[[ Callback: Totems:PostUpdate(slot, haveTotem, name, start, duration, icon)
+	if(totem.Cooldown and duration ~= nil) then
+		totem.Cooldown:SetCooldownFromDurationObject(duration)
+	end
+
+	--[[ Callback: Totems:PostUpdate(slot, haveTotem, name, icon, duration)
 	Called after the element has been updated.
 
 	* self      - the Totems element
 	* slot      - the slot of the updated totem (number)
 	* haveTotem - indicates if a totem is present in the given slot (boolean)
 	* name      - the name of the totem (string)
-	* start     - the value of `GetTime()` when the totem was created (number)
-	* duration  - the total duration for which the totem should last (number)
 	* icon      - the totem's icon (Texture)
+	* duration  - totem duration ([DurationObject](https://warcraft.wiki.gg/wiki/ScriptObject_DurationObject))
 	--]]
 	if(element.PostUpdate) then
-		return element:PostUpdate(slot, haveTotem, name, start, duration, icon)
+		return element:PostUpdate(slot, haveTotem, name, icon, duration)
 	end
 end
 
@@ -143,10 +129,6 @@ local function ForceUpdate(element)
 	return Update(element.__owner, 'ForceUpdate')
 end
 
-local OnClick = function(button)
-	DestroyTotem(button.slot)
-end
-
 local function Enable(self)
 	local element = self.Totems
 	if(element) then
@@ -154,15 +136,13 @@ local function Enable(self)
 		element.ForceUpdate = ForceUpdate
 
 		for i = 1, #element do
-			local totem = element[i]
-
+			local totem = element[TOTEM_PRIORITIES[i]]
 			totem:SetID(i)
+			totem:Show()
 
 			if(totem:IsMouseEnabled()) then
 				totem:SetScript('OnEnter', OnEnter)
 				totem:SetScript('OnLeave', OnLeave)
-				totem.slot = element[i].slot
-				totem:SetScript('OnClick', OnClick)
 
 				--[[ Override: Totems[slot]:UpdateTooltip()
 				Used to populate the tooltip when the totem is hovered.
@@ -177,6 +157,11 @@ local function Enable(self)
 
 		self:RegisterEvent('PLAYER_TOTEM_UPDATE', Path, true)
 
+		TotemFrame:UnregisterEvent('PLAYER_TOTEM_UPDATE')
+		TotemFrame:UnregisterEvent('PLAYER_ENTERING_WORLD')
+		TotemFrame:UnregisterEvent('UPDATE_SHAPESHIFT_FORM')
+		TotemFrame:UnregisterEvent('PLAYER_TALENT_UPDATE')
+
 		return true
 	end
 end
@@ -188,9 +173,13 @@ local function Disable(self)
 			element[i]:Hide()
 		end
 
+		TotemFrame:RegisterEvent('PLAYER_TOTEM_UPDATE')
+		TotemFrame:RegisterEvent('PLAYER_ENTERING_WORLD')
+		TotemFrame:RegisterEvent('UPDATE_SHAPESHIFT_FORM')
+		TotemFrame:RegisterEvent('PLAYER_TALENT_UPDATE')
+
 		self:UnregisterEvent('PLAYER_TOTEM_UPDATE', Path)
 	end
 end
 
 oUF:AddElement('Totems', Update, Enable, Disable)
-

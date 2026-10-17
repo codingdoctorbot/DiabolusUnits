@@ -17,7 +17,7 @@ These ship inside Roth UI and keep their own authors and licences.
 
 | Part | Author | Licence |
 |---|---|---|
-| oUF 1.6.8 (`embeds/oUF`) | Trond A. Ekseth (haste), with oUF contributors | MIT (`embeds/oUF/LICENSE`) |
+| oUF 14.2.0 (`embeds/oUF`; one local patch in `elements/castbar.lua`, marked "DiabolusUnits local patch") | Trond A. Ekseth (haste), Adrian L Lange (p3lim), lightspark, Rainrider and oUF contributors | MIT (`embeds/oUF/LICENSE.txt`) |
 | rLib, rChat, rMinimap, rInfostrings, rActionBarStyler and the other `r*` embeds | zork | MIT (Roth UI) |
 | rTooltip | Galaxy | MIT (Roth UI) |
 | ShinyBuffs (`embeds/Roth_ShinyBuffs`) | Seerah, edited for Roth UI | to confirm before any release |

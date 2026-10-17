@@ -221,7 +221,7 @@ do
 	local found = {}
 	local litIcons = {} -- icons a rank lit this pass: other ranks must not expire them
 	function Update(frame, event, unit)
-		if frame.unit ~= unit then
+		if frame.__unit ~= unit then
 			return
 		end
 		local watch = frame.AuraWatch
@@ -358,7 +358,7 @@ local function SetupIcons(self)
 end
 
 local function ForceUpdate(element)
-	return Update(element.__owner, "ForceUpdate", element.__owner.unit)
+	return Update(element.__owner, "ForceUpdate", element.__owner.__unit)
 end
 
 local function Enable(self)

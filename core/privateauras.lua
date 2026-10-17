@@ -38,7 +38,7 @@ function PrivateAuras.Update(frame)
 	if not (slots and add) then
 		return
 	end
-	local unit = frame.unit
+	local unit = frame.__unit
 	if unit == slots.unit then
 		return
 	end

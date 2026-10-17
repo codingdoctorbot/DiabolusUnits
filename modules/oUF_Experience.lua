@@ -34,10 +34,15 @@ for tag, func in pairs({
 	oUF.Tags.Events[tag] = "PLAYER_XP_UPDATE PLAYER_LEVEL_UP UPDATE_EXHAUSTION"
 end
 
+-- fire for every tag string, not only the frame's unit (oUF has PLAYER_LEVEL_UP already)
+oUF.Tags.SharedEvents.UPDATE_EXHAUSTION = true
+
 local function Update(self, event, unit)
-	if self.unit ~= unit then
+	-- PLAYER_LEVEL_UP / UPDATE_EXHAUSTION carry no unit
+	if event == "PLAYER_XP_UPDATE" and unit ~= self.__unit then
 		return
 	end
+	unit = self.__unit
 
 	local experience = self.Experience
 	if experience.PreUpdate then
@@ -75,7 +80,7 @@ local function Path(self, ...)
 end
 
 local function ForceUpdate(element)
-	return Path(element.__owner, "ForceUpdate", element.__owner.unit)
+	return Path(element.__owner, "ForceUpdate", element.__owner.__unit)
 end
 
 local function Enable(self, unit)
@@ -85,11 +90,11 @@ local function Enable(self, unit)
 		experience.ForceUpdate = ForceUpdate
 
 		self:RegisterEvent("PLAYER_XP_UPDATE", Path)
-		self:RegisterEvent("PLAYER_LEVEL_UP", Path)
+		self:RegisterEvent("PLAYER_LEVEL_UP", Path, true)
 
 		local rested = experience.Rested
 		if rested then
-			self:RegisterEvent("UPDATE_EXHAUSTION", Path)
+			self:RegisterEvent("UPDATE_EXHAUSTION", Path, true)
 			rested:SetFrameLevel(experience:GetFrameLevel() - 1)
 
 			if not rested:GetStatusBarTexture() then

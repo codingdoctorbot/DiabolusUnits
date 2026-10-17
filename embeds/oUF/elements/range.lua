@@ -1,119 +1,107 @@
---[[ Element: Range Fader
+--[[
+# Element: Range Fader
 
- Widget
+Changes the opacity of a unit frame based on whether the frame's unit is in the player's range.
 
- Range - A table containing opacity values.
+## Widget
 
- Options
+Range - A table containing opacity values.
 
- .outsideAlpha - Opacity when the unit is out of range. Values 0 (fully
-                 transparent) - 1 (fully opaque).
- .insideAlpha  - Opacity when the unit is within range. Values 0 (fully
-                 transparent) - 1 (fully opaque).
+## Notes
 
- Examples
+Offline units are handled as if they are in range.
 
-   -- Register with oUF
-   self.Range = {
-      insideAlpha = 1,
-      outsideAlpha = 1/2,
-   }
+## Options
 
- Hooks
+.outsideAlpha - Opacity when the unit is out of range. Defaults to 0.55 (number)[0-1].
+.insideAlpha  - Opacity when the unit is within range. Defaults to 1 (number)[0-1].
 
-]]
+## Examples
 
-local parent, ns = ...
+    -- Register with oUF
+    self.Range = {
+        insideAlpha = 1,
+        outsideAlpha = 1/2,
+    }
+--]]
+
+local _, ns = ...
 local oUF = ns.oUF
-local Secrets = ns.Secrets
 
-local _FRAMES = {}
-local OnRangeFrame
+local function Update(self, event)
+	local element = self.Range
+	local unit = self.__unit
 
-local UnitInRange, UnitIsConnected = UnitInRange, UnitIsConnected
+	--[[ Callback: Range:PreUpdate()
+	Called before the element has been updated.
 
--- updating of range.
-local timer = 0
-local OnRangeUpdate = function(self, elapsed)
-	timer = timer + elapsed
+	* self - the Range element
+	--]]
+	if(element.PreUpdate) then
+		element:PreUpdate()
+	end
 
-	if(timer >= .20) then
-		for _, object in next, _FRAMES do
-			if(object:IsShown()) then
-				local range = object.Range
-				local isConnected = Secrets.Bool(UnitIsConnected, object.unit)
-				if(isConnected) then
-					local inRange, checkedRange = UnitInRange(object.unit)
-					if(Secrets.IsSecret(inRange) or Secrets.IsSecret(checkedRange)) then
-						if(range.Override) then
-							range.Override(object, 'inside')
-						elseif(object.SetAlphaFromBoolean) then
-							object:SetAlphaFromBoolean(inRange, range.insideAlpha, range.outsideAlpha)
-						elseif(C_CurveUtil and C_CurveUtil.EvaluateColorValueFromBoolean) then
-							object:SetAlpha(C_CurveUtil.EvaluateColorValueFromBoolean(inRange, range.insideAlpha, range.outsideAlpha))
-						else
-							object:SetAlpha(range.insideAlpha)
-						end
-					elseif(checkedRange and not inRange) then
-						if(range.Override) then
-							range.Override(object, 'outside')
-						else
-							object:SetAlpha(range.outsideAlpha)
-						end
-					else
-						if(range.Override) then
-							range.Override(object, 'inside')
-						else
-							object:SetAlpha(range.insideAlpha)
-						end
-					end
-				else
-					if(range.Override) then
-						range.Override(object, 'offline')
-					else
-						object:SetAlpha(range.insideAlpha)
-					end
-				end
-			end
-		end
+	local inRange
+	local isEligible = UnitIsConnected(unit) and UnitInParty(unit)
+	if(isEligible) then
+		inRange = UnitInRange(unit)
+		self:SetAlphaFromBoolean(inRange, element.insideAlpha, element.outsideAlpha)
+	else
+		self:SetAlpha(element.insideAlpha)
+	end
 
-		timer = 0
+	--[[ Callback: Range:PostUpdate(object, inRange, isEligible)
+	Called after the element has been updated.
+
+	* self       - the Range element
+	* object     - the parent object
+	* inRange    - indicates if the unit is within 40 yards of the player (boolean)
+	* isEligible - indicates if the unit is eligible for the range check (boolean)
+	--]]
+	if(element.PostUpdate) then
+		return element:PostUpdate(self, inRange, isEligible)
 	end
 end
 
-local Enable = function(self)
-	local range = self.Range
-	if(range and range.insideAlpha and range.outsideAlpha) then
-		table.insert(_FRAMES, self)
+local function Path(self, ...)
+	--[[ Override: Range.Override(self, event)
+	Used to completely override the internal update function.
 
-		if(not OnRangeFrame) then
-			OnRangeFrame = CreateFrame"Frame"
-			OnRangeFrame:SetScript("OnUpdate", OnRangeUpdate)
+	* self  - the parent object
+	* event - the event triggering the update (string)
+	--]]
+	return (self.Range.Override or Update) (self, ...)
+end
+
+local function Enable(self, unit)
+	local element = self.Range
+	if(element) then
+		element.__owner = self
+		element.insideAlpha = element.insideAlpha or 1
+		element.outsideAlpha = element.outsideAlpha or 0.55
+
+		self:RegisterEvent('UNIT_IN_RANGE_UPDATE', Path)
+		self:RegisterEvent('UNIT_CONNECTION', Path)
+
+		if(unit == 'party' or unit == 'raid') then
+			self:RegisterEvent('PARTY_MEMBER_ENABLE', Path)
+			self:RegisterEvent('PARTY_MEMBER_DISABLE', Path)
 		end
-
-		OnRangeFrame:Show()
 
 		return true
 	end
 end
 
-local Disable = function(self)
-	local range = self.Range
-	if(range) then
-		for k, frame in next, _FRAMES do
-			if(frame == self) then
-				table.remove(_FRAMES, k)
-				break
-			end
-		end
-		self:SetAlpha(1)
+local function Disable(self)
+	local element = self.Range
+	if(element) then
+		self:SetAlpha(element.insideAlpha)
 
-		if(#_FRAMES == 0) then
-			OnRangeFrame:Hide()
-		end
+		self:UnregisterEvent('UNIT_IN_RANGE_UPDATE', Path)
+		self:UnregisterEvent('UNIT_CONNECTION', Path)
+		self:UnregisterEvent('PARTY_MEMBER_ENABLE', Path)
+		self:UnregisterEvent('PARTY_MEMBER_DISABLE', Path)
 	end
 end
 
-if oUF and oUF.AddElement then
-	oUF:AddElement('Range', nil, Enable, Disable)
-end
+oUF:AddElement('Range', Path, Enable, Disable)

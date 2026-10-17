@@ -64,7 +64,7 @@ local createHealthFrame = function(self)
 	h.highlight:SetAllPoints(self)
 
 	self.Health = h
-	self.Health.Smooth = true
+	self.Health.smoothing = Enum.StatusBarInterpolation.ExponentialEaseOut
 end
 
 --create power frames
@@ -90,7 +90,7 @@ local createPowerFrame = function(self)
 	h.glow:SetVertexColor(0, 0, 0, 1)
 
 	self.Power = h
-	self.Power.Smooth = true
+	self.Power.smoothing = Enum.StatusBarInterpolation.ExponentialEaseOut
 end
 
 func.updateFocusTargetText = function(self)
@@ -188,14 +188,13 @@ local function createStyle(self)
 	--auras
 	if self.cfg.auras.show then
 		func.createDebuffs(self)
-		self.Debuffs.PostCreateIcon = func.createAuraIcon
 	end
 
 	--debuffglow
 	func.createDebuffGlow(self)
 
 	--icons
-	self.RaidIcon = func.createIcon(self, "BACKGROUND", 18, self.Name, "BOTTOM", "TOP", 0, 0, -1)
+	self.RaidTargetIndicator = func.createIcon(self, "BACKGROUND", 18, self.Name, "BOTTOM", "TOP", 0, 0, -1)
 
 	--add heal prediction
 	func.healPrediction(self)

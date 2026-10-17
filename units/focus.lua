@@ -67,7 +67,7 @@ local createHealthFrame = function(self)
 	h.highlight:SetAllPoints(self)
 
 	self.Health = h
-	self.Health.Smooth = true
+	self.Health.smoothing = Enum.StatusBarInterpolation.ExponentialEaseOut
 end
 
 --create power frames
@@ -93,7 +93,7 @@ local createPowerFrame = function(self)
 	h.glow:SetVertexColor(0, 0, 0, 1)
 
 	self.Power = h
-	self.Power.Smooth = true
+	self.Power.smoothing = Enum.StatusBarInterpolation.ExponentialEaseOut
 end
 
 func.updateFocusText = function(self)
@@ -259,15 +259,11 @@ local function createStyle(self)
 
 	--auras
 	if self.cfg.auras.show then
+		-- the client draws them, so they stay in combat (core/nativeauras.lua)
 		func.createDebuffs(self)
-		self.Debuffs.PostCreateIcon = func.createAuraIcon
 		if self.cfg.auras.showBuffs then
 			func.createBuffs(self)
-			self.Buffs.PostCreateIcon = func.createAuraIcon
 		end
-		-- the client draws them where it can, so they stay in combat (core/nativeauras.lua)
-		ns.NativeAuras.Replace(self, "Debuffs", "focus")
-		ns.NativeAuras.Replace(self, "Buffs", "focus")
 	end
 
 	--aurawatch
@@ -282,7 +278,7 @@ local function createStyle(self)
 	self:RegisterEvent("UNIT_THREAT_SITUATION_UPDATE", func.checkThreat)
 
 	--icons
-	self.RaidIcon = func.createIcon(self, "BACKGROUND", 18, self.Name, "BOTTOM", "TOP", 0, 0, -1)
+	self.RaidTargetIndicator = func.createIcon(self, "BACKGROUND", 18, self.Name, "BOTTOM", "TOP", 0, 0, -1)
 
 	--add self to unit container (maybe access to that unit is needed in another style)
 	unit.focus = self

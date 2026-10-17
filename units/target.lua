@@ -44,7 +44,7 @@ local createArtwork = function(self)
 
 	self.RareIcon = t
 
-	-- a horned crest over boss frames (oUF RareIcon PostUpdate, embeds/oUF/elements/rare.lua)
+	-- a horned crest over boss frames (RareIcon PostUpdate, modules/oUF_RareIcon.lua)
 	local crest = self:CreateTexture(nil, "BORDER", nil, -6)
 	crest:SetTexture("Interface\\AddOns\\DiabolusUnits\\media\\d3_head_elite")
 	crest:SetSize(128, 64)
@@ -85,11 +85,11 @@ local updateThreatGlow = function(self)
 		end
 		return
 	end
-	if not Secrets.UnitExists(self.unit or "target") then
+	if not Secrets.UnitExists(self.__unit or "target") then
 		glow:Hide()
 		return
 	end
-	local status = Secrets.Number(UnitThreatSituation("player", self.unit or "target"))
+	local status = Secrets.Number(UnitThreatSituation("player", self.__unit or "target"))
 	if status == nil then
 		return
 	end
@@ -105,10 +105,10 @@ end
 --make a sound when target gets selected
 local playTargetSound = function(self, event)
 	if event == "PLAYER_TARGET_CHANGED" then
-		if Secrets.UnitExists(self.unit) then
-			if Secrets.Bool(UnitIsEnemy, self.unit, "player") then
+		if Secrets.UnitExists(self.__unit) then
+			if Secrets.Bool(UnitIsEnemy, self.__unit, "player") then
 				PlaySound(873)
-			elseif Secrets.Bool(UnitIsFriend, "player", self.unit) then
+			elseif Secrets.Bool(UnitIsFriend, "player", self.__unit) then
 				PlaySound(867)
 			else
 				PlaySound(871)
@@ -145,8 +145,7 @@ local createHealthFrame = function(self)
 	h.highlight:SetAllPoints(h)
 
 	self.Health = h
-	self.Health.Smooth = true
-	self.Health.frequentUpdates = self.cfg.health.frequentUpdates or false
+	self.Health.smoothing = Enum.StatusBarInterpolation.ExponentialEaseOut
 end
 
 --create power frames
@@ -172,7 +171,7 @@ local createPowerFrame = function(self)
 	h.glow:SetVertexColor(0, 0, 0, 1)
 
 	self.Power = h
-	self.Power.Smooth = true
+	self.Power.smoothing = Enum.StatusBarInterpolation.ExponentialEaseOut
 	self.Power.frequentUpdates = self.cfg.power.frequentUpdates or false
 end
 
@@ -209,56 +208,13 @@ func.updateTargetAuras = function(self)
 	local bCfg = layout.buffs
 	local dCfg = layout.debuffs
 
-	local bf = self.BuffFrame or self.Buffs
-	if bf then
-		bf:ClearAllPoints()
-		bf:SetPoint(bCfg.a1, self, bCfg.a2, bCfg.x, bCfg.y)
-		bf.initialAnchor = bCfg.init
-		bf["growth-x"] = bCfg.gx
-		bf["growth-y"] = bCfg.gy
-		if bf.ForceUpdate then
-			bf:ForceUpdate()
-		end
-	end
-
-	local df = self.DebuffFrame or self.Debuffs
-	if df then
-		df:ClearAllPoints()
-		df:SetPoint(dCfg.a1, self, dCfg.a2, dCfg.x, dCfg.y)
-		df.initialAnchor = dCfg.init
-		df["growth-x"] = dCfg.gx
-		df["growth-y"] = dCfg.gy
-		if df.ForceUpdate then
-			df:ForceUpdate()
-		end
-	end
-
-	local anchorUtil = rawget(_G, "AnchorUtil")
-	if anchorUtil and anchorUtil.FlowDirection then
-		local FLOW = anchorUtil.FlowDirection
-		if self.RothNativeBuffs then
-			local c = self.RothNativeBuffs
-			c:ClearAllPoints()
-			c:SetPoint(bCfg.init, bf or self, bCfg.init)
-			c:SetFlowLayoutAnchorPoint(bCfg.init)
-			local h = bCfg.gx == "LEFT" and FLOW.Left or FLOW.Right
-			local v = bCfg.gy == "UP" and FLOW.Up or FLOW.Down
-			c:SetFlowLayoutGrowthDirection(h, v)
-			if c.UpdateAllAuras then
-				pcall(c.UpdateAllAuras, c)
-			end
-		end
-		if self.RothNativeDebuffs then
-			local c = self.RothNativeDebuffs
-			c:ClearAllPoints()
-			c:SetPoint(dCfg.init, df or self, dCfg.init)
-			c:SetFlowLayoutAnchorPoint(dCfg.init)
-			local h = dCfg.gx == "LEFT" and FLOW.Left or FLOW.Right
-			local v = dCfg.gy == "UP" and FLOW.Up or FLOW.Down
-			c:SetFlowLayoutGrowthDirection(h, v)
-			if c.UpdateAllAuras then
-				pcall(c.UpdateAllAuras, c)
-			end
+	-- the rows (core/nativeauras.lua) sit in their holders' initialAnchor corner
+	for key, c in pairs({ Buffs = bCfg, Debuffs = dCfg }) do
+		local row = self[key]
+		if row and row.holder then
+			row.holder:ClearAllPoints()
+			row.holder:SetPoint(c.a1, self, c.a2, c.x, c.y)
+			ns.NativeAuras.SetFlow(self, key, c.init, c.gx, c.gy)
 		end
 	end
 end
@@ -402,91 +358,69 @@ local createHealthPowerStrings = function(self)
 	func.updateTargetText(self)
 end
 
---check for interruptable spellcast
-local checkShield = function(self, unit)
-	if self.notInterruptible and Secrets.Bool(UnitCanAttack, "player", unit) then
-		--show shield
-		self:SetStatusBarColor(
-			self.cfg.color.shieldbar.r,
-			self.cfg.color.shieldbar.g,
-			self.cfg.color.shieldbar.b,
-			self.cfg.color.shieldbar.a
-		)
-		self.bg:SetVertexColor(
-			self.cfg.color.shieldbg.r,
-			self.cfg.color.shieldbg.g,
-			self.cfg.color.shieldbg.b,
-			self.cfg.color.shieldbg.a
-		)
-		self.Spark:SetVertexColor(0.8, 0.8, 0.8, 1)
-		self.background:SetDesaturated(1)
-	else
-		--no shield
-		self:SetStatusBarColor(self.cfg.color.bar.r, self.cfg.color.bar.g, self.cfg.color.bar.b, self.cfg.color.bar.a)
-		self.bg:SetVertexColor(self.cfg.color.bg.r, self.cfg.color.bg.g, self.cfg.color.bg.b, self.cfg.color.bg.a)
-		self.Spark:SetVertexColor(0.8, 0.6, 0, 1)
-		self.background:SetDesaturated(nil)
+-- One colour component by the (maybe secret) "cannot be interrupted" flag,
+-- never tested in Lua (as the nameplates' CastColor does).
+local function pick(flag, ifShielded, otherwise)
+	return C_CurveUtil.EvaluateColorValueFromBoolean(flag, ifShielded, otherwise)
+end
+
+--grey the cast bar while the enemy's cast cannot be interrupted
+--(oUF Castbar PostCastStart / PostCastInterruptible: unit, spellID, notInterruptible)
+local checkShield = function(bar, unit, _, notInterruptible)
+	local shielded = notInterruptible
+	if type(shielded) == "nil" or not Secrets.Bool(UnitCanAttack, "player", unit) then
+		shielded = false
 	end
+	local c = bar.cfg.color
+	local on, off = c.shieldbar, c.bar
+	bar:SetStatusBarColor(
+		pick(shielded, on.r, off.r),
+		pick(shielded, on.g, off.g),
+		pick(shielded, on.b, off.b),
+		pick(shielded, on.a or 1, off.a or 1)
+	)
+	on, off = c.shieldbg, c.bg
+	bar.bg:SetVertexColor(
+		pick(shielded, on.r, off.r),
+		pick(shielded, on.g, off.g),
+		pick(shielded, on.b, off.b),
+		pick(shielded, on.a or 1, off.a or 1)
+	)
+	bar.Spark:SetVertexColor(pick(shielded, 0.8, 0.8), pick(shielded, 0.8, 0.6), pick(shielded, 0.8, 0), 1)
+	-- desaturation takes no secret: a hidden flag leaves the art in colour
+	bar.background:SetDesaturated(Secrets.Boolean(shielded, false))
 end
 
---check for interruptable spellcast
-local checkCast = function(bar, unit, name, rank, castid)
-	checkShield(bar, unit)
+--create an aura row (oUF Auras element, core/nativeauras.lua); updateTargetAuras places it
+local createAuraRow = function(self, key, opts)
+	local size = self.cfg.auras.size
+	local place = self.cfg.auras[key == "Buffs" and "buffs" or "debuffs"]
+	local holder = CreateFrame("Frame", nil, self)
+	holder:SetSize((size + 5) * 10, (size + 5) * 4)
+	holder:SetPoint(place.pos.a1, self, place.pos.a2, place.pos.x, place.pos.y)
+	opts.initialAnchor = place.initialAnchor
+	opts.growthX = place.growthx
+	opts.growthY = place.growthy
+	opts.size = size
+	opts.spacing = 5
+	opts.num = 40
+	return ns.NativeAuras.Create(self, key, holder, opts)
 end
 
---check for interruptable spellcast
-local checkChannel = function(bar, unit, name, rank)
-	checkShield(bar, unit)
-end
-
---create buffs
 local createBuffs = function(self)
-	local f = CreateFrame("Frame", nil, self)
-	f.size = self.cfg.auras.size
-	f.num = 40
-	f:SetHeight((f.size + 5) * 4)
-	f:SetWidth((f.size + 5) * 10)
-	f:SetPoint(
-		self.cfg.auras.buffs.pos.a1,
-		self,
-		self.cfg.auras.buffs.pos.a2,
-		self.cfg.auras.buffs.pos.x,
-		self.cfg.auras.buffs.pos.y
-	)
-	f.initialAnchor = self.cfg.auras.buffs.initialAnchor
-	f["growth-x"] = self.cfg.auras.buffs.growthx
-	f["growth-y"] = self.cfg.auras.buffs.growthy
-	f.spacing = 5
-	f.onlyShowPlayer = self.cfg.auras.onlyShowPlayerBuffs
-	f.showStealableBuffs = self.cfg.auras.showStealableBuffs
-	f.filter = "HELPFUL"
-	self.Buffs = f
-	self.BuffFrame = f
+	createAuraRow(self, "Buffs", {
+		filter = "HELPFUL",
+		onlyShowPlayer = self.cfg.auras.onlyShowPlayerBuffs,
+		stealable = self.cfg.auras.showStealableBuffs,
+	})
 end
 
---create debuff func
 local createDebuffs = function(self)
-	local f = CreateFrame("Frame", nil, self)
-	f.size = self.cfg.auras.size
-	f.num = 40
-	f:SetHeight((f.size + 5) * 4)
-	f:SetWidth((f.size + 5) * 10)
-	f:SetPoint(
-		self.cfg.auras.debuffs.pos.a1,
-		self,
-		self.cfg.auras.debuffs.pos.a2,
-		self.cfg.auras.debuffs.pos.x,
-		self.cfg.auras.debuffs.pos.y
-	)
-	f.initialAnchor = self.cfg.auras.debuffs.initialAnchor
-	f["growth-x"] = self.cfg.auras.debuffs.growthx
-	f["growth-y"] = self.cfg.auras.debuffs.growthy
-	f.spacing = 5
-	f.showDebuffType = self.cfg.auras.showDebuffType
-	f.onlyShowPlayer = self.cfg.auras.onlyShowPlayerDebuffs
-	f.filter = "HARMFUL|INCLUDE_NAME_PLATE_ONLY"
-	self.Debuffs = f
-	self.DebuffFrame = f
+	createAuraRow(self, "Debuffs", {
+		filter = "HARMFUL|INCLUDE_NAME_PLATE_ONLY",
+		onlyShowPlayer = self.cfg.auras.onlyShowPlayerDebuffs,
+		showType = self.cfg.auras.showDebuffType,
+	})
 end
 
 ---------------------------------------------
@@ -573,7 +507,7 @@ local function createStyle(self)
 	func.healPrediction(self)
 
 	--sound
-	self:RegisterEvent("PLAYER_TARGET_CHANGED", playTargetSound)
+	self:RegisterEvent("PLAYER_TARGET_CHANGED", playTargetSound, true)
 	self.Health:SetScript("OnShow", function(s)
 		playTargetSound(self, "PLAYER_TARGET_CHANGED")
 	end)
@@ -587,31 +521,24 @@ local function createStyle(self)
 
 	--auras
 	if self.cfg.auras.show then
+		-- the client draws them, so they stay in combat (core/nativeauras.lua)
 		createBuffs(self)
 		createDebuffs(self)
-		self.Buffs.PostCreateIcon = func.createAuraIcon
-		self.Debuffs.PostCreateIcon = func.createAuraIcon
-		if self.cfg.auras.desaturateDebuffs then
-			self.Debuffs.PostUpdateIcon = func.postUpdateDebuff
-		end
-		-- the client draws them where it can, so they stay in combat (core/nativeauras.lua)
-		ns.NativeAuras.Replace(self, "Buffs", "target")
-		ns.NativeAuras.Replace(self, "Debuffs", "target")
 		func.updateTargetAuras(self)
 		self:RegisterEvent("PLAYER_REGEN_ENABLED", function()
 			if self.needAuraUpdate then
 				self.needAuraUpdate = nil
 				func.updateTargetAuras(self)
 			end
-		end)
+		end, true)
 	end
 
 	--castbar
 	if self.cfg.castbar.show then
 		func.createCastbar(self)
 		self.Castbar.cfg = self.cfg.castbar
-		self.Castbar.PostCastStart = checkCast
-		self.Castbar.PostChannelStart = checkChannel
+		self.Castbar.PostCastStart = checkShield
+		self.Castbar.PostCastInterruptible = checkShield
 		ns.CastBars.AddInterruptReady(self.Castbar)
 	end
 
@@ -635,8 +562,8 @@ local function createStyle(self)
 	end
 
 	--icons
-	self.RaidIcon = func.createIcon(self, "BACKGROUND", 24, self.Name, "BOTTOM", "TOP", 0, 0, -1)
-	self.RaidIcon:SetTexture("Interface\\AddOns\\DiabolusUnits\\media\\raidicons")
+	self.RaidTargetIndicator = func.createIcon(self, "BACKGROUND", 24, self.Name, "BOTTOM", "TOP", 0, 0, -1)
+	self.RaidTargetIndicator:SetTexture("Interface\\AddOns\\DiabolusUnits\\media\\raidicons")
 
 	--create portrait
 	if self.cfg.portrait.show then
@@ -655,4 +582,9 @@ if cfg.units.target.show then
 	oUF:RegisterStyle("diablo:target", createStyle)
 	oUF:SetActiveStyle("diablo:target")
 	oUF:Spawn("target", "Roth_UITargetFrame")
+	-- oUF blocks TargetFrame; Blizzard's combo points hang from UIParent, so hide them too
+	if ComboFrame then
+		ComboFrame:UnregisterAllEvents()
+		ns.Blizz.Conceal(ComboFrame)
+	end
 end

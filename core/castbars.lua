@@ -91,9 +91,10 @@ local function HideTicks(bar)
 	end
 end
 
--- spellID: plain number or nil (oUF passes nil for a secret one).
+-- spellID: as oUF passes it (a secret one shows no ticks).
 function CastBars.ShowTicks(bar, spellID)
 	HideTicks(bar)
+	spellID = Secrets.Number(spellID)
 	local count = spellID and TICKS[spellID]
 	if not count then
 		return
@@ -122,10 +123,15 @@ function CastBars.AddChannelTicks(bar)
 		return
 	end
 	bar.RothTicks = {}
-	Chain(bar, "PostChannelStart", function(self, _, _, spellID)
-		CastBars.ShowTicks(self, spellID)
+	-- oUF 14 starts casts and channels alike through PostCastStart
+	Chain(bar, "PostCastStart", function(self, unit, spellID)
+		if type(UnitChannelInfo(unit)) ~= "nil" then
+			CastBars.ShowTicks(self, spellID)
+		else
+			HideTicks(self)
+		end
 	end)
-	for _, key in ipairs({ "PostCastStart", "PostChannelStop", "PostCastStop", "PostCastFailed", "PostCastInterrupted" }) do
+	for _, key in ipairs({ "PostCastStop", "PostCastFail", "PostCastInterrupted" }) do
 		Chain(bar, key, HideTicks)
 	end
 end
@@ -206,9 +212,15 @@ local function NotInterruptible(unit)
 	return true
 end
 
+-- The bar's unit: oUF frames keep it in __unit, Roth's nameplates in unit.
+local function OwnerUnit(bar)
+	local owner = bar.__owner
+	return owner and (owner.__unit or owner.unit)
+end
+
 local function Refresh(bar)
 	local k = bar.RothKick
-	local unit = bar.__owner and bar.__owner.unit
+	local unit = OwnerUnit(bar)
 	local hostile = unit and Secrets.Bool(UnitCanAttack, "player", unit)
 	-- not "hostile and Ready() or nil": that turns false (on cooldown) into
 	-- nil and would test a secret answer's truth
@@ -247,10 +259,10 @@ function CastBars.AddInterruptReady(bar, inset)
 	glow:SetBlendMode("ADD")
 	bar.RothKick = { holder = holder, glow = glow }
 
-	for _, key in ipairs({ "PostCastStart", "PostChannelStart", "PostCastInterruptible", "PostCastNotInterruptible" }) do
+	for _, key in ipairs({ "PostCastStart", "PostCastInterruptible" }) do
 		Chain(bar, key, Refresh)
 	end
-	for _, key in ipairs({ "PostCastStop", "PostChannelStop", "PostCastFailed", "PostCastInterrupted" }) do
+	for _, key in ipairs({ "PostCastStop", "PostCastFail", "PostCastInterrupted" }) do
 		Chain(bar, key, function(self)
 			self.RothKick.holder:Hide()
 		end)

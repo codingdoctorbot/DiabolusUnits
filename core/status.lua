@@ -77,7 +77,7 @@ function Status.Update(frame)
 	if not s then
 		return
 	end
-	local state = Status.State(frame.unit)
+	local state = Status.State(frame.__unit)
 	if state == "AFK" then
 		s.icon:Hide()
 		s.text:Show()
@@ -101,7 +101,7 @@ local EVENTS = {
 }
 
 local function OnEvent(frame, _, unit)
-	if unit == nil or Secrets.IsSecret(unit) or unit == frame.unit then
+	if unit == nil or Secrets.IsSecret(unit) or unit == frame.__unit then
 		Status.Update(frame)
 	end
 end

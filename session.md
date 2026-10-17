@@ -203,3 +203,81 @@ Created **DiabolusUnits** (`/Users/erik2/Developer/WoW/DiabolusUnits`, symlinked
   - All event handlers route through `InCombatLockdown()` check: if in combat, flag `pendingApply = true`; if out of combat, run `DelayedApply()`.
 
 
+
+---
+
+### 10. Embedded oUF Upgrade: 1.6.8 → 14.2.0 (uncommitted, branch `claude/anchors-settings-belt`)
+
+Replaced the WoD-era embedded oUF (Gemini-patched 1.6.8) with upstream **oUF 14.2.0** (`/Users/erik2/Downloads/oUF`), which targets WoW Forever directly (`Interface: 16001`, `AllowLoadGameType: standard, camelot`). Done as a direct refactor of DiabolusUnits — no compatibility shims or alias tables. All new APIs were checked against the Forever UI source snapshot (`SetRolesets`, `C_Secrets.CanCompareUnitTokens`, `CreateUnitHealPredictionCalculator`, `Enum.StatusBarInterpolation`, `CustomAuraContainerTemplate`, `SetVertexColorFromBoolean` / `EvaluateColorValueFromBoolean`).
+
+#### A. The embed
+- `embeds/oUF/` is upstream 14.2.0 verbatim (same `oUF.xml` entry point in the TOC), with **one local patch** in `elements/castbar.lua`, marked `DiabolusUnits local patch`: upstream hides `PlayerCastingBarFrame` / `PetCastingBarFrame` with `:Hide()`, which on Forever is the Edit Mode Lua override (taint source, see `core/blizzsafe.lua`); the patch uses `ns.Blizz.Conceal` instead.
+- Blizzard unit frames are now suppressed by upstream's C-level `frame:SetRolesets('alwaysBlocked')` instead of the old Lua hide/reparent.
+- `CREDITS.md` updated (version, authors, `LICENSE.txt`, the local patch).
+
+#### B. Breaking API changes handled
+- **`frame.unit` → `frame.__unit`**: oUF 14 no longer sets `.unit`. Rewritten in `core/` (lib, buffcoverage, status, privateauras, panel), `units/` (target, group, player) and every module. `core/castbars.lua` reads `__unit`, falling back to `.unit` only for Roth's own nameplates (not oUF frames).
+- **Unitless events must pass `true`** (`self:RegisterEvent(event, fn, true)`), otherwise oUF 14 asserts: target `PLAYER_TARGET_CHANGED` / `PLAYER_REGEN_ENABLED`, ComboPoints `UPDATE_SHAPESHIFT_FORM`, Experience `PLAYER_LEVEL_UP` / `UPDATE_EXHAUSTION` (payloads checked in the API docs). Experience tags also gained `oUF.Tags.SharedEvents.UPDATE_EXHAUSTION`.
+- **Renamed elements** (renamed in place across `units/`):
+  - `RaidIcon` → `RaidTargetIndicator` (target, tot, focus, focustarget, pet, pettarget, boss, group)
+  - `ReadyCheck` → `ReadyCheckIndicator`; `Resting` / `Combat` / `PvP` → `RestingIndicator` / `CombatIndicator` / `PvPIndicator`
+  - `LFDRole` → `GroupRoleIndicator`, with an `Override` (Forever's `UnitFrameUtil` path would replace Roth's `lfd_role` art)
+  - `Leader` → `LeaderIndicator`, with a `PostUpdate` that restores the crown (oUF sets an atlas)
+  - `DruidMana` → `AdditionalPower` (`colorPower = true`); `AltPowerBar` → `AlternativePower` (frame names `Roth_DruidMana`, `oUF_AltPower*` kept for saved positions)
+- **Colours**: `oUF.colors` holds `ColorMixin` objects; `config.lua` now sets `oUF.colors.power.MANA = oUF:CreateColor(0, 0.4, 1)` and the index-0 alias.
+- **Callback signatures**: Power `PostUpdate(unit, cur, min, max)` — the player power orb wraps `updateValue`. Castbar: `PostChannelStart` is gone (`PostCastStart` covers channels), `PostCastFailed` → `PostCastFail`, `notInterruptible` is a (possibly secret) callback argument instead of `element.notInterruptible`.
+- **Dead options removed**: `Health.frequentUpdates` (UNIT_HEALTH is always frequent in 14), `.Smooth`, `desaturateDebuffs` (config), `func.postUpdateDebuff`.
+
+#### C. Feature migrations
+- **RareIcon** (target_boss horns / target_elite crest): moved from `embeds/oUF/elements/rare.lua` to `modules/oUF_RareIcon.lua` (registered in the TOC), same behaviour, `__unit`-based.
+- **Auras**: oUF 14 has no Lua aura rows any more. Every row (target, focus, pet, targettarget, focustarget, pettarget, party/raid) is now an oUF `frame:CreateAuras()` element (client `CustomAuraContainerTemplate`) built by `core/nativeauras.lua` (`NativeAuras.Create(frame, key, holder, opts)`):
+  - a plain holder frame keeps each row's old position/size; the container sits in its `initialAnchor` corner and wraps at its width;
+  - Diablo skin (black glow, gloss rim, stack count, dispel-type border, stealable glow) is applied once in `initializeFrame`; the client draws countdown numbers;
+  - oUF drives `SetUnit` on every full update, so the private target/focus/pet refresh frame is gone;
+  - the group blacklist is now the client's `candidateFilters.excludeSpellIDs`, so it holds in combat as well;
+  - `NativeAuras.SetFlow` / `.Count` / `.SetSize` and `ns.AuraSize` keep the target layout options, `/roth auras` probe and Edit-layout icon size working.
+- **Heal prediction & absorbs**: `core/healbars.lua` now provides oUF Health sub-widgets (`HealingAll`, `HealingPlayer`, `DamageAbsorb`, `HealAbsorb`) fed by the client heal prediction calculator; its own events, `Update` and resize hook are gone (oUF sizes the bars). Look and clip frame unchanged; `cfg.healbars` toggles still decide which widgets exist.
+- **Smoothing**: `modules/oUF_Smooth.lua` (Lua `OnUpdate` interpolation) deleted; Health/Power bars use `.smoothing = Enum.StatusBarInterpolation.ExponentialEaseOut`. The player orbs stay immediate (scroll-frame sync).
+- **Castbar**: spark is now anchored by `func.createCastbar` (oUF 14 no longer moves it). The target's "cannot be interrupted" colouring uses `C_CurveUtil.EvaluateColorValueFromBoolean`, never testing the secret flag. `core/castbars.lua` channel ticks and interrupt-ready glow chain the new callback names; Roth nameplates call `PostCastStart` for channels too.
+- **ComboFrame**: upstream no longer hides Blizzard's `ComboFrame` (parented to UIParent on Forever); `units/target.lua` conceals it after spawning the target frame.
+
+#### D. Verification
+- `wowdev check DiabolusUnits --lint`: Lua 5.1 syntax 61/61 files OK, manifest 179 load files / 0 issues, luacheck **0 errors**. 335 warnings, all pre-existing (baseline taken from the pre-upgrade tree); none added, 4 gone with `oUF_Smooth`. `.luacheckrc` gained `ComboFrame` and `GetTexCoordsForRoleSmallCircle`.
+- All `embeds/oUF` files compile with the Lua 5.1 `luac`.
+- StyLua applied to touched files that were StyLua-clean before; `core/castbars.lua`, `core/panel.lua`, `core/tags.lua`, `core/buffcoverage.lua` were already non-conforming (hand-laid spell tables etc.) and were left unformatted.
+- Pre-upgrade working-tree diff backed up in the session scratchpad (`pre-ouf14-worktree.patch`).
+
+#### E. Open — needs in-client testing
+1. `/console taintLog 2`, `/reload` out of combat: no Lua errors at login.
+2. Target fight: auras stay visible in combat, castbar spark and grey "shield" colouring, RareIcon art for elite / rare / boss.
+3. Party: upstream 14.2 now suppresses `PartyFrame` and `CompactPartyFrameMember*` (the old embed deliberately left party alone) — watch `taint.log` for party / Edit Mode entries.
+4. Heal / absorb bars on target, focus and group frames; druid `AdditionalPower` while shapeshifted; group role icons and leader crown.
+
+---
+
+## Side session — PulseSensation2 & ControllerApex (2026-10-15/16)
+
+Not DiabolusUnits work; logged here so the notes stay in one place.
+
+### A. PulseSensation2 (`WoW/PulseSensation2`, branch `main`) — uncommitted
+- **Quick Setup test buttons** (`PulseHaptics/UI/QuickSetup.lua`): several buttons played modes that don't exist. Renamed `HEAVY_STRIKE` → `HEAVY` / `IMPACT`, `DOUBLE_THUD` → `THUD`, `PULSE_BURST` → `DOUBLE_TAP`, `LEVEL_UP` → `SURGE`. New `testMode()` / `reportTest()` helpers print why a test failed. Feel Strength no longer applies the strength twice.
+- **Role / class cues**: `critLanded`, `healCrit` and `healReceived` are incoming events, so they moved to the tank/healer side. New `ROLE_CUES` (tank, healer, melee, ranged) and `CLASS_CUES` (Hunter auto shot, Rogue/Druid combo points, Druid forms). `applyClassAndRole()` resets managed cues that aren't selected to their registry defaults.
+- **Game menu entry**: reviewed GitHub commit `345f42b` (GameMenu.lua). It uses SmartNavigation fields that don't exist (`currentTarget`; the real one is `currentButton`), the wrong ignore flag (`smartNavigationIgnored` is the real one), and the watcher lacks `EnableGamePadButton(true)`. Compared ControllerForever (button over the menu, binds Y while open) and EasyController (never opens over the menu).
+- **`PulseHaptics/UI/GameMenu2.lua`**: a test version with no SmartNavigation. It binds X to the banner button while the game menu is open and out of combat, re-checks every 0.2 s and on `Gamepad.RefreshFrameFocus`, and clears on hide and when combat starts. Switch versions with `/pulse gamemenu v1|over|after|close` (saved in `PulseDB.gameMenuVariant`; switching to or from v1 needs `/reload`). Also touched: TOC, `Core/Init.lua`, `UI/Panel/Panel.lua`, `.luacheckrc`.
+- **Open**: in-game test of the GameMenu2 versions decides the game-menu design for PulseHaptics and ControllerApex. `navigation-test` still fails on the old GameMenu.lua design (pre-existing).
+
+### B. ControllerApex redesign (now `WoW/_reference/ControllerApex`, branch `redesign`)
+Six committed stages, version 2.1.0. Headless tests, luacheck, stylua and the BLP check pass; **never run in the client**.
+
+| Stage | Commit | Change |
+|---|---|---|
+| 0 | `3dc459a` | Features that duplicate Forever's own controller UI moved to `_parked/`; soft targeting kept as its own module |
+| 1 | `4134454` | `Input/Binds.lua` follows the game's binding stack, so open windows keep their keys; one Remapping module (paddles, L3/R3, trigger taps, off by default); `/apex probe` |
+| 2 | `43a78f3` | Viking art kit (`tools/make_viking_art.py` → `Media/Viking/*.tga`), `UI/Theme.lua`, round dock slots, one HUD root |
+| 3 | `7ecf2a8` | `UI/SettingsSpec.lua` drives the 8-page settings window and the wizard |
+| 4 | `618ebfe` | Viking rings (disc, hub, pointer, medallions) |
+| 5 | `02a9e02` | Viking keyboard and bag markers; `tests/run_tests_static.lua` blocks forbidden calls and stray binding owners; README |
+
+Platform facts found along the way (also in auto-memory): Forever's gamepad binding stack uses `SetOverrideBinding(UIParent, true, …)` and the newest set wins; restricted code in combat can't see non-protected windows; clicking the ADDON_ACTION_FORBIDDEN popup in gamepad mode can loop into a 20 s freeze.
+
+Open: in-game checks (`TESTING.md` 0–0e, `/apex probe` with bags, loot, a popup and the game menu open), the game-menu entry, and merging the 22 OnUpdate handlers into one ticker. The folder has since moved to `_reference/` and the wow-forever-dev skill now lists ControllerApex as retired reference material.

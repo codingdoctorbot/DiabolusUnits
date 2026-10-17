@@ -1729,25 +1729,25 @@
   --update health orb value top tag
   panel.updateHealthOrbValueTopTag = function()
     if not ns.HealthOrb or not ns.HealthOrb.values or not ns.HealthOrb.values.top or not ns.unit or not ns.unit.player then return end
-    ns.HealthOrb.values.top:SetText(oUF.Tags.Methods["diablo:HealthOrbTop"](ns.unit.player.unit))
+    ns.HealthOrb.values.top:SetText(oUF.Tags.Methods["diablo:HealthOrbTop"](ns.unit.player.__unit))
   end
 
   --update power orb value top tag
   panel.updatePowerOrbValueTopTag = function()
     if not ns.PowerOrb or not ns.PowerOrb.values or not ns.PowerOrb.values.top or not ns.unit or not ns.unit.player then return end
-    ns.PowerOrb.values.top:SetText(oUF.Tags.Methods["diablo:PowerOrbTop"](ns.unit.player.unit))
+    ns.PowerOrb.values.top:SetText(oUF.Tags.Methods["diablo:PowerOrbTop"](ns.unit.player.__unit))
   end
 
   --update health orb value bottom Tag
   panel.updateHealthOrbValueBottomTag = function()
     if not ns.HealthOrb or not ns.HealthOrb.values or not ns.HealthOrb.values.bottom or not ns.unit or not ns.unit.player then return end
-    ns.HealthOrb.values.bottom:SetText(oUF.Tags.Methods["diablo:HealthOrbBottom"](ns.unit.player.unit))
+    ns.HealthOrb.values.bottom:SetText(oUF.Tags.Methods["diablo:HealthOrbBottom"](ns.unit.player.__unit))
   end
 
   --update power orb value bottom tag
   panel.updatePowerOrbValueBottomTag = function()
     if not ns.PowerOrb or not ns.PowerOrb.values or not ns.PowerOrb.values.bottom or not ns.unit or not ns.unit.player then return end
-    ns.PowerOrb.values.bottom:SetText(oUF.Tags.Methods["diablo:PowerOrbBottom"](ns.unit.player.unit))
+    ns.PowerOrb.values.bottom:SetText(oUF.Tags.Methods["diablo:PowerOrbBottom"](ns.unit.player.__unit))
   end
 
   ---------------------------------------------

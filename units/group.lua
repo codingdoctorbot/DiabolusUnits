@@ -168,8 +168,7 @@ local function CreateHealth(self, layout)
 		h.lowhp:SetVertexColor(1, 0, 0, 1)
 		h.lowhp:SetBlendMode("ADD")
 		h.lowhp:Hide()
-		h.Smooth = true
-		h.frequentUpdates = true
+		h.smoothing = Enum.StatusBarInterpolation.ExponentialEaseOut
 		h.PostUpdate = UpdateHealth
 		self.Health = h
 		self.RothTileOverlay:SetFrameLevel(h:GetFrameLevel() + 3)
@@ -193,8 +192,7 @@ local function CreateHealth(self, layout)
 	h.lowhp:SetBlendMode("ADD")
 	h.lowhp:Hide()
 
-	h.Smooth = true
-	h.frequentUpdates = true
+	h.smoothing = Enum.StatusBarInterpolation.ExponentialEaseOut
 	h.PostUpdate = UpdateHealth
 	self.Health = h
 end
@@ -216,7 +214,7 @@ local function CreatePower(self)
 	p.glow:SetAllPoints(self)
 	p.glow:SetVertexColor(0, 0, 0, 1)
 
-	p.Smooth = true
+	p.smoothing = Enum.StatusBarInterpolation.ExponentialEaseOut
 	p.PostUpdate = func.updatePower
 	self.Power = p
 end
@@ -322,7 +320,8 @@ end
 -- AURAS
 ---------------------------------------------
 
--- The blacklist still works out of combat, when spell IDs are plain.
+-- Spell IDs the rows never show; the client checks them (candidate filters),
+-- so the blacklist holds in combat too.
 local blacklist = {}
 local function BuildBlacklist(list)
 	for _, id in ipairs(list or {}) do
@@ -330,44 +329,24 @@ local function BuildBlacklist(list)
 	end
 end
 
-local function AuraFilter(
-	icons,
-	unit,
-	icon,
-	name,
-	texture,
-	count,
-	dtype,
-	duration,
-	timeLeft,
-	caster,
-	isStealable,
-	shouldConsolidate,
-	spellID
-)
-	local id = Secrets.Number(spellID)
-	if id and blacklist[id] then
-		return false
-	end
-	return Secrets.Present(name)
-end
-
-local function CreateAuraFrame(self, filter, size, num, pos, growthX)
-	local f = CreateFrame("Frame", nil, self)
-	f.size = size
-	f.num = num
-	f.spacing = 3
-	f.filter = filter
-	f.initialAnchor = (growthX == "LEFT") and "TOPRIGHT" or "TOPLEFT"
-	f["growth-x"] = growthX or "RIGHT"
-	f["growth-y"] = "DOWN"
-	f.showDebuffType = true
-	f.showBuffType = false
-	f.CustomFilter = AuraFilter
-	f.PostCreateIcon = func.createAuraIcon
-	f:SetSize((size + f.spacing) * num, size)
-	f:SetPoint(pos.a1 or "CENTER", self, pos.a2 or pos.a1 or "CENTER", pos.x or 0, pos.y or 0)
-	return f
+-- An oUF Auras element (client aura container, core/nativeauras.lua) filling
+-- a holder that sits where Roth's row always was.
+local function CreateAuraFrame(self, key, filter, size, num, pos, growthX)
+	local spacing = 3
+	local holder = CreateFrame("Frame", nil, self)
+	holder:SetSize((size + spacing) * num, size)
+	holder:SetPoint(pos.a1 or "CENTER", self, pos.a2 or pos.a1 or "CENTER", pos.x or 0, pos.y or 0)
+	return ns.NativeAuras.Create(self, key, holder, {
+		filter = filter,
+		size = size,
+		spacing = spacing,
+		num = num,
+		initialAnchor = (growthX == "LEFT") and "TOPRIGHT" or "TOPLEFT",
+		growthX = growthX or "RIGHT",
+		growthY = "DOWN",
+		showType = key == "Debuffs",
+		excludeSpellIDs = blacklist,
+	})
 end
 
 local function CreateAuras(self)
@@ -379,15 +358,17 @@ local function CreateAuras(self)
 	if self.groupLayout.tile then
 		-- two debuffs along the bottom, your own HoTs / shields in the top right
 		local t = self.cfg.tiles or {}
-		self.Debuffs = CreateAuraFrame(
+		CreateAuraFrame(
 			self,
+			"Debuffs",
 			Group.FILTER_DEBUFFS,
 			t.debuffSize or 14,
 			t.debuffs or 2,
 			{ a1 = "BOTTOM", a2 = "BOTTOM", x = 0, y = 4 }
 		)
-		self.Buffs = CreateAuraFrame(
+		CreateAuraFrame(
 			self,
+			"Buffs",
 			Group.FILTER_MY_BUFFS,
 			t.buffSize or 10,
 			t.buffs or 3,
@@ -402,10 +383,10 @@ local function CreateAuras(self)
 	local size = acfg.size or 16
 	local num = acfg.num or acfg.number or 5
 	local debuffPos = acfg.debuffPos or { a1 = "TOP", a2 = "BOTTOM", x = 0, y = 18 }
-	self.Debuffs = CreateAuraFrame(self, Group.FILTER_DEBUFFS, size, num, debuffPos)
+	CreateAuraFrame(self, "Debuffs", Group.FILTER_DEBUFFS, size, num, debuffPos)
 	if acfg.showBuffs ~= false then
 		local buffPos = acfg.buffPos or { a1 = "BOTTOMLEFT", a2 = "TOPRIGHT", x = -18, y = -10 }
-		self.Buffs = CreateAuraFrame(self, Group.FILTER_MY_BUFFS, size, num, buffPos)
+		CreateAuraFrame(self, "Buffs", Group.FILTER_MY_BUFFS, size, num, buffPos)
 	end
 end
 
@@ -469,7 +450,7 @@ end
 Group.refreshHooks = {}
 
 local function RefreshState(self)
-	local unit = self.unit
+	local unit = self.__unit
 	if not unit then
 		return
 	end
@@ -487,26 +468,26 @@ end
 Group.RefreshState = RefreshState
 
 local function OnAura(self, _, unit)
-	if unit == self.unit then
+	if unit == self.__unit then
 		UpdateDispel(self, unit)
 	end
 end
 
 local function OnHealth(self, _, unit)
-	if unit == self.unit then
+	if unit == self.__unit then
 		UpdateDead(self, unit)
 	end
 end
 
 local function OnThreat(self, _, unit)
-	if unit == self.unit then
+	if unit == self.__unit then
 		UpdateThreat(self, unit)
 	end
 end
 
 local function OnTargetChanged(self)
-	if self.unit then
-		UpdateTarget(self, self.unit)
+	if self.__unit then
+		UpdateTarget(self, self.__unit)
 	end
 end
 
@@ -554,21 +535,40 @@ end
 -- ICONS
 ---------------------------------------------
 
+-- oUF's role / leader indicators set Blizzard atlases: keep Roth's art.
+local function UpdateRole(self)
+	local icon = self.GroupRoleIndicator
+	local role = Secrets.String(UnitGroupRolesAssigned(self.__unit))
+	if role == "TANK" or role == "HEALER" or role == "DAMAGER" then
+		icon:SetTexCoord(GetTexCoordsForRoleSmallCircle(role))
+		icon:Show()
+	else
+		icon:Hide()
+	end
+end
+
+local function CrownLeader(icon)
+	icon:SetTexture(MEDIA .. "crown")
+	icon:SetTexCoord(0, 1, 0, 1)
+end
+
 local function CreateIcons(self)
-	self.RaidIcon = func.createIcon(self.Health, "OVERLAY", 14, self.Health, "BOTTOM", "TOP", 0, -6, 3)
-	self.RaidIcon:SetTexture(MEDIA .. "raidicons")
-	self.ReadyCheck = func.createIcon(self.Health, "OVERLAY", 24, self.Health, "CENTER", "CENTER", 0, 0, 4)
+	self.RaidTargetIndicator = func.createIcon(self.Health, "OVERLAY", 14, self.Health, "BOTTOM", "TOP", 0, -6, 3)
+	self.RaidTargetIndicator:SetTexture(MEDIA .. "raidicons")
+	self.ReadyCheckIndicator = func.createIcon(self.Health, "OVERLAY", 24, self.Health, "CENTER", "CENTER", 0, 0, 4)
 	if self.groupLayout.tile then
 		-- tiles touch: the role sits inside, bottom left
-		self.LFDRole =
+		self.GroupRoleIndicator =
 			func.createIcon(self.RothTileOverlay, "OVERLAY", 10, self.Health, "BOTTOMLEFT", "BOTTOMLEFT", 0, 0, 3)
 	else
-		self.LFDRole = func.createIcon(self.Health, "OVERLAY", 12, self.Health, "TOP", "BOTTOM", 0, -2, 3)
+		self.GroupRoleIndicator = func.createIcon(self.Health, "OVERLAY", 12, self.Health, "TOP", "BOTTOM", 0, -2, 3)
 	end
-	self.LFDRole:SetTexture(MEDIA .. "lfd_role")
-	self.LFDRole:SetDesaturated(true)
-	self.Leader = func.createIcon(self.Health, "OVERLAY", 14, self.Health, "BOTTOMLEFT", "TOPLEFT", -6, -2, 3)
-	self.Leader:SetTexture(MEDIA .. "crown") -- Roth's crown for the group leader
+	self.GroupRoleIndicator:SetTexture(MEDIA .. "lfd_role")
+	self.GroupRoleIndicator:SetDesaturated(true)
+	self.GroupRoleIndicator.Override = UpdateRole
+	self.LeaderIndicator = func.createIcon(self.Health, "OVERLAY", 14, self.Health, "BOTTOMLEFT", "TOPLEFT", -6, -2, 3)
+	CrownLeader(self.LeaderIndicator) -- Roth's crown for the group leader
+	self.LeaderIndicator.PostUpdate = CrownLeader
 	-- summon / resurrection / phase / away, and the client-drawn private auras
 	local tile = self.groupLayout.tile
 	ns.Status.Attach(self, self.Health, tile and 16 or 20)
@@ -644,7 +644,7 @@ function Group.EachMember(kind)
 			if not frame then
 				return nil
 			end
-			if (not kind or frame.groupKind == kind) and frame.unit and frame:IsVisible() then
+			if (not kind or frame.groupKind == kind) and frame.__unit and frame:IsVisible() then
 				return frame
 			end
 		end

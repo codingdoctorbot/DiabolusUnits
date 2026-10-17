@@ -153,55 +153,47 @@ func.createBackdrop = function(f)
 	end
 end
 
---create debuff func
-func.createDebuffs = function(self)
-	if self.cfg.vertical then
-		local f = CreateFrame("Frame", nil, self)
-		f.size = self.cfg.auras.size
-		if self.cfg.style == "targettarget" then
-			f.num = 8
-		else
-			f.num = cfg.units.party.auras.number
-		end
-		f:SetHeight((f.size + 5) * (f.num / 4))
-		f:SetWidth((f.size + 5) * 4)
-		if self.cfg.style == "targettarget" then
-			f:SetPoint("BOTTOM", self, "RIGHT", 0, 0)
-		else
-			f:SetPoint("TOP", self, "RIGHT", 50, -5)
-		end
-		f.initialAnchor = "TOPLEFT"
-		f["growth-x"] = "RIGHT"
-		f["growth-y"] = "DOWN"
-		f.spacing = 5
-		f.showDebuffType = self.cfg.auras.showDebuffType
-		f.onlyShowPlayer = self.cfg.auras.onlyShowPlayerDebuffs
-		f.filter = "HARMFUL|INCLUDE_NAME_PLATE_ONLY"
-		self.Debuffs = f
-	else
-		local f = CreateFrame("Frame", nil, self)
-		f.size = self.cfg.auras.size
-		if self.cfg.style == "targettarget" then
-			f.num = 8
-		else
-			f.num = cfg.units.party.auras.number
-		end
-		f:SetHeight((f.size + 5) * (f.num / 9))
-		f:SetWidth((f.size + 5) * 4)
-		if self.cfg.style == "targettarget" then
-			f:SetPoint("BOTTOM", self, "RIGHT", -90, -40)
-		else
-			f:SetPoint("TOP", self, "RIGHT", -60, -67)
-		end
-		f.initialAnchor = "TOPLEFT"
-		f["growth-x"] = "RIGHT"
-		f["growth-y"] = "DOWN"
-		f.spacing = 5
-		f.showDebuffType = self.cfg.auras.showDebuffType
-		f.onlyShowPlayer = self.cfg.auras.onlyShowPlayerDebuffs
-		f.filter = "HARMFUL|INCLUDE_NAME_PLATE_ONLY"
-		self.Debuffs = f
+-- Aura rows are oUF Auras elements, client aura containers (core/nativeauras.lua).
+-- Each hangs from a holder placed and sized as Roth's rows always were.
+local function auraCount(self)
+	if self.cfg.style == "targettarget" then
+		return 8
 	end
+	return cfg.units.party.auras.number
+end
+
+--create debuff func; pos (optional): { a1, rel, a2, x, y, initialAnchor, growthY } instead of the default spot
+func.createDebuffs = function(self, pos)
+	local size = self.cfg.auras.size
+	local num = auraCount(self)
+	local tot = self.cfg.style == "targettarget"
+	local holder = CreateFrame("Frame", nil, self)
+	holder:SetWidth((size + 5) * 4)
+	holder:SetHeight((size + 5) * (num / (self.cfg.vertical and 4 or 9)))
+	if pos then
+		holder:SetPoint(pos.a1, pos.rel, pos.a2, pos.x, pos.y)
+	elseif self.cfg.vertical then
+		if tot then
+			holder:SetPoint("BOTTOM", self, "RIGHT", 0, 0)
+		else
+			holder:SetPoint("TOP", self, "RIGHT", 50, -5)
+		end
+	elseif tot then
+		holder:SetPoint("BOTTOM", self, "RIGHT", -90, -40)
+	else
+		holder:SetPoint("TOP", self, "RIGHT", -60, -67)
+	end
+	ns.NativeAuras.Create(self, "Debuffs", holder, {
+		filter = "HARMFUL|INCLUDE_NAME_PLATE_ONLY",
+		onlyShowPlayer = self.cfg.auras.onlyShowPlayerDebuffs,
+		size = size,
+		spacing = 5,
+		num = num,
+		initialAnchor = (pos and pos.initialAnchor) or "TOPLEFT",
+		growthX = "RIGHT",
+		growthY = (pos and pos.growthY) or "DOWN",
+		showType = self.cfg.auras.showDebuffType,
+	})
 end
 
 --create buff func
@@ -209,60 +201,34 @@ func.createBuffs = function(self)
 	if self.cfg.auras.hideBuffs == true then
 		return
 	end
+	local size = self.cfg.auras.size
+	local num = auraCount(self)
+	local holder = CreateFrame("Frame", nil, self)
+	holder:SetHeight((size + 5) * (num / 9))
+	local growthY
 	if self.cfg.vertical == false then
-		local f = CreateFrame("Frame", nil, self)
-		f.size = self.cfg.auras.size
-		if self.cfg.style == "targettarget" then
-			f.num = 8
-		else
-			f.num = cfg.units.party.auras.number
-		end
-		f:SetHeight((f.size + 5) * (f.num / 9))
-		f:SetWidth((f.size + 5) * 4)
-		f:SetPoint("TOP", self, "RIGHT", -60, -27)
-		f.initialAnchor = "TOPLEFT"
-		f["growth-x"] = "RIGHT"
-		f["growth-y"] = "DOWN"
-		f.spacing = 5
-		f.showBuffType = self.cfg.auras.showBuffType
-		f.onlyShowPlayer = self.cfg.auras.onlyShowPlayerBuffs
-		f.filter = "HELPFUL"
-		self.Buffs = f
+		holder:SetWidth((size + 5) * 4)
+		holder:SetPoint("TOP", self, "RIGHT", -60, -27)
+		growthY = "DOWN"
 	else
-		local f = CreateFrame("Frame", nil, self)
-		f.size = self.cfg.auras.size
-		if self.cfg.style == "targettarget" then
-			f.num = 8
-		else
-			f.num = cfg.units.party.auras.number
-		end
-		f:SetHeight((f.size + 5) * (f.num / 9))
-		f:SetWidth((f.size + 5) * 9)
-		f:SetPoint("TOP", self, "RIGHT", 117.5, 30)
-		f.initialAnchor = "TOPLEFT"
-		f["growth-x"] = "RIGHT"
-		f["growth-y"] = "UP"
-		f.spacing = 5
-		f.showBuffType = self.cfg.auras.showBuffType
-		f.onlyShowPlayer = self.cfg.auras.onlyShowPlayerBuffs
-		f.filter = "HELPFUL"
-		self.Buffs = f
+		holder:SetWidth((size + 5) * 9)
+		holder:SetPoint("TOP", self, "RIGHT", 117.5, 30)
+		growthY = "UP"
 	end
+	ns.NativeAuras.Create(self, "Buffs", holder, {
+		filter = "HELPFUL",
+		onlyShowPlayer = self.cfg.auras.onlyShowPlayerBuffs,
+		size = size,
+		spacing = 5,
+		num = num,
+		initialAnchor = "TOPLEFT",
+		growthX = "RIGHT",
+		growthY = growthY,
+		showType = self.cfg.auras.showBuffType,
+	})
 end
 
---Desaturated and Button CD
-func.postUpdateDebuff = function(element, unit, button, index, duration, expirationTime)
-	if Secrets.Bool(UnitIsFriend, "player", unit) or button.isPlayer then
-		button.icon:SetDesaturated(false)
-	else
-		button.icon:SetDesaturated(true)
-	end
-	button.icon.duration = Secrets.Number(duration)
-	button.icon.timeLeft = Secrets.Number(expirationTime)
-	button.icon.first = true
-end
-
---aura icon func
+--aura icon func (oUF_AuraWatch icons; aura rows are styled in core/nativeauras.lua)
 func.createAuraIcon = function(icons, button)
 	local size = icons.size or button:GetWidth()
 	button.cd:SetFrameStrata("MEDIUM")
@@ -383,7 +349,7 @@ func.createAuraIcon = function(icons, button)
 	back:SetVertexColor(0, 0, 0, 1)
 end
 
---create AltPowerBar
+--create the alternative power bar (oUF AlternativePower)
 func.createAltPowerBar = function(self, name)
 	local t, f
 	local num = 4
@@ -401,7 +367,6 @@ func.createAltPowerBar = function(self, name)
 	bar:SetSize(w, h)
 	bar:SetStatusBarTexture(self.cfg.altpower.texture)
 	bar:SetStatusBarColor(self.cfg.altpower.color.r, self.cfg.altpower.color.g, self.cfg.altpower.color.b)
-	bar.colorTexture = true --color the altpower bar
 	--bar:SetMinMaxValues(0,100)
 	--bar:SetValue(70)
 
@@ -440,7 +405,7 @@ func.createAltPowerBar = function(self, name)
 
 	bar:SetScale(self.cfg.altpower.scale)
 	func.simpleDragFunc(bar)
-	self.AltPowerBar = bar
+	self.AlternativePower = bar
 end
 
 --create aura watch func
@@ -523,9 +488,6 @@ local COLOR_POWER_FALLBACK = { r = 1, g = 0.5, b = 0.25 }
 local COLOR_CLASS_TMP = { r = 1, g = 1, b = 1 }
 
 func.updateHealth = function(bar, unit, min, max)
-	if bar.__owner and bar.__owner.RothHealBars then
-		ns.HealBars.Update(bar.__owner)
-	end
 	local minNum, maxNum = Secrets.Number(min), Secrets.Number(max)
 	local d = (minNum and maxNum and maxNum > 0) and floor(minNum / maxNum * 100) or nil
 	local color
@@ -666,7 +628,7 @@ end
 --check threat
 func.checkThreat = function(self, event, unit)
 	if unit then
-		if self.unit ~= unit then
+		if self.__unit ~= unit then
 			return
 		end
 		local threat = Secrets.Number(UnitThreatSituation(unit))
@@ -910,6 +872,8 @@ func.createCastbar = function(f)
 	--c.Text:SetPoint("RIGHT", c.Time, "LEFT", -10, 0) --right point of text will anchor left point of time
 
 	c.Spark = c:CreateTexture(nil, "OVERLAY", nil, -7)
+	c.Spark:SetSize(32, 32)
+	c.Spark:SetPoint("CENTER", c:GetStatusBarTexture(), "RIGHT", 0, 0) -- oUF 14 leaves the spark where the layout puts it
 	c.Spark:SetBlendMode("ADD")
 	c.Spark:SetVertexColor(0.8, 0.6, 0, 1)
 
@@ -1102,8 +1066,7 @@ func.createIcon = function(f, layer, size, anchorframe, anchorpoint1, anchorpoin
 	return icon
 end
 
--- incoming heals and absorbs: core/healbars.lua (the oUF 1.6 elements
--- these helpers once fed do not exist in the embedded oUF)
+-- incoming heals and absorbs: oUF Health prediction sub-widgets, built in core/healbars.lua
 func.healPrediction = function(self)
 	if ns.HealBars and self.Health then
 		ns.HealBars.Attach(self, self.Health)

@@ -363,7 +363,6 @@ cfg.units = {
 			showStealableBuffs = true,
 			onlyShowPlayerDebuffs = false,
 			showDebuffType = true,
-			desaturateDebuffs = false,
 			buffs = {
 				pos = { a1 = "BOTTOMLEFT", a2 = "TOPRIGHT", x = 0, y = -15 },
 				initialAnchor = "BOTTOMLEFT",
@@ -861,8 +860,9 @@ cfg.Nameplates = {
 -- Blizzard's, and an entry written by an add-on taints every Blizzard frame
 -- that reads it (the player / compact frames errored on secret values).
 cfg.powercolors = setmetatable({ MANA = { r = 0, g = 0.4, b = 1 } }, { __index = PowerBarColor })
---fix the oUF mana color
-oUF.colors.power["MANA"] = { 0, 0.4, 1 }
+--the same mana blue for oUF's colorPower (ColorMixin objects, by token and by power type index)
+oUF.colors.power.MANA = oUF:CreateColor(0, 0.4, 1)
+oUF.colors.power[Enum.PowerType.Mana or 0] = oUF.colors.power.MANA
 
 --font
 if locale == "enUS" or locale == "enGB" then

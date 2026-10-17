@@ -466,10 +466,9 @@ function NP.StartCast(plate, channel)
 	end
 	CastColor(cb, notInterruptible)
 	cb:Show()
-	if channel and cb.PostChannelStart then
-		cb.PostChannelStart(cb)
-	elseif cb.PostCastStart then
-		cb.PostCastStart(cb)
+	-- as oUF 14 does: casts and channels both start through PostCastStart
+	if cb.PostCastStart then
+		cb.PostCastStart(cb, unit)
 	end
 	return true
 end

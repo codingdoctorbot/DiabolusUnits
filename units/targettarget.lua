@@ -68,7 +68,7 @@ local createHealthFrame = function(self)
 	h.highlight:SetAllPoints(h.glow)
 
 	self.Health = h
-	self.Health.Smooth = true
+	self.Health.smoothing = Enum.StatusBarInterpolation.ExponentialEaseOut
 end
 
 --create power frames
@@ -94,7 +94,7 @@ local createPowerFrame = function(self)
 	h.glow:SetVertexColor(0, 0, 0, 1)
 
 	self.Power = h
-	self.Power.Smooth = true
+	self.Power.smoothing = Enum.StatusBarInterpolation.ExponentialEaseOut
 end
 
 func.updateTargetTargetText = function(self)
@@ -186,15 +186,14 @@ local function createStyle(self)
 	--auras
 	if self.cfg.auras.show then
 		func.createDebuffs(self)
-		self.Debuffs.PostCreateIcon = func.createAuraIcon
 	end
 
 	--debuffglow
 	func.createDebuffGlow(self)
 
 	--icons
-	self.RaidIcon = func.createIcon(self, "BACKGROUND", 20, self.Name, "BOTTOM", "TOP", 0, 0, -1)
-	self.RaidIcon:SetTexture("Interface\\AddOns\\DiabolusUnits\\media\\raidicons")
+	self.RaidTargetIndicator = func.createIcon(self, "BACKGROUND", 20, self.Name, "BOTTOM", "TOP", 0, 0, -1)
+	self.RaidTargetIndicator:SetTexture("Interface\\AddOns\\DiabolusUnits\\media\\raidicons")
 
 	--add self to unit container (maybe access to that unit is needed in another style)
 	unit.targettarget = self

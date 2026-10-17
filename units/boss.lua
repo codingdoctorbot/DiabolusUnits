@@ -66,7 +66,7 @@ local createHealthFrame = function(self)
 	h.highlight:SetAllPoints(self)
 
 	self.Health = h
-	self.Health.Smooth = true
+	self.Health.smoothing = Enum.StatusBarInterpolation.ExponentialEaseOut
 end
 
 --create power frames
@@ -145,7 +145,7 @@ local function createStyle(self)
 	self.Power.PostUpdate = func.updatePower
 
 	--icons
-	self.RaidIcon = func.createIcon(self, "BACKGROUND", 16, self.Name, "BOTTOM", "TOP", 0, 0, -1)
+	self.RaidTargetIndicator = func.createIcon(self, "BACKGROUND", 16, self.Name, "BOTTOM", "TOP", 0, 0, -1)
 
 	--add self to unit container (maybe access to that unit is needed in another style)
 	unit.boss[bossid] = self

@@ -50,7 +50,7 @@ local function Update(self, event)
 		element:PreUpdate()
 	end
 
-	if self.unit ~= "pet" then
+	if self.__unit ~= "pet" then
 		return
 	end
 
@@ -116,7 +116,7 @@ local function Update(self, event)
 	* damagePercentage - damage modifier, happiness affects this (unhappy = 75%, content = 100%, happy = 125%) (number)
 	--]]
 	if element.PostUpdate then
-		return element:PostUpdate(self.unit, happiness, damagePercentage)
+		return element:PostUpdate(self.__unit, happiness, damagePercentage)
 	end
 end
 
@@ -141,7 +141,7 @@ local function Enable(self)
 		element.__owner = self
 		element.ForceUpdate = ForceUpdate
 
-		if self.unit == "pet" then
+		if self.__unit == "pet" then
 			self:RegisterEvent("UNIT_HAPPINESS", Path, true)
 			self:RegisterEvent("PET_UI_UPDATE", Path, true)
 			-- a newly summoned pet: the frame's unit does not change, so oUF does not update

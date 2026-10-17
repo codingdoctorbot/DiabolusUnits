@@ -1,172 +1,242 @@
-local parent, ns = ...
+local _, ns = ...
 local oUF = ns.oUF
-if not oUF or not oUF.Private then return end
 local Private = oUF.Private
 
 local frame_metatable = Private.frame_metatable
-if not frame_metatable then return end
+local nierror = Private.nierror
+
+local colorMixin = {
+	SetAtlas = function(self, atlas)
+		local info = C_Texture.GetAtlasInfo(atlas)
+		if(not info) then
+			return nierror(string.format('"%s" is an invalid atlas.', atlas))
+		end
+
+		self.atlas = atlas
+	end,
+	GetAtlas = function(self)
+		return self.atlas
+	end,
+	SetCurve = function(self, ...)
+		if(...) then
+			if(self.curve) then
+				self.curve:ClearPoints()
+			else
+				self.curve = C_CurveUtil.CreateColorCurve()
+			end
+
+			if(type(...) == 'table') then
+				for x, y in next, (...) do
+					self.curve:AddPoint(x, y)
+				end
+			else
+				for i = 1, select('#', ...), 2 do
+					self.curve:AddPoint(select(i, ...), select(i+1, ...))
+				end
+			end
+		else
+			self.curve = nil
+		end
+	end,
+	GetCurve = function(self)
+		return self.curve
+	end,
+}
+
+--[[ Colors: oUF:CreateColor(r, g, b[, a])
+Wrapper for [Blizzard_SharedXMLBase/Color.lua's ColorMixin](https://warcraft.wiki.gg/wiki/ColorMixin), extended with extra methods for dealing with
+atlases and curves.
+
+The rgb values can be either normalized (0-1) or bytes (0-255).
+
+* self - the global oUF object
+* r    - value used as represent the red color (number)
+* g    - value used to represent the green color (number)
+* b    - value used to represent the blue color (number)
+* a    - value used to represent the opacity (number, optional)
+
+## Returns
+
+* color - the ColorMixin-based object
+--]]
+function oUF:CreateColor(r, g, b, a)
+	if(r > 1 or g > 1 or b > 1) then
+		r, g, b = r / 255, g / 255, b / 255
+	end
+
+	local color = Mixin({}, ColorMixin, colorMixin)
+	color:SetRGBA(r, g, b, a)
+
+	-- provide a default curve for smooth colors
+	color:SetCurve({
+		[  0] = CreateColor(1, 0, 0),
+		[0.5] = CreateColor(1, 1, 0),
+		[  1] = CreateColor(0, 1, 0),
+	})
+
+	return color
+end
 
 local colors = {
-	smooth = {
-		1, 0, 0,
-		1, 1, 0,
-		0, 1, 0
+	health = oUF:CreateColor(49, 207, 37),
+	disconnected = oUF:CreateColor(0.6, 0.6, 0.6),
+	tapped = oUF:CreateColor(0.6, 0.6, 0.6),
+	runes = {
+		oUF:CreateColor(247, 65, 57), -- blood
+		oUF:CreateColor(148, 203, 247), -- frost
+		oUF:CreateColor(173, 235, 66), -- unholy
 	},
-	disconnected = {.6, .6, .6},
-	tapped = {.6,.6,.6},
+	selection = {
+		-- https://warcraft.wiki.gg/wiki/API_UnitSelectionColor
+		[oUF.Enum.SelectionType.Hostile] = oUF:CreateColor(255, 0, 0),
+		[oUF.Enum.SelectionType.Unfriendly] = oUF:CreateColor(255, 128, 0),
+		[oUF.Enum.SelectionType.Neutral] = oUF:CreateColor(255, 255, 0),
+		[oUF.Enum.SelectionType.Friendly] = oUF:CreateColor(0, 255, 0),
+		[oUF.Enum.SelectionType.PlayerSimple] = oUF:CreateColor(0, 0, 255),
+		[oUF.Enum.SelectionType.PlayerExtended] = oUF:CreateColor(96, 96, 255),
+		[oUF.Enum.SelectionType.Party] = oUF:CreateColor(170, 170, 255),
+		[oUF.Enum.SelectionType.PartyPvP] = oUF:CreateColor(170, 255, 170),
+		[oUF.Enum.SelectionType.Friend] = oUF:CreateColor(83, 201, 255),
+		[oUF.Enum.SelectionType.Dead] = oUF:CreateColor(128, 128, 128),
+		[oUF.Enum.SelectionType.PartyPvPInBattleground] = oUF:CreateColor(0, 153, 0),
+		[oUF.Enum.SelectionType.RecentAlly] = oUF:CreateColor(83, 201, 255),
+	},
 	class = {},
+	dispel = {},
 	reaction = {},
+	power = {},
+	threat = {},
+	happiness = {
+		oUF:CreateColor(1, 0, 0), -- unhappy
+		oUF:CreateColor(1, 1, 0), -- content
+		oUF:CreateColor(0, 1, 0), -- happy
+	},
 }
 
 -- We do this because people edit the vars directly, and changing the default
 -- globals makes SPICE FLOW!
-local customClassColors = function()
-	if(CUSTOM_CLASS_COLORS) then
-		local updateColors = function()
-			for eclass, color in next, CUSTOM_CLASS_COLORS do
-				colors.class[eclass] = {color.r, color.g, color.b}
+local function customClassColors()
+	if(_G.CUSTOM_CLASS_COLORS) then
+		local function updateColors()
+			for classToken, color in next, _G.CUSTOM_CLASS_COLORS do
+				colors.class[classToken] = oUF:CreateColor(color.r, color.g, color.b)
 			end
 
 			for _, obj in next, oUF.objects do
-				obj:UpdateAllElements("CUSTOM_CLASS_COLORS")
+				obj:UpdateAllElements('CUSTOM_CLASS_COLORS')
 			end
 		end
 
 		updateColors()
-		CUSTOM_CLASS_COLORS:RegisterCallback(updateColors)
+		_G.CUSTOM_CLASS_COLORS:RegisterCallback(updateColors)
 
 		return true
 	end
 end
-if not customClassColors() then
-	for eclass, color in next, RAID_CLASS_COLORS do
-		colors.class[eclass] = {color.r, color.g, color.b}
+
+if(not customClassColors()) then
+	for classToken, color in next, _G.RAID_CLASS_COLORS do
+		colors.class[classToken] = oUF:CreateColor(color.r, color.g, color.b)
 	end
 
-	local f = CreateFrame("Frame")
-	f:RegisterEvent("ADDON_LOADED")
-	f:SetScript("OnEvent", function()
-		if customClassColors() then
-			f:UnregisterEvent("ADDON_LOADED")
-			f:SetScript("OnEvent", nil)
+	local eventHandler = CreateFrame('Frame')
+	eventHandler:RegisterEvent('ADDON_LOADED')
+	eventHandler:RegisterEvent('PLAYER_ENTERING_WORLD')
+	eventHandler:SetScript('OnEvent', function(self)
+		if(customClassColors()) then
+			self:UnregisterAllEvents()
+			self:SetScript('OnEvent', nil)
 		end
 	end)
 end
 
-for eclass, color in next, FACTION_BAR_COLORS do
-	colors.reaction[eclass] = {color.r, color.g, color.b}
+for dispelName, dispelInfo in next, AuraUtil.GetDebuffDisplayInfoTable() do
+	colors.dispel[dispelName] = oUF:CreateColor(dispelInfo.color:GetRGB())
+end
+colors.dispel.Enrage = oUF:CreateColor(243, 95, 245) -- no default color by Blizzard
+
+for eclass, color in next, _G.FACTION_BAR_COLORS do
+	colors.reaction[eclass] = oUF:CreateColor(color.r, color.g, color.b)
 end
 
-local function ColorsAndPercent(a, b, ...)
-	if a <= 0 or b == 0 then
-		return nil, ...
-	elseif a >= b then
-		return nil, select(select('#', ...) - 2, ...)
-	end
+local stageIndices = {
+	-- stagger
+	green = 1,
+	yellow = 2,
+	red = 3,
+	-- soul fragments
+	voidMetamorphosisProgess = 1,
+	collapsingStarProgess = 2,
+}
 
-	local num = select('#', ...) / 3
-	local segment, relperc = math.modf((a/b)*(num-1))
-	return relperc, select((segment*3)+1, ...)
-end
+for power, color in next, PowerBarColor do
+	if (type(power) == 'string') then
+		if(color.r) then
+			colors.power[power] = oUF:CreateColor(color.r, color.g, color.b)
 
--- http://www.wowwiki.com/ColorGradient
-local RGBColorGradient = function(...)
-	local relperc, r1, g1, b1, r2, g2, b2 = ColorsAndPercent(...)
-	if relperc then
-		return r1 + (r2-r1)*relperc, g1 + (g2-g1)*relperc, b1 + (b2-b1)*relperc
-	else
-		return r1, g1, b1
-	end
-end
+			if(color.atlas) then
+				colors.power[power]:SetAtlas(color.atlas)
+			end
 
--- HCY functions are based on http://www.chilliant.com/rgb2hsv.html
-local function GetY(r, g, b)
-	return 0.299 * r + 0.587 * g + 0.114 * b
-end
-
-local function RGBToHCY(r, g, b)
-	local min, max = min(r, g, b), max(r, g, b)
-	local chroma = max - min
-	local hue
-	if chroma > 0 then
-		if r == max then
-			hue = ((g - b) / chroma) % 6
-		elseif g == max then
-			hue = (b - r) / chroma + 2
-		elseif b == max then
-			hue = (r - g) / chroma + 4
-		end
-		hue = hue / 6
-	end
-	return hue, chroma, GetY(r, g, b)
-end
-
-local abs = math.abs
-local function HCYtoRGB(hue, chroma, luma)
-	local r, g, b = 0, 0, 0
-	if hue and luma > 0 then
-		local h2 = hue * 6
-		local x = chroma * (1 - abs(h2 % 2 - 1))
-		if h2 < 1 then
-			r, g, b = chroma, x, 0
-		elseif h2 < 2 then
-			r, g, b = x, chroma, 0
-		elseif h2 < 3 then
-			r, g, b = 0, chroma, x
-		elseif h2 < 4 then
-			r, g, b = 0, x, chroma
-		elseif h2 < 5 then
-			r, g, b = x, 0, chroma
+			if(color.atlasElementName) then
+				colors.power[power]:SetAtlas("UI-HUD-UnitFrame-Player-PortraitOn-Bar-" .. color.atlasElementName)
+			end
 		else
-			r, g, b = chroma, 0, x
+			-- special handling of colours with stages
+			colors.power[power] = {}
+
+			for name, color_ in next, color do
+				local index = stageIndices[name]
+				if(index) then
+					colors.power[power][index] = oUF:CreateColor(color_.r, color_.g, color_.b)
+
+					if(color_.atlas) then
+						colors.power[power][index]:SetAtlas(color_.atlas)
+					end
+				end
+			end
 		end
-		local y = GetY(r, g, b)
-		if luma < y then
-			chroma = chroma * (luma / y)
-		elseif y < 1 then
-			chroma = chroma * (1 - luma) / (1 - y)
-		end
-		r = (r - y) * chroma + luma
-		g = (g - y) * chroma + luma
-		b = (b - y) * chroma + luma
 	end
-	return r, g, b
 end
 
-local HCYColorGradient = function(...)
-	local relperc, r1, g1, b1, r2, g2, b2 = ColorsAndPercent(...)
-	if not relperc then return r1, g1, b1 end
-	local h1, c1, y1 = RGBToHCY(r1, g1, b1)
-	local h2, c2, y2 = RGBToHCY(r2, g2, b2)
-	local c = c1 + (c2-c1) * relperc
-	local y = y1 + (y2-y1) * relperc
-	if h1 and h2 then
-		local dh = h2 - h1
-		if dh < -0.5  then
-			dh = dh + 1
-		elseif dh > 0.5 then
-			dh = dh - 1
-		end
-		return HCYtoRGB((h1 + dh * relperc) % 1, c, y)
-	else
-		return HCYtoRGB(h1 or h2, c, y)
-	end
+-- fallback integer index to named index
+-- sourced from PowerBarColor - Blizzard_UnitFrame/Mainline/PowerBarColorUtil.lua
+colors.power[Enum.PowerType.Mana or 0] = colors.power.MANA
+colors.power[Enum.PowerType.Rage or 1] = colors.power.RAGE
+colors.power[Enum.PowerType.Focus or 2] = colors.power.FOCUS
+colors.power[Enum.PowerType.Energy or 3] = colors.power.ENERGY
+colors.power[Enum.PowerType.ComboPoints or 4] = colors.power.COMBO_POINTS
+colors.power[Enum.PowerType.Runes or 5] = colors.power.RUNES
+colors.power[Enum.PowerType.RunicPower or 6] = colors.power.RUNIC_POWER
+colors.power[Enum.PowerType.SoulShards or 7] = colors.power.SOUL_SHARDS
+colors.power[Enum.PowerType.LunarPower or 8] = colors.power.LUNAR_POWER
+colors.power[Enum.PowerType.HolyPower or 9] = colors.power.HOLY_POWER
+colors.power[Enum.PowerType.Maelstrom or 11] = colors.power.MAELSTROM
+colors.power[Enum.PowerType.Insanity or 13] = colors.power.INSANITY
+colors.power[Enum.PowerType.Fury or 17] = colors.power.FURY
+colors.power[Enum.PowerType.Pain or 18] = colors.power.PAIN
 
+-- these two don't have fallback values in PowerBarColor, but we want them
+colors.power[Enum.PowerType.Chi or 12] = colors.power.CHI
+colors.power[Enum.PowerType.ArcaneCharges or 16] = colors.power.ARCANE_CHARGES
+
+-- there's no official colour for evoker's essence
+-- use the average colour of the essence texture instead
+colors.power.ESSENCE = oUF:CreateColor(100, 173, 206)
+colors.power[Enum.PowerType.Essence or 19] = colors.power.ESSENCE
+
+-- alternate power, sourced from Blizzard_UnitFrame/Mainline/CompactUnitFrame.lua
+colors.power.ALTERNATE = oUF:CreateColor(0.7, 0.7, 0.6)
+colors.power[Enum.PowerType.Alternate or 10] = colors.power.ALTERNATE
+
+-- fake power types, no ID equivalent will exist to avoid collisions
+colors.power.ICICLES = oUF:CreateColor(116, 217, 246) -- based on spell icon
+colors.power.TIP_OF_THE_SPEAR = oUF:CreateColor(108, 188, 40) -- based on spell icon
+
+for i = 0, 3 do
+	colors.threat[i] = oUF:CreateColor(GetThreatStatusColor(i))
 end
-
-local ColorGradient = function(...)
-	return (oUF.useHCYColorGradient and HCYColorGradient or RGBColorGradient)(...)
-end
-
-Private.colors = colors
 
 oUF.colors = colors
-oUF.ColorGradient = ColorGradient
-oUF.RGBColorGradient = RGBColorGradient
-oUF.HCYColorGradient = HCYColorGradient
-oUF.useHCYColorGradient = false
 
-if frame_metatable and frame_metatable.__index then
-	frame_metatable.__index.colors = colors
-	frame_metatable.__index.ColorGradient = ColorGradient
-end
+frame_metatable.__index.colors = colors

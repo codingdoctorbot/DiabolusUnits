@@ -1,24 +1,23 @@
 ---------------------------------------------
 --  Roth_UI - incoming heals, absorbs, heal absorbs
 ---------------------------------------------
--- ForeverUnitFrames' method (Elements/HealPrediction.lua, Absorb.lua): on
--- WoW Forever these values are secret (UnitGetIncomingHeals is
--- SecretReturns), so nothing is added, compared or clamped in Lua. Status
--- bars as wide as the health bar and on its scale (0 .. max health) hang
--- from the end of the health fill; the client scales them, and a clipping
--- frame over the health bar cuts them at full health.
+-- oUF 14's Health element fills these from the client's heal prediction
+-- calculator (CreateUnitHealPredictionCalculator): on WoW Forever the values
+-- are secret, so nothing is added, compared or clamped in Lua. Status bars
+-- as long as the health bar (oUF keeps them sized) and on its scale
+-- (0 .. max health) hang from the end of the health fill; a clipping frame
+-- over the health bar cuts them at full health.
 --
---   mine        your own incoming heals, bright emerald
---   all         everyone's incoming heals, darker green (what shows past
---               "mine" is other healers')
---   absorb      shields, gold stripes after the incoming heals
---   healAbsorb  necrotic-style "absorb healing" effects, dark red, drawn
---               back over the end of the health
+--   HealingPlayer  your own incoming heals, bright emerald
+--   HealingAll     everyone's incoming heals, darker green (what shows past
+--                  your own is other healers')
+--   DamageAbsorb   shields, gold stripes after the incoming heals
+--   HealAbsorb     necrotic-style "absorb healing" effects, dark red, drawn
+--                  back over the end of the health
 --
--- HealBars.Attach(frame, healthBar) for any oUF frame; a vertical health bar
--- (the raid tiles) gets bars that stack upwards from the top of its fill. It updates on its own
--- events; the frame's health PostUpdate calls HealBars.Update so a new unit
--- (target change, header reassignment) is picked up on oUF's full update.
+-- HealBars.Attach(frame, healthBar) from a style function, before oUF
+-- enables the Health element; a vertical health bar (the raid tiles) gets
+-- bars that stack upwards from the top of its fill.
 
 local _, ns = ...
 
@@ -38,52 +37,15 @@ local function Opt(key, default)
 	return default
 end
 
--- Presence is asked with type(): a secret cannot be tested by truth.
-local function Show(bar, amount, maximum)
-	if type(amount) == "nil" then
-		amount = 0
-	end
-	if type(maximum) == "nil" then
-		maximum = 1
-	end
-	bar:SetMinMaxValues(0, maximum)
-	bar:SetValue(amount)
-end
-
 local function Bar(parent, level, r, g, b, a)
 	local bar = CreateFrame("StatusBar", nil, parent)
 	bar:SetFrameLevel(level)
 	bar:SetStatusBarTexture(WHITE)
 	bar:SetStatusBarColor(r, g, b, a)
-	bar:SetMinMaxValues(0, 1)
-	bar:SetValue(0)
 	return bar
 end
 
-function HealBars.Update(frame)
-	local hb = frame.RothHealBars
-	local unit = frame.unit
-	if not (hb and unit) then
-		return
-	end
-	local maximum = UnitHealthMax(unit)
-	if Opt("heals", true) then
-		Show(hb.all, UnitGetIncomingHeals and UnitGetIncomingHeals(unit), maximum)
-		Show(hb.mine, UnitGetIncomingHeals and UnitGetIncomingHeals(unit, "player"), maximum)
-	end
-	if Opt("absorbs", true) then
-		Show(hb.absorb, UnitGetTotalAbsorbs and UnitGetTotalAbsorbs(unit), maximum)
-		Show(hb.healAbsorb, UnitGetTotalHealAbsorbs and UnitGetTotalHealAbsorbs(unit), maximum)
-	end
-end
-
-local function OnEvent(frame, _, unit)
-	if unit == frame.unit or (issecretvalue and issecretvalue(unit)) then
-		HealBars.Update(frame)
-	end
-end
-
--- frame: an oUF frame; health: its health StatusBar.
+-- frame: an oUF frame; health: its Health StatusBar.
 function HealBars.Attach(frame, health)
 	if frame.RothHealBars then
 		return frame.RothHealBars
@@ -111,66 +73,42 @@ function HealBars.Attach(frame, health)
 	end
 
 	local hb = { clip = clip }
-	hb.all = Bar(clip, base + 1, 0.05, 0.55, 0.2, 0.55)
-	hb.mine = Bar(clip, base + 2, 0.15, 0.95, 0.35, 0.7)
-	for _, bar in ipairs({ hb.all, hb.mine }) do
-		After(bar, fill)
+
+	if Opt("heals", true) then
+		hb.all = Bar(clip, base + 1, 0.05, 0.55, 0.2, 0.55)
+		hb.mine = Bar(clip, base + 2, 0.15, 0.95, 0.35, 0.7)
+		After(hb.all, fill)
+		After(hb.mine, fill)
+		health.HealingAll = hb.all
+		health.HealingPlayer = hb.mine
 	end
 
-	-- shields after all incoming heals: gold, with Roth's stripe overlay
-	hb.absorb = Bar(clip, base + 3, 1, 0.82, 0.35, 0.35)
-	local after = hb.all:GetStatusBarTexture()
-	After(hb.absorb, after)
-	local stripes = hb.absorb:CreateTexture(nil, "OVERLAY")
-	stripes:SetTexture(MEDIA .. "absorb_statusbar_overlay", "REPEAT", "REPEAT")
-	stripes:SetHorizTile(true)
-	stripes:SetVertTile(true)
-	stripes:SetVertexColor(1, 0.85, 0.4, 0.9)
-	stripes:SetAllPoints(hb.absorb:GetStatusBarTexture())
+	if Opt("absorbs", true) then
+		-- shields after all incoming heals: gold, with Roth's stripe overlay
+		hb.absorb = Bar(clip, base + 3, 1, 0.82, 0.35, 0.35)
+		After(hb.absorb, hb.all and hb.all:GetStatusBarTexture() or fill)
+		local stripes = hb.absorb:CreateTexture(nil, "OVERLAY")
+		stripes:SetTexture(MEDIA .. "absorb_statusbar_overlay", "REPEAT", "REPEAT")
+		stripes:SetHorizTile(true)
+		stripes:SetVertTile(true)
+		stripes:SetVertexColor(1, 0.85, 0.4, 0.9)
+		stripes:SetAllPoints(hb.absorb:GetStatusBarTexture())
+		health.DamageAbsorb = hb.absorb
 
-	-- heal absorbs: from the end of the health back over it (reverse fill)
-	hb.healAbsorb = Bar(clip, base + 4, 0.35, 0, 0.05, 0.75)
-	hb.healAbsorb:SetReverseFill(true)
-	if vertical then
-		hb.healAbsorb:SetOrientation("VERTICAL")
-		hb.healAbsorb:SetPoint("TOPLEFT", fill, "TOPLEFT", 0, 0)
-		hb.healAbsorb:SetPoint("TOPRIGHT", fill, "TOPRIGHT", 0, 0)
-	else
-		hb.healAbsorb:SetPoint("TOPRIGHT", fill, "TOPRIGHT", 0, 0)
-		hb.healAbsorb:SetPoint("BOTTOMRIGHT", fill, "BOTTOMRIGHT", 0, 0)
-	end
-
-	-- The bars are as long as the health bar. Header children have no size
-	-- yet when they are built, so follow the bar's size (layout values,
-	-- never secret).
-	local function Fit(w, h)
-		local length = vertical and h or w
-		if type(length) == "number" and length > 0 then
-			for _, bar in ipairs({ hb.all, hb.mine, hb.absorb, hb.healAbsorb }) do
-				if vertical then
-					bar:SetHeight(length)
-				else
-					bar:SetWidth(length)
-				end
-			end
+		-- heal absorbs: from the end of the health back over it (reverse fill)
+		hb.healAbsorb = Bar(clip, base + 4, 0.35, 0, 0.05, 0.75)
+		hb.healAbsorb:SetReverseFill(true)
+		if vertical then
+			hb.healAbsorb:SetOrientation("VERTICAL")
+			hb.healAbsorb:SetPoint("TOPLEFT", fill, "TOPLEFT", 0, 0)
+			hb.healAbsorb:SetPoint("TOPRIGHT", fill, "TOPRIGHT", 0, 0)
+		else
+			hb.healAbsorb:SetPoint("TOPRIGHT", fill, "TOPRIGHT", 0, 0)
+			hb.healAbsorb:SetPoint("BOTTOMRIGHT", fill, "BOTTOMRIGHT", 0, 0)
 		end
+		health.HealAbsorb = hb.healAbsorb
 	end
-	health:HookScript("OnSizeChanged", function(_, w, h)
-		Fit(w, h)
-	end)
-	Fit(health:GetWidth(), health:GetHeight())
 
 	frame.RothHealBars = hb
-	for _, event in ipairs({ "UNIT_HEAL_PREDICTION", "UNIT_ABSORB_AMOUNT_CHANGED", "UNIT_HEAL_ABSORB_AMOUNT_CHANGED", "UNIT_MAXHEALTH" }) do
-		frame:RegisterEvent(event, OnEvent)
-	end
-	if not Opt("heals", true) then
-		hb.all:Hide()
-		hb.mine:Hide()
-	end
-	if not Opt("absorbs", true) then
-		hb.absorb:Hide()
-		hb.healAbsorb:Hide()
-	end
 	return hb
 end

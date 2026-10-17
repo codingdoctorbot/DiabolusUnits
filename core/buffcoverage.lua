@@ -239,7 +239,7 @@ function Coverage.Update(frame)
 	if not icons then
 		return
 	end
-	local list = frame.unit and states[frame.unit] or nil
+	local list = frame.__unit and states[frame.__unit] or nil
 	for i, icon in ipairs(icons) do
 		local entry = list and list[i]
 		if entry then
@@ -340,7 +340,7 @@ function Coverage.Queue()
 end
 
 local function OnAura(frame, _, unit)
-	if unit == frame.unit or Secrets.IsSecret(unit) then
+	if unit == frame.__unit or Secrets.IsSecret(unit) then
 		Coverage.Queue()
 	end
 end

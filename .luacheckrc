@@ -324,6 +324,8 @@ for _, name in ipairs({
 	"C_UnitAuras",
 	"UnitInRange",
 	"UnitGroupRolesAssigned",
+	"GetTexCoordsForRoleSmallCircle",
+	"ComboFrame",
 	"GetRaidTargetIndex",
 	"SetRaidTargetIconTexture",
 	"NUM_RAID_GROUPS",

@@ -67,7 +67,7 @@ local createHealthFrame = function(self)
 	h.highlight:SetAllPoints(self)
 
 	self.Health = h
-	self.Health.Smooth = true
+	self.Health.smoothing = Enum.StatusBarInterpolation.ExponentialEaseOut
 end
 
 --create power frames
@@ -93,7 +93,7 @@ local createPowerFrame = function(self)
 	h.glow:SetVertexColor(0, 0, 0, 1)
 
 	self.Power = h
-	self.Power.Smooth = true
+	self.Power.smoothing = Enum.StatusBarInterpolation.ExponentialEaseOut
 end
 
 func.updatePetText = function(self)
@@ -252,23 +252,20 @@ local function createStyle(self)
 
 	--auras
 	if self.cfg.auras.show then
-		func.createDebuffs(self)
-		self.Debuffs.PostCreateIcon = func.createAuraIcon
 		-- the shared spot hangs below the frame, which is on the orb glass when the pet frame
 		-- sits above an orb: put them beside the portrait instead, growing right
+		local pos
 		if self.portraitSide then
 			-- above the name, growing right and up (free space over the frame)
-			self.Debuffs:ClearAllPoints()
-			self.Debuffs:SetPoint("BOTTOMLEFT", self.Health, "TOPLEFT", 0, 16)
-			self.Debuffs.initialAnchor = "BOTTOMLEFT"
-			self.Debuffs["growth-y"] = "UP"
+			pos = { a1 = "BOTTOMLEFT", rel = self.Health, a2 = "TOPLEFT", x = 0, y = 16 }
+			pos.initialAnchor = "BOTTOMLEFT"
+			pos.growthY = "UP"
 		elseif self.Portrait then
-			self.Debuffs:ClearAllPoints()
-			self.Debuffs:SetPoint("TOPLEFT", self.Portrait, "TOPRIGHT", 8, 0)
+			pos = { a1 = "TOPLEFT", rel = self.Portrait, a2 = "TOPRIGHT", x = 8, y = 0 }
 		end
+		func.createDebuffs(self, pos)
 		if self.cfg.auras.showBuffs then
 			func.createBuffs(self)
-			self.Buffs.PostCreateIcon = func.createAuraIcon
 		end
 	end
 
@@ -284,7 +281,7 @@ local function createStyle(self)
 	self:RegisterEvent("UNIT_THREAT_SITUATION_UPDATE", func.checkThreat)
 
 	--icons
-	self.RaidIcon = func.createIcon(self, "BACKGROUND", 18, self.Name, "BOTTOM", "TOP", 0, 0, -1)
+	self.RaidTargetIndicator = func.createIcon(self, "BACKGROUND", 18, self.Name, "BOTTOM", "TOP", 0, 0, -1)
 
 	--happiness
 	createPetHappiness(self)

@@ -209,36 +209,14 @@ function Check:ProbeAuras(unit)
 		)
 	end
 	local frame = rawget(_G, "Roth_UITargetFrame")
-	local function shown(el)
-		local c = 0
-		if type(el) ~= "table" then
-			return 0
-		end
-		for _, icon in ipairs(el) do
-			if icon.IsShown and icon:IsShown() then
-				c = c + 1
-			end
-		end
-		return c
-	end
 	if frame then
 		local NA = ns.NativeAuras
-		local nd, nb = NA and NA.Count(frame, "Debuffs"), NA and NA.Count(frame, "Buffs")
-		if nd or nb then
-			add(
-				("Roth target frame: client-drawn rows, %s debuff and %s buff button(s) in use"):format(
-					tostring(nd),
-					tostring(nb)
-				)
+		add(
+			("Roth target frame: client-drawn rows, %s debuff and %s buff button(s) in use"):format(
+				tostring(NA.Count(frame, "Debuffs")),
+				tostring(NA.Count(frame, "Buffs"))
 			)
-		else
-			add(
-				("Roth target frame shows %d debuff and %d buff icon(s)"):format(
-					shown(frame.Debuffs),
-					shown(frame.Buffs)
-				)
-			)
-		end
+		)
 	end
 	Say("aura probe (also saved as Roth_UI_DB_GLOB.auraProbe):")
 	for _, line in ipairs(lines) do

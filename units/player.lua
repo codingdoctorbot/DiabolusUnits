@@ -290,11 +290,11 @@ local updateValue = function(bar, unit, cur, max)
 		orb.values:Show()
 	end
 	if orb.type == "HEALTH" then
-		orb.values.top:SetText(oUF.Tags.Methods["diablo:HealthOrbTop"](self.unit or "player"))
-		orb.values.bottom:SetText(oUF.Tags.Methods["diablo:HealthOrbBottom"](self.unit or "player"))
+		orb.values.top:SetText(oUF.Tags.Methods["diablo:HealthOrbTop"](self.__unit or "player"))
+		orb.values.bottom:SetText(oUF.Tags.Methods["diablo:HealthOrbBottom"](self.__unit or "player"))
 	elseif orb.type == "POWER" then
-		orb.values.top:SetText(oUF.Tags.Methods["diablo:PowerOrbTop"](self.unit or "player"))
-		orb.values.bottom:SetText(oUF.Tags.Methods["diablo:PowerOrbBottom"](self.unit or "player"))
+		orb.values.top:SetText(oUF.Tags.Methods["diablo:PowerOrbTop"](self.__unit or "player"))
+		orb.values.bottom:SetText(oUF.Tags.Methods["diablo:PowerOrbBottom"](self.__unit or "player"))
 	end
 	if isDead then
 		bar:SetValue(0)
@@ -598,17 +598,17 @@ local createOrb = function(self, type)
 		ns.PowerOrb = orb --save the orb in the namespace
 		hooksecurefunc(self.Power, "SetStatusBarColor", updateStatusBarColor)
 		self.Power.frequentUpdates = self.cfg.power.frequentUpdates or false
-		self.Power.Smooth = false -- Disabled: smooth animation breaks orb scroll frame sync
+		-- no .smoothing: an interpolated fill would lag the orb's scroll frame (OnValueChanged)
 		self.Power.colorPower = orbcfg.filling.colorAuto or false
-		self.Power.PostUpdate = updateValue
+		self.Power.PostUpdate = function(bar, unit, cur, _, max)
+			updateValue(bar, unit, cur, max)
+		end
 		ns.FiveSecond.Attach(orb)
 		ns.PowerCost.Attach(orb, orbcfg.filling.texture)
 	else
 		self.Health = orb.fill
 		ns.HealthOrb = orb --save the orb in the namespace
 		hooksecurefunc(self.Health, "SetStatusBarColor", updateStatusBarColor)
-		self.Health.frequentUpdates = self.cfg.health.frequentUpdates or false
-		self.Health.Smooth = false -- Disabled: smooth animation breaks orb scroll frame sync
 		self.Health.colorClass = orbcfg.filling.colorAuto or false
 		self.Health.colorHealth = orbcfg.filling.colorAuto or false --when player switches into a vehicle it will recolor the orb
 		--we need to display the lowhp on a certain threshold without smoothing, so we use the postUpdate for that
@@ -659,7 +659,7 @@ local Totems = function(self)
 	self.Totems = Totems
 end
 
-local DruidMana = function(self)
+local createAdditionalPower = function(self)
 	local class = select(2, UnitClass("player"))
 	if class ~= "DRUID" then
 		return
@@ -704,10 +704,9 @@ local DruidMana = function(self)
 		end
 	end)
 
-	--Register with oUF
-	self.DruidMana = DM
-	self.DruidMana.colorPower = DM
-	self.DruidMana.bg = nil
+	--Register with oUF (AdditionalPower: a druid's mana while shapeshifted)
+	DM.colorPower = true
+	self.AdditionalPower = DM
 end
 
 ---------------------------------------------
@@ -743,8 +742,8 @@ local createStyle = function(self)
 		ns.Belt.Place()
 	end
 
-	--druidmana
-	DruidMana(self)
+	--druid mana while shapeshifted (oUF AdditionalPower)
+	createAdditionalPower(self)
 
 	--totems
 	Totems(self)
@@ -759,15 +758,15 @@ local createStyle = function(self)
 	--icons
 	if self.cfg.icons.resting.show then
 		local pos = self.cfg.icons.resting.pos
-		self.Resting = func.createIcon(self, "OVERLAY", 32, self, pos.a1, pos.a2, pos.x, pos.y, -1)
+		self.RestingIndicator = func.createIcon(self, "OVERLAY", 32, self, pos.a1, pos.a2, pos.x, pos.y, -1)
 	end
 	if self.cfg.icons.pvp.show then
 		local pos = self.cfg.icons.pvp.pos
-		self.PvP = func.createIcon(self, "OVERLAY", 44, self, pos.a1, pos.a2, pos.x, pos.y, -1)
+		self.PvPIndicator = func.createIcon(self, "OVERLAY", 44, self, pos.a1, pos.a2, pos.x, pos.y, -1)
 	end
 	if self.cfg.icons.combat.show then
 		local pos = self.cfg.icons.combat.pos
-		self.Combat = func.createIcon(self, "OVERLAY", 32, self, pos.a1, pos.a2, pos.x, pos.y, -1)
+		self.CombatIndicator = func.createIcon(self, "OVERLAY", 32, self, pos.a1, pos.a2, pos.x, pos.y, -1)
 	end
 
 	--castbar
