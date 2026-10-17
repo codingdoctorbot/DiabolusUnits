@@ -50,3 +50,11 @@ Created **DiabolusUnits** (`/Users/erik2/Developer/WoW/DiabolusUnits`, symlinked
   - Added `ComputeVisibleButtonsCenterBias()` to measure the actual visible buttons' bounding box (`minLeft..maxRight`) and center them inside the recessed bay (hiding `KeyRingButton` when empty and collapsing `CharacterReagentBag0Slot` / `BagBarExpandToggle`).
 - **Dynamic Potion Belt Anchor**:
   - In Standard Mode, `Roth_UIBelt` now anchors automatically to the top-left of the uppermost activated action bar row (`ActionButton1`, `MultiBarBottomLeftButton1`, or `MultiBarBottomRightButton1` with `BOTTOMLEFT -> TOPLEFT (-4, 8)`).
+
+### 6. In-Game Verification (`Screenshot 2026-10-17 at 12.05.33.png`, commit `f77292c`)
+- Verified in `~/Desktop/Screenshot 2026-10-17 at 12.05.33.png` after `/diabolus reset`:
+  - **Confirmed Working**: `1.18x` scaled 12-slot stone bar (`ActionButton1..12`, `MultiBarBottomLeftButton1..12`, `MultiBarBottomRightButton1..12`), `^ 1 v` ActionBar paging buttons on the left stone shoulder, widened Orbs/Statues (`±300`, `-330` / `+325`), and Potion Belt (`Roth_UIBelt`) anchored to the top-left of Row 3.
+  - **Logged in `handoff.md` for Next Session**:
+    1. Shift `Roth_UIMicroDock` ~25px further left (`demonX - 240`) and raise button vertical center from `31 / scale` to `35.5 / scale` so the `?` button clears the Demon's left skull/foot and sits centered above the lower stone bevel.
+    2. Set `includeInLayout = false` + `SetSize(0.001, 0.001)` on `KeyRingButton` / `CharacterReagentBag0Slot` / `BagBarExpandToggle` before `BagsBar:Layout()` and raise `y` to `35.5 / scale` so the 5 bags sit centered in the right wing bay.
+    3. Lower single XP/Rep bar `y` from `5` to `2` (`height = 9`) in `core/bars.lua` so it clears Row 1's bottom stone border at `1.18x` scale.
