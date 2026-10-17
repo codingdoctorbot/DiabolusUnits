@@ -1,0 +1,84 @@
+## Interface: 16001
+## Author: codingdoctorbot (WoW Forever edition); zork (original), Galaxy119, EchoZulu69er
+## Title: DiabolusUnits
+## Notes: Diablo-themed orbs, unit frames, nameplates, art, and status bars for WoW Forever.
+## X-License: MIT (see LICENSE.txt; third-party parts: CREDITS.md)
+## Version: 1.0.0
+## SavedVariables: Roth_UI_DB_GLOB, PhanxFontDB, Roth_UI_DB
+## SavedVariablesPerCharacter: Roth_UI_DB_CHAR
+
+core\secrets.lua
+core\compat.lua
+core\blizzsafe.lua
+
+embeds\oUF\oUF.xml
+embeds\rLib\rLib.xml
+
+Libs\LibStub\LibStub.lua
+Libs\CallbackHandler-1.0\CallbackHandler-1.0.xml
+Libs\AceAddon-3.0\AceAddon-3.0.xml
+Libs\AceEvent-3.0\AceEvent-3.0.xml
+Libs\AceConsole-3.0\AceConsole-3.0.xml
+Libs\AceHook-3.0\AceHook-3.0.xml
+Libs\AceLocale-3.0\AceLocale-3.0.xml
+Libs\AceDB-3.0\AceDB-3.0.xml
+Libs\AceDBOptions-3.0\AceDBOptions-3.0.xml
+Libs\AceGUI-3.0\AceGUI-3.0.xml
+Libs\AceConfig-3.0\AceConfig-3.0.xml
+Libs\LibSharedMedia-3.0\lib.xml
+Libs\AceGUI-3.0-SharedMediaWidgets\widget.xml
+
+TaintFix.lua
+FixBlizzBarNil.lua
+UITweaks.lua
+init.lua
+core\editmode.lua
+core\init_coordinator.lua
+config.lua
+charspecific.lua
+
+embeds\Roth_Config\Roth_Config.lua
+embeds\rButtonTemplate\rButton.xml
+embeds\rButtonTemplate_Roth\rButton_Roth.xml
+embeds\rTooltip\rTooltip.xml
+embeds\RothFont\font.xml
+
+modules\oUF_AuraWatch.lua
+modules\oUF_PetHappiness.lua
+modules\oUF_ComboPoints.lua
+modules\oUF_Experience.lua
+modules\oUF_Reputation.lua
+modules\oUF_Smooth.lua
+
+core\db.lua
+core\panel.lua
+core\slashcmd.lua
+core\taintcheck.lua
+core\lib.lua
+core\nativeauras.lua
+core\healbars.lua
+core\status.lua
+core\privateauras.lua
+core\castbars.lua
+core\fivesecond.lua
+core\powercost.lua
+core\orbshield.lua
+core\buffcoverage.lua
+core\swingtimer.lua
+core\tags.lua
+core\bars.lua
+core\units.lua
+core\mainmenu.lua
+
+units\target.lua
+units\targettarget.lua
+units\pet.lua
+units\focus.lua
+units\pettarget.lua
+units\focustarget.lua
+units\boss.lua
+units\group.lua
+units\party.lua
+units\raid.lua
+units\nameplates.lua
+units\player.lua
