@@ -54,6 +54,8 @@ local EDITABLE_FRAMES = {
 	{ id = "Roth_UIRaidDragFrame", name = "Raid Frames", type = "unit", headerScale = "raidScale" },
 	{ id = "Roth_UIBossFrame1", name = "Boss Frames", type = "unit" },
 	{ id = "Roth_UIBelt", name = "Potion Belt", type = "belt" },
+	{ id = "Roth_UIMicroDock", name = "Micro Menu Wing", type = "art" },
+	{ id = "Roth_UIBagDock", name = "Bag Bar Wing", type = "art" },
 	{ id = "Roth_UIPlayerFrameCastBarDragFrame", name = "Player Cast Bar", type = "castbar" },
 	{ id = "Roth_UITargetFrameCastBarDragFrame", name = "Target Cast Bar", type = "castbar" },
 	{ id = "Roth_UIFocusFrameCastBarDragFrame", name = "Focus Cast Bar", type = "castbar" },
@@ -668,12 +670,15 @@ function EditMode:ResetSelected()
 		end
 
 		if entry.type == "stonebar" then
-			f:SetSize(788, 220)
+			f:SetSize(512, 256)
 		elseif entry.type == "xpbar" or entry.type == "repbar" then
 			if ns.bars and ns.bars.UpdateStatusBarLayout then
 				ns.bars.UpdateStatusBarLayout()
 			end
 		end
+	end
+	if ns.StandardMode and ns.StandardMode.Apply then
+		ns.StandardMode:Apply()
 	end
 	Say(entry.name .. " reset to default.")
 	if self.UpdateDialog then
@@ -723,46 +728,42 @@ function EditMode:ResetAllToDefault()
 				f:SetPoint(pos.a1 or "CENTER", relTo, pos.a2 or pos.a1 or "CENTER", pos.x or 0, pos.y or 0)
 			end
 		end
-		if entry.type == "stonebar" then
-			self:SetElementEnabled(entry, false)
-		else
-			self:SetElementEnabled(entry, true)
-		end
+		self:SetElementEnabled(entry, true)
 	end
 
-	-- 4. Reset stone bar size
+	-- 4. Reset stone bar size (zork's 512x256 bar1/bar2/bar3 grid)
 	local bg = rawget(_G, "Roth_UIActionBarBackground")
 	if bg then
-		bg:SetSize(788, 220)
+		bg:SetSize(512, 256)
 	end
 
 	-- 5. Reset Orbs, Statues, and Bottom Line
 	local p = ns.cfg and ns.cfg.units and ns.cfg.units.player
 	if p and p.art then
 		if p.art.angel and p.art.angel.pos then
-			p.art.angel.pos.x = 330
+			p.art.angel.pos.x = 350
 			p.art.angel.pos.y = 6
 		end
 		if p.art.demon and p.art.demon.pos then
-			p.art.demon.pos.x = -335
+			p.art.demon.pos.x = -355
 			p.art.demon.pos.y = 6
 		end
 		if p.art.bottomline and p.art.bottomline.pos then
 			p.art.bottomline.pos.y = 2
 		end
 		if p.art.actionbarbackground then
-			p.art.actionbarbackground.show = false
+			p.art.actionbarbackground.show = true
 		end
 	end
 	local angel = rawget(_G, "Roth_UIAngelFrame")
 	if angel then
 		angel:ClearAllPoints()
-		angel:SetPoint("BOTTOM", UIParent, "BOTTOM", 330, 6)
+		angel:SetPoint("BOTTOM", UIParent, "BOTTOM", 350, 6)
 	end
 	local demon = rawget(_G, "Roth_UIDemonFrame")
 	if demon then
 		demon:ClearAllPoints()
-		demon:SetPoint("BOTTOM", UIParent, "BOTTOM", -335, 6)
+		demon:SetPoint("BOTTOM", UIParent, "BOTTOM", -355, 6)
 	end
 	local bLine = rawget(_G, "Roth_UIBottomLine")
 	if bLine then
@@ -785,13 +786,16 @@ function EditMode:ResetAllToDefault()
 		ns.bars.UpdateStatusBarLayout()
 	end
 
-	-- 7. Re-apply global scale and pixel-perfect scale
+	-- 7. Re-apply global scale, pixel-perfect scale, and mode-specific layout (Gamepad vs Standard)
 	self:ApplyGlobalScale(1.0)
 	if ns.func and ns.func.ApplyPixelPerfectScale then
 		ns.func.ApplyPixelPerfectScale()
 	end
 	if ns.PlayerArt and ns.PlayerArt.refresh then
 		ns.PlayerArt.refresh()
+	end
+	if ns.StandardMode and ns.StandardMode.Apply then
+		ns.StandardMode:Apply()
 	end
 
 	Say("All UI elements reset to default layout.")

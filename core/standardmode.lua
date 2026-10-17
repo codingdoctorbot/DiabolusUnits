@@ -27,23 +27,6 @@ local pendingApply = false
 local microDock = nil
 local bagDock = nil
 
-local MICRO_LIST = {
-	"CharacterMicroButton",
-	"SpellbookMicroButton",
-	"TalentMicroButton",
-	"AchievementMicroButton",
-	"QuestLogMicroButton",
-	"SocialsMicroButton",
-	"GuildMicroButton",
-	"PVPMicroButton",
-	"LFGMicroButton",
-	"CollectionsMicroButton",
-	"EJMicroButton",
-	"StoreMicroButton",
-	"MainMenuMicroButton",
-	"HelpMicroButton",
-}
-
 local BAG_LIST = {
 	"MainMenuBarBackpackButton",
 	"CharacterBag0Slot",
@@ -72,8 +55,70 @@ local function IsUserMoved(frameName)
 	return prof and prof.framePositions and prof.framePositions[frameName] ~= nil
 end
 
--- Safely hide Blizzard's decorative actionbar art & duplicate status bars
+-- Safely hide Blizzard's decorative actionbar art, EndCaps (Left/Right), borders, dividers & duplicate status bars
 local function HideBlizzardBarArt()
+	-- 1. WoW Forever (Camelot) MainActionBar EndCaps, BorderArt, PageNumber, and Dividers
+	local mab = _G.MainActionBar
+	if mab then
+		mab.hideBarArt = true
+		if mab.BorderArt then
+			mab.BorderArt:SetAlpha(0)
+			mab.BorderArt:Hide()
+		end
+		if mab.ActionBarPageNumber then
+			mab.ActionBarPageNumber:SetAlpha(0)
+			mab.ActionBarPageNumber:Hide()
+		end
+		if mab.EndCaps then
+			if mab.EndCaps.LeftEndCap then
+				if mab.EndCaps.LeftEndCap.SetVisibilitySetting then
+					pcall(mab.EndCaps.LeftEndCap.SetVisibilitySetting, mab.EndCaps.LeftEndCap, false)
+				end
+				mab.EndCaps.LeftEndCap:SetAlpha(0)
+				mab.EndCaps.LeftEndCap:Hide()
+			end
+			if mab.EndCaps.RightEndCap then
+				if mab.EndCaps.RightEndCap.SetVisibilitySetting then
+					pcall(mab.EndCaps.RightEndCap.SetVisibilitySetting, mab.EndCaps.RightEndCap, false)
+				end
+				mab.EndCaps.RightEndCap:SetAlpha(0)
+				mab.EndCaps.RightEndCap:Hide()
+			end
+			mab.EndCaps:SetAlpha(0)
+			mab.EndCaps:Hide()
+		end
+		if mab.HorizontalDividersPool then
+			mab.HorizontalDividersPool:ReleaseAll()
+		end
+		if mab.VerticalDividersPool then
+			mab.VerticalDividersPool:ReleaseAll()
+		end
+		if not mab._diabolusArtHooked then
+			mab._diabolusArtHooked = true
+			if mab.UpdateEndCaps then
+				hooksecurefunc(mab, "UpdateEndCaps", function(self)
+					if not StandardMode:IsGamepad() and self.EndCaps then
+						self.EndCaps:SetAlpha(0)
+						self.EndCaps:Hide()
+					end
+				end)
+			end
+			if mab.UpdateDividers then
+				hooksecurefunc(mab, "UpdateDividers", function(self)
+					if not StandardMode:IsGamepad() then
+						if self.HorizontalDividersPool then
+							self.HorizontalDividersPool:ReleaseAll()
+						end
+						if self.VerticalDividersPool then
+							self.VerticalDividersPool:ReleaseAll()
+						end
+					end
+				end)
+			end
+		end
+	end
+
+	-- 2. Legacy / classic named textures and page buttons
 	local artTextures = {
 		"MainMenuBarLeftEndCap",
 		"MainMenuBarRightEndCap",
@@ -142,9 +187,39 @@ local function HideBlizzardBarArt()
 	end
 end
 
+-- Style an individual action button so its empty slot background is transparent
+-- (allowing zork's crossed-sword stone slot grid bar1/bar2/bar3 to show through)
+local function StyleActionButtonForStoneSlot(btn)
+	if btn.SlotArt then
+		btn.SlotArt:SetAlpha(0)
+		btn.SlotArt:Hide()
+	end
+	if btn.SlotBackground then
+		btn.SlotBackground:SetAlpha(0)
+		btn.SlotBackground:Hide()
+	end
+	local nt = btn.GetNormalTexture and btn:GetNormalTexture()
+	if nt then
+		nt:SetAlpha(0.25)
+	end
+	if not btn._diabolusArtHooked and btn.UpdateButtonArt then
+		btn._diabolusArtHooked = true
+		hooksecurefunc(btn, "UpdateButtonArt", function(self)
+			if self.SlotArt then
+				self.SlotArt:SetAlpha(0)
+				self.SlotArt:Hide()
+			end
+			if self.SlotBackground then
+				self.SlotBackground:SetAlpha(0)
+				self.SlotBackground:Hide()
+			end
+		end)
+	end
+end
+
 -- Fit a 12-button Blizzard action bar row into zork's bar1/bar2/bar3 512x256 stone slot grid:
--- In the 512x256 texture, the 12 slots span x = 67..443 (376px wide, 31.5px center-to-center),
--- with row 1 center at y = 36.5, row 2 center at y = 67.5, row 3 center at y = 105 from bottom.
+-- In the 512x256 texture, the 12 slots have centers at x = -173.0 + (i-1)*31.45 from center,
+-- with row 1 center at y = 36.5, row 2 center at y = 67.5, row 3 center at y = 104.5 from bottom.
 local function FitActionBarRow(prefix, rowBottomY, barFrame)
 	if not barFrame then
 		return
@@ -153,62 +228,71 @@ local function FitActionBarRow(prefix, rowBottomY, barFrame)
 	if not firstBtn then
 		return
 	end
-	local rawW = firstBtn:GetWidth() or 36
+	local rawW = firstBtn:GetWidth() or 45
 	if rawW <= 0 then
-		rawW = 36
+		rawW = 45
 	end
-	-- Target button visual size = 27px inside each 30px stone slot, pitch = 31.45px
-	local btnScale = 27 / rawW
+	-- Target visual button size = 29px inside each 30px stone slot (in barFrame's 512x256 coordinate space)
+	local targetSize = 29
+	local unitScale = targetSize / rawW
+	local barEff = barFrame:GetEffectiveScale() or 1
+	local slotY = rowBottomY + 13.5
 
 	for i = 1, 12 do
 		local btn = _G[prefix .. i]
 		if btn then
+			if btn.container and btn.container.SetScale then
+				Blizz.SetScale(btn.container, 1.0)
+			end
+			local parent = btn:GetParent()
+			local parentEff = (parent and parent:GetEffectiveScale()) or barEff
+			local btnScale = unitScale * (barEff / parentEff)
+
 			Blizz.SetScale(btn, btnScale)
 			Blizz.ClearAllPoints(btn)
-			if i == 1 then
-				-- Anchor button 1 precisely at left slot center (-173.0 in barFrame units)
-				Blizz.SetPoint(btn, "CENTER", barFrame, "BOTTOM", -173.0 / btnScale, (rowBottomY + 13.5) / btnScale)
-			else
-				local prev = _G[prefix .. (i - 1)]
-				Blizz.SetPoint(btn, "LEFT", prev, "RIGHT", (31.45 - 27) / btnScale, 0)
-			end
-			-- Trim default quickslot oversized border so icon sits cleanly inside the stone slot
-			local nt = btn.GetNormalTexture and btn:GetNormalTexture()
-			if nt then
-				nt:SetAlpha(0.35)
-			end
+			local slotX = -173.0 + (i - 1) * 31.45
+			Blizz.SetPoint(btn, "CENTER", barFrame, "BOTTOM", slotX / unitScale, slotY / unitScale)
+			StyleActionButtonForStoneSlot(btn)
 		end
 	end
 end
 
--- Create a Diablo stone-trimmed dock with mouseover fade for Micro Menu or Bags
-local function CreateDock(name, labelText, defaultX, defaultY, width, height)
+local function HookActionBarForStandardMode(bar)
+	if not bar or bar._diabolusLayoutHooked then
+		return
+	end
+	bar._diabolusLayoutHooked = true
+	local function reapply()
+		if not StandardMode:IsGamepad() and not InCombatLockdown() then
+			StandardMode:Apply()
+		end
+	end
+	if bar.UpdateSystemSettingIconSize then
+		hooksecurefunc(bar, "UpdateSystemSettingIconSize", reapply)
+	end
+	if bar.UpdateGridLayout then
+		hooksecurefunc(bar, "UpdateGridLayout", reapply)
+	end
+end
+
+-- Create a sculpted Diablo stone wing dock (using d3_wing_dock.tga) that tucks behind the Demon/Angel statue
+local function CreateDock(name, labelText, defaultX, defaultY, artWidth, artHeight, mirrorUV)
 	local dock = CreateFrame("Frame", name, UIParent)
-	dock:SetSize(width, height)
+	dock:SetSize(artWidth, 54)
 	dock:SetFrameStrata("LOW")
-	dock:SetFrameLevel(8)
+	dock:SetFrameLevel(0)
 	dock:SetPoint("BOTTOM", UIParent, "BOTTOM", defaultX, defaultY)
 	dock.defaultPosition = { a1 = "BOTTOM", af = "UIParent", a2 = "BOTTOM", x = defaultX, y = defaultY }
 
-	-- Subtle Diablo stone shelf backdrop
-	local bg = dock:CreateTexture(nil, "BACKGROUND", nil, 1)
-	bg:SetPoint("TOPLEFT", dock, "TOPLEFT", -6, 4)
-	bg:SetPoint("BOTTOMRIGHT", dock, "BOTTOMRIGHT", 6, -4)
-	bg:SetTexture(MEDIA .. "Tooltip_Background")
-	bg:SetVertexColor(0.12, 0.10, 0.08, 0.85)
-	dock.bg = bg
-
-	local topLine = dock:CreateTexture(nil, "BORDER", nil, 2)
-	topLine:SetPoint("TOPLEFT", bg, "TOPLEFT", 2, 0)
-	topLine:SetPoint("TOPRIGHT", bg, "TOPRIGHT", -2, 0)
-	topLine:SetHeight(1)
-	topLine:SetColorTexture(0.42, 0.33, 0.21, 0.8)
-
-	local botLine = dock:CreateTexture(nil, "BORDER", nil, 2)
-	botLine:SetPoint("BOTTOMLEFT", bg, "BOTTOMLEFT", 2, 0)
-	botLine:SetPoint("BOTTOMRIGHT", bg, "BOTTOMRIGHT", -2, 0)
-	botLine:SetHeight(1)
-	botLine:SetColorTexture(0.22, 0.17, 0.11, 0.9)
+	-- Sculpted Diablo stone wing pedestal (matches bar1.tga & d3_bottom.tga moldings and recessed bay)
+	local art = dock:CreateTexture(nil, "BACKGROUND", nil, -6)
+	art:SetPoint("BOTTOM", dock, "BOTTOM", 0, 0)
+	art:SetSize(artWidth, artHeight)
+	art:SetTexture(MEDIA .. "d3_wing_dock")
+	if mirrorUV then
+		art:SetTexCoord(1, 0, 0, 1)
+	end
+	dock.art = art
 
 	if func and func.applyDragFunctionality then
 		func.applyDragFunctionality(dock)
@@ -223,21 +307,32 @@ local function CreateDock(name, labelText, defaultX, defaultY, width, height)
 	return dock
 end
 
-local function WireDockHover(dock, buttons)
-	local idleAlpha = (cfg.standardMode and cfg.standardMode.dockFadeAlpha) or 0.45
-	dock:SetAlpha(idleAlpha)
+local function WireDockHover(dock, targetFrame, buttons)
+	-- Keep the sculpted stone wing pedestal solid (alpha 1) like bar1.tga, and subtly brighten buttons on hover
+	local idleAlpha = (cfg.standardMode and cfg.standardMode.dockFadeAlpha) or 0.85
+	dock:SetAlpha(1)
+	if targetFrame and targetFrame.SetAlpha then
+		targetFrame:SetAlpha(idleAlpha)
+	end
 
 	local function onEnter()
-		dock:SetAlpha(1)
+		if targetFrame and targetFrame.SetAlpha then
+			targetFrame:SetAlpha(1)
+		end
 	end
 	local function onLeave()
-		if not dock:IsMouseOver() then
-			dock:SetAlpha(idleAlpha)
+		if not dock:IsMouseOver() and not (targetFrame and targetFrame.IsMouseOver and targetFrame:IsMouseOver()) then
+			if targetFrame and targetFrame.SetAlpha then
+				targetFrame:SetAlpha(idleAlpha)
+			end
 		end
 	end
 
-	dock:HookScript("OnEnter", onEnter)
-	dock:HookScript("OnLeave", onLeave)
+	if not dock._diabolusHoverHooked then
+		dock._diabolusHoverHooked = true
+		dock:HookScript("OnEnter", onEnter)
+		dock:HookScript("OnLeave", onLeave)
+	end
 	for _, btn in ipairs(buttons) do
 		if btn and not btn._diabolusHoverHooked then
 			btn._diabolusHoverHooked = true
@@ -253,8 +348,8 @@ local function SetupMicroDock(isPad)
 		return
 	end
 	if not microDock then
-		-- Docked on the left outer wing (outside the Demon statue)
-		microDock = CreateDock("Roth_UIMicroDock", "Micro Menu", -495, 8, 230, 30)
+		-- Docked on the left outer wing (tucked behind the Demon statue at x = -295)
+		microDock = CreateDock("Roth_UIMicroDock", "Micro Menu Wing", -480, 0, 300, 114, false)
 	end
 	if isPad then
 		microDock:Hide()
@@ -262,33 +357,73 @@ local function SetupMicroDock(isPad)
 	end
 	microDock:Show()
 
+	local mm = _G.MicroMenu
+	local mmc = _G.MicroMenuContainer
 	local activeBtns = {}
-	for _, name in ipairs(MICRO_LIST) do
-		local btn = _G[name]
-		if btn and btn:IsShown() then
-			activeBtns[#activeBtns + 1] = btn
+	if mm and mm.GetChildren then
+		for _, child in ipairs({ mm:GetChildren() }) do
+			if child and child.layoutIndex then
+				Blizz.SetScale(child, 1.0)
+				activeBtns[#activeBtns + 1] = child
+			end
 		end
-	end
-	if #activeBtns == 0 then
-		return
 	end
 
-	local scale = 0.72
-	local gap = -2
-	local totalW = 0
-	for i, btn in ipairs(activeBtns) do
-		Blizz.SetScale(btn, scale)
-		Blizz.ClearAllPoints(btn)
-		local bw = (btn:GetWidth() or 28) * scale
-		if i == 1 then
-			Blizz.SetPoint(btn, "LEFT", microDock, "LEFT", 2 / scale, 0)
-		else
-			Blizz.SetPoint(btn, "LEFT", activeBtns[i - 1], "RIGHT", gap / scale, 0)
+	if mm then
+		if mm.BorderArt then
+			mm.BorderArt:SetAlpha(0)
+			mm.BorderArt:Hide()
 		end
-		totalW = totalW + bw + (i > 1 and gap or 0)
+		if mm.BackgroundArt then
+			mm.BackgroundArt:SetAlpha(0)
+			mm.BackgroundArt:Hide()
+		end
+		if mm.Layout then
+			pcall(mm.Layout, mm)
+		end
 	end
-	microDock:SetWidth(math.max(160, totalW + 8))
-	WireDockHover(microDock, activeBtns)
+
+	-- In WoW Forever (Camelot), MicroMenuContainer / MicroMenu is a GridLayoutFrame
+	local container = mmc or mm
+	if container then
+		local scale = 0.70
+		Blizz.SetScale(container, scale)
+		Blizz.ClearAllPoints(container)
+		-- Center inside the recessed bay of d3_wing_dock (y = 31 in screen units = 31 / scale in container units)
+		Blizz.SetPoint(container, "CENTER", microDock, "BOTTOM", -4 / scale, 31 / scale)
+		if mm and mm ~= container then
+			Blizz.SetScale(mm, 1.0)
+			Blizz.ClearAllPoints(mm)
+			Blizz.SetPoint(mm, "CENTER", container, "CENTER", 0, 0)
+		end
+		local cw = ((mm and mm:GetWidth()) or container:GetWidth() or 275) * scale
+		-- Recessed bay is 68.75% of the wing texture width
+		local wingW = math.max(290, cw / 0.68)
+		microDock:SetSize(wingW, 56)
+		if microDock.art then
+			microDock.art:SetSize(wingW, 114)
+		end
+		WireDockHover(microDock, container, activeBtns)
+
+		if mm and not mm._diabolusDockHooked and mm.ResetMicroMenuPosition then
+			mm._diabolusDockHooked = true
+			hooksecurefunc(mm, "ResetMicroMenuPosition", function()
+				if not StandardMode:IsGamepad() and not InCombatLockdown() and microDock then
+					Blizz.ClearAllPoints(container)
+					Blizz.SetPoint(container, "CENTER", microDock, "BOTTOM", -4 / scale, 31 / scale)
+				end
+			end)
+		end
+		if container.ApplySystemAnchor and not container._diabolusAnchorHooked then
+			container._diabolusAnchorHooked = true
+			hooksecurefunc(container, "ApplySystemAnchor", function()
+				if not StandardMode:IsGamepad() and not InCombatLockdown() and microDock then
+					Blizz.ClearAllPoints(container)
+					Blizz.SetPoint(container, "CENTER", microDock, "BOTTOM", -4 / scale, 31 / scale)
+				end
+			end)
+		end
+	end
 end
 
 local function SetupBagDock(isPad)
@@ -297,8 +432,8 @@ local function SetupBagDock(isPad)
 		return
 	end
 	if not bagDock then
-		-- Docked on the right outer wing (outside the Angel statue)
-		bagDock = CreateDock("Roth_UIBagDock", "Bag Bar", 465, 8, 175, 32)
+		-- Docked on the right outer wing (tucked behind the Angel statue at x = +290)
+		bagDock = CreateDock("Roth_UIBagDock", "Bag Bar Wing", 455, 0, 250, 114, true)
 	end
 	if isPad then
 		bagDock:Hide()
@@ -310,29 +445,61 @@ local function SetupBagDock(isPad)
 	for _, name in ipairs(BAG_LIST) do
 		local btn = _G[name]
 		if btn and (name ~= "KeyRingButton" or btn:IsShown()) then
+			Blizz.SetScale(btn, 1.0)
 			activeBtns[#activeBtns + 1] = btn
 		end
 	end
-	if #activeBtns == 0 then
-		return
-	end
 
-	local scale = 0.76
-	local gap = 3
-	local totalW = 0
-	for i, btn in ipairs(activeBtns) do
-		Blizz.SetScale(btn, scale)
-		Blizz.ClearAllPoints(btn)
-		local bw = (btn:GetWidth() or 32) * scale
-		if i == 1 then
-			Blizz.SetPoint(btn, "RIGHT", bagDock, "RIGHT", -2 / scale, 0)
-		else
-			Blizz.SetPoint(btn, "RIGHT", activeBtns[i - 1], "LEFT", -gap / scale, 0)
+	local bb = _G.BagsBar
+	if bb then
+		bb.useDividers = false
+		if bb.HorizontalDividersPool then
+			bb.HorizontalDividersPool:ReleaseAll()
 		end
-		totalW = totalW + bw + (i > 1 and gap or 0)
+		if bb.VerticalDividersPool then
+			bb.VerticalDividersPool:ReleaseAll()
+		end
+		if bb.BorderArt then
+			bb.BorderArt:SetAlpha(0)
+			bb.BorderArt:Hide()
+		end
+		-- Hide unused Classic Reagent Bag slot and zero its width so the 4 bags + backpack pack cleanly
+		if _G.CharacterReagentBag0Slot then
+			_G.CharacterReagentBag0Slot:SetAlpha(0)
+			_G.CharacterReagentBag0Slot:SetSize(0.001, 0.001)
+			_G.CharacterReagentBag0Slot:Hide()
+		end
+		if _G.BagBarExpandToggle then
+			_G.BagBarExpandToggle:SetAlpha(0)
+		end
+		if bb.Layout then
+			pcall(bb.Layout, bb)
+		end
+
+		local scale = 0.66
+		Blizz.SetScale(bb, scale)
+		Blizz.ClearAllPoints(bb)
+		-- Center inside the recessed bay of d3_wing_dock (y = 31 in screen units = 31 / scale in bb units)
+		Blizz.SetPoint(bb, "CENTER", bagDock, "BOTTOM", 4 / scale, 31 / scale)
+
+		local bw = (bb:GetWidth() or 180) * scale
+		local wingW = math.max(245, bw / 0.68)
+		bagDock:SetSize(wingW, 56)
+		if bagDock.art then
+			bagDock.art:SetSize(wingW, 114)
+		end
+		WireDockHover(bagDock, bb, activeBtns)
+
+		if bb.ApplySystemAnchor and not bb._diabolusAnchorHooked then
+			bb._diabolusAnchorHooked = true
+			hooksecurefunc(bb, "ApplySystemAnchor", function()
+				if not StandardMode:IsGamepad() and not InCombatLockdown() and bagDock then
+					Blizz.ClearAllPoints(bb)
+					Blizz.SetPoint(bb, "CENTER", bagDock, "BOTTOM", 4 / scale, 31 / scale)
+				end
+			end)
+		end
 	end
-	bagDock:SetWidth(math.max(120, totalW + 8))
-	WireDockHover(bagDock, activeBtns)
 end
 
 -- Apply mode-appropriate layout (always runs out of combat)
@@ -401,14 +568,19 @@ function StandardMode:Apply()
 
 	if not isPad then
 		HideBlizzardBarArt()
+		HookActionBarForStandardMode(_G.MainActionBar)
+		HookActionBarForStandardMode(_G.MultiBarBottomLeft)
+		HookActionBarForStandardMode(_G.MultiBarBottomRight)
 		if sm.integrateActionBars and barBg then
 			FitActionBarRow("ActionButton", 23, barBg)
-			if MultiBarBottomLeft and MultiBarBottomLeft:IsShown() then
+			local mbLeft = _G.MultiBarBottomLeft
+			local mbRight = _G.MultiBarBottomRight
+			if mbLeft and mbLeft:IsShown() then
 				FitActionBarRow("MultiBarBottomLeftButton", 54, barBg)
-				if MultiBarBottomRight and MultiBarBottomRight:IsShown() then
+				if mbRight and mbRight:IsShown() then
 					FitActionBarRow("MultiBarBottomRightButton", 91, barBg)
 				end
-			elseif MultiBarBottomRight and MultiBarBottomRight:IsShown() then
+			elseif mbRight and mbRight:IsShown() then
 				FitActionBarRow("MultiBarBottomRightButton", 54, barBg)
 			end
 		end
@@ -438,19 +610,31 @@ ev:SetScript("OnEvent", function(_, event)
 	end
 end)
 
-if MultiBarBottomLeft then
-	MultiBarBottomLeft:HookScript("OnShow", function()
+if EventRegistry and EventRegistry.RegisterCallback then
+	EventRegistry:RegisterCallback("EditMode.Exit", function()
+		if C_Timer and C_Timer.After then
+			C_Timer.After(0.05, function()
+				StandardMode:Apply()
+			end)
+		else
+			StandardMode:Apply()
+		end
+	end, StandardMode)
+end
+
+if _G.MultiBarBottomLeft then
+	_G.MultiBarBottomLeft:HookScript("OnShow", function()
 		StandardMode:Apply()
 	end)
-	MultiBarBottomLeft:HookScript("OnHide", function()
+	_G.MultiBarBottomLeft:HookScript("OnHide", function()
 		StandardMode:Apply()
 	end)
 end
-if MultiBarBottomRight then
-	MultiBarBottomRight:HookScript("OnShow", function()
+if _G.MultiBarBottomRight then
+	_G.MultiBarBottomRight:HookScript("OnShow", function()
 		StandardMode:Apply()
 	end)
-	MultiBarBottomRight:HookScript("OnHide", function()
+	_G.MultiBarBottomRight:HookScript("OnHide", function()
 		StandardMode:Apply()
 	end)
 end
