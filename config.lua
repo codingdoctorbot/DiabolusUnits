@@ -94,8 +94,23 @@ cfg.buffCoverage = {
 cfg.belt = {
 	show = true,
 	icons = false, -- item icons inside the flasks (the liquid colour already says which is which)
-	x = -12, -- offset relative to health orb BOTTOMRIGHT
-	y = 26, -- above bottom edge / XP bar
+	x = 6, -- offset relative to health orb BOTTOMRIGHT (clear of the orb rim)
+	y = 24, -- above bottom stone ledge / XP bar
+}
+
+-- Seamless Gamepad <-> Standard (Keyboard/Mouse) Mode adaptation:
+-- In Gamepad mode, orbs sit wide (±325) around the controller crossbar.
+-- In Standard mode, the compact 12-slot Diablo stone bar (bar1/bar2/bar3) is
+-- shown, Blizzard's default action buttons are scaled to fit the 12 stone slots,
+-- and the Micro Menu & Bag buttons are integrated on sculpted outer docks.
+cfg.standardMode = {
+	enabled = true,
+	integrateActionBars = true, -- scale & fit ActionButton1..12 / MultiBars into bar1/bar2/bar3 slots
+	integrateMicroMenu = true, -- dock Game Menu micro buttons on the left outer stone wing
+	integrateBags = true, -- dock Bag slots + Backpack on the right outer stone wing
+	dockFadeAlpha = 0.45, -- idle alpha for Micro Menu & Bag docks (1.0 on mouseover)
+	padOrbX = 325, -- orb X offset in Gamepad mode (around crossbar)
+	standardOrbX = 265, -- orb X offset in Standard mode (hugging the 12-slot bar)
 }
 
 ---------------------------------------------
@@ -224,25 +239,25 @@ cfg.units = {
 		},
 		art = {
 			actionbarbackground = {
-				show = false,
-				width = 788, -- size of the stone bar (mouse: /roth unlockart, drag the corner grip; pad: the HUD mover's "Bar size")
-				height = 220,
+				show = true, -- shown in Standard (non-console) mode using compact bar1/bar2/bar3 slot grid; auto-hidden in Gamepad mode
+				width = 512,
+				height = 256,
 				pos = { a1 = "BOTTOM", a2 = "BOTTOM", af = "UIParent", x = 0, y = 0 },
 				scale = 1,
 			},
 			angel = {
 				show = true,
-				pos = { a1 = "BOTTOM", a2 = "BOTTOM", af = "UIParent", x = 330, y = 6 },
+				pos = { a1 = "BOTTOM", a2 = "BOTTOM", af = "UIParent", x = 350, y = 6 },
 				scale = 1,
 			},
 			demon = {
 				show = true,
-				pos = { a1 = "BOTTOM", a2 = "BOTTOM", af = "UIParent", x = -335, y = 6 },
+				pos = { a1 = "BOTTOM", a2 = "BOTTOM", af = "UIParent", x = -355, y = 6 },
 				scale = 1,
 			},
 			bottomline = {
 				show = true,
-				pos = { a1 = "BOTTOM", a2 = "BOTTOM", af = "UIParent", x = 0, y = 2 },
+				pos = { a1 = "BOTTOM", a2 = "BOTTOM", af = "UIParent", x = 0, y = 0 },
 				scale = 1,
 			},
 		},

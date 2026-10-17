@@ -15,6 +15,56 @@ local mediapath = "Interface\\AddOns\\DiabolusUnits\\media\\"
 -- FUNCTIONS
 ---------------------------------------------
 
+-- Add dark stone trough border and 10-segment Diablo tick marks (10%..90%)
+local function decorateDiabloBar(bar)
+	if bar._diabloDecorated then
+		return
+	end
+	bar._diabloDecorated = true
+
+	local trough = bar:CreateTexture(nil, "BACKGROUND", nil, -7)
+	trough:SetPoint("TOPLEFT", bar, "TOPLEFT", -2, 2)
+	trough:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", 2, -2)
+	trough:SetColorTexture(0.05, 0.04, 0.03, 0.88)
+	bar.trough = trough
+
+	local topRim = bar:CreateTexture(nil, "OVERLAY", nil, 2)
+	topRim:SetPoint("TOPLEFT", bar, "TOPLEFT", -1, 1)
+	topRim:SetPoint("TOPRIGHT", bar, "TOPRIGHT", 1, 1)
+	topRim:SetHeight(1)
+	topRim:SetColorTexture(0.38, 0.30, 0.20, 0.85)
+
+	local botRim = bar:CreateTexture(nil, "OVERLAY", nil, 2)
+	botRim:SetPoint("BOTTOMLEFT", bar, "BOTTOMLEFT", -1, -1)
+	botRim:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", 1, -1)
+	botRim:SetHeight(1)
+	botRim:SetColorTexture(0.22, 0.17, 0.11, 0.90)
+
+	bar.ticks = {}
+	for i = 1, 9 do
+		local tick = bar:CreateTexture(nil, "OVERLAY", nil, 3)
+		tick:SetWidth(1)
+		tick:SetColorTexture(0.08, 0.06, 0.04, 0.85)
+		bar.ticks[i] = tick
+	end
+
+	local function layoutTicks(s)
+		local w = s:GetWidth()
+		if not w or w <= 0 then
+			return
+		end
+		for i = 1, 9 do
+			local tick = s.ticks[i]
+			tick:ClearAllPoints()
+			tick:SetPoint("TOPLEFT", s, "TOPLEFT", math.floor(w * (i / 10) + 0.5), 0)
+			tick:SetPoint("BOTTOMLEFT", s, "BOTTOMLEFT", math.floor(w * (i / 10) + 0.5), 0)
+		end
+	end
+
+	bar:HookScript("OnSizeChanged", layoutTicks)
+	layoutTicks(bar)
+end
+
 --create the exp bar
 bars.createExpBar = function(self)
 	local cfg = self.cfg.expbar
@@ -22,7 +72,7 @@ bars.createExpBar = function(self)
 		return
 	end
 
-	local w, h = 365, 12
+	local w, h = 365, 10
 
 	local f = CreateFrame("StatusBar", "Roth_UIExpBar", UIParent)
 	f:SetFrameStrata("LOW")
@@ -32,7 +82,7 @@ bars.createExpBar = function(self)
 	f:ClearAllPoints()
 	local relTo = (type(pos.af) == "string" and _G[pos.af]) or pos.af or UIParent
 	f:SetPoint(pos.a1 or "BOTTOM", relTo, pos.a2 or "BOTTOM", pos.x or 0, pos.y or 14)
-	f.defaultPosition = { a1 = "BOTTOMLEFT", af = "Roth_UIPlayerFrame", a2 = "BOTTOMRIGHT", x = -8, y = 2 }
+	f.defaultPosition = { a1 = "BOTTOMLEFT", af = "Roth_UIPlayerFrame", a2 = "BOTTOMRIGHT", x = -8, y = 4 }
 	f:SetScale(cfg.scale or 1)
 	f:SetStatusBarTexture(cfg.texture)
 	f:SetStatusBarColor(cfg.color.r, cfg.color.g, cfg.color.b)
@@ -44,11 +94,13 @@ bars.createExpBar = function(self)
 
 	func.applyDragFunctionality(f)
 
-	local t = r:CreateTexture(nil, "BACKGROUND", nil, -8)
+	local t = r:CreateTexture(nil, "BACKGROUND", nil, -6)
 	t:SetAllPoints(r)
 	t:SetTexture(cfg.texture)
-	t:SetVertexColor(cfg.color.r, cfg.color.g, cfg.color.b, 0.3)
+	t:SetVertexColor(cfg.color.r, cfg.color.g, cfg.color.b, 0.25)
 	f.bg = t
+
+	decorateDiabloBar(f)
 
 	f:SetScript("OnEnter", function(s)
 		local Secrets = ns.Secrets
@@ -102,29 +154,31 @@ bars.createRepBar = function(self)
 		return
 	end
 
-	local w, h = 365, 10
+	local w, h = 365, 9
 
 	local f = CreateFrame("StatusBar", "Roth_UIRepBar", UIParent)
 	f:SetFrameStrata("LOW")
 	f:SetFrameLevel(5)
 	f:SetSize(w, h)
-	local pos = cfg.pos or { a1 = "BOTTOM", a2 = "BOTTOM", af = "UIParent", x = 0, y = 6 }
+	local pos = cfg.pos or { a1 = "BOTTOM", a2 = "BOTTOM", af = "UIParent", x = 0, y = 4 }
 	f:ClearAllPoints()
 	local relTo = (type(pos.af) == "string" and _G[pos.af]) or pos.af or UIParent
-	f:SetPoint(pos.a1 or "BOTTOM", relTo, pos.a2 or "BOTTOM", pos.x or 0, pos.y or 6)
-	f.defaultPosition = { a1 = "BOTTOMLEFT", af = "Roth_UIPlayerFrame", a2 = "BOTTOMRIGHT", x = -8, y = 2 }
+	f:SetPoint(pos.a1 or "BOTTOM", relTo, pos.a2 or "BOTTOM", pos.x or 0, pos.y or 4)
+	f.defaultPosition = { a1 = "BOTTOMLEFT", af = "Roth_UIPlayerFrame", a2 = "BOTTOMRIGHT", x = -8, y = 4 }
 	f:SetScale(cfg.scale or 1)
 	f:SetStatusBarTexture(cfg.texture)
 	f:SetStatusBarColor(0, 0.7, 0)
 
 	func.applyDragFunctionality(f)
 
-	local t = f:CreateTexture(nil, "BACKGROUND", nil, -8)
+	local t = f:CreateTexture(nil, "BACKGROUND", nil, -6)
 	t:SetAllPoints(f)
 	t:SetTexture(cfg.texture)
 	t:SetVertexColor(0, 0.7, 0)
-	t:SetAlpha(0.3)
+	t:SetAlpha(0.25)
 	f.bg = t
+
+	decorateDiabloBar(f)
 
 	f:SetScript("OnEnter", function(s)
 		-- Use compat shim so we read from C_Reputation.GetWatchedFactionData

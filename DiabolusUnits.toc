@@ -83,3 +83,4 @@ units\raid.lua
 units\nameplates.lua
 units\player.lua
 core\belt.lua
+core\standardmode.lua

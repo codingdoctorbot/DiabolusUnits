@@ -39,15 +39,13 @@ local initUnitParameters = function(self)
 	func.applyDragFunctionality(self, "orb")
 end
 
---actionbar background
+--actionbar background (compact zork bar1/bar2/bar3 slot grid in Standard Mode)
 local createActionBarBackground = function(self)
 	local cfg = self.cfg.art.actionbarbackground
 	local f = CreateFrame("Frame", "Roth_UIActionBarBackground", self)
 	f:SetFrameStrata("LOW")
 	f:SetFrameLevel(0)
-	-- movable and resizable (mouse: unlock, then the corner grip; pad: the
-	-- HUD mover's "Bar size"); the XP / rep bars follow its size and place
-	f:SetSize(cfg.width or 788, cfg.height or 220)
+	f:SetSize(cfg.width or 512, cfg.height or 256)
 	f:SetPoint(cfg.pos.a1, cfg.pos.af, cfg.pos.a2, cfg.pos.x, cfg.pos.y)
 	f:SetScale(cfg.scale or 1)
 	f.defaultPosition = {
@@ -58,19 +56,13 @@ local createActionBarBackground = function(self)
 		y = cfg.pos.y or 0,
 	}
 
-	f:EnableMouse(true)
-	f:SetScript("OnMouseDown", function(s)
-		if ns.EditMode and ns.EditMode.active and ns.EditMode.SelectFrame then
-			ns.EditMode:SelectFrame(s)
-		end
-	end)
-
+	f:EnableMouse(false)
 	func.applyDragFunctionality(f)
 
 	if f.dragframe then
 		f.dragframe:ClearAllPoints()
 		f.dragframe:SetSize(220, 22)
-		f.dragframe:SetPoint("TOP", f, "TOP", 0, 0)
+		f.dragframe:SetPoint("BOTTOM", f, "BOTTOM", 0, 110)
 		if f.dragframe.texture then
 			f.dragframe.texture:SetColorTexture(0, 0.8, 0.2)
 			f.dragframe.texture:SetAlpha(0.4)
@@ -78,40 +70,23 @@ local createActionBarBackground = function(self)
 		local label = f.dragframe:CreateFontString(nil, "OVERLAY")
 		label:SetFont(ns.cfg.font or "Fonts\\FRIZQT__.TTF", 10, "THINOUTLINE")
 		label:SetPoint("CENTER", 0, 0)
-		label:SetText("Background Bar (Drag)")
+		label:SetText("Action Bar Stone Grid (Drag)")
 		label:SetTextColor(1, 1, 1, 0.9)
 	end
 
 	local t = f:CreateTexture(nil, "BACKGROUND", nil, -8)
 	t:SetAllPoints(f)
 	f.texture = t
-	f:SetShown(cfg.show and true or false)
 
-	-- The XP / rep band in the classic 788 x 220 art's units, laid onto the
-	-- frame at its current size and place (they used to be pinned to the
-	-- screen bottom, so they stayed behind when the bar moved).
-	local function placeBand(bar, y, w)
-		if not bar then
-			return
-		end
-		local prof = ns.LayoutProfile and ns.LayoutProfile()
-		if (prof and prof.framePositions and prof.framePositions[bar:GetName()]) or not cfg.show then
-			return
-		end
-		local sx, sy = f:GetWidth() / 788, f:GetHeight() / 220
-		local k = f:GetEffectiveScale() / bar:GetEffectiveScale()
-		bar:ClearAllPoints()
-		bar:SetPoint("BOTTOM", f, "BOTTOM", 0, y * sy * k)
-		bar:SetSize(w * sx * k, 8 * sy * k)
-	end
-	local function placeBands(yExp, wExp, yRep, wRep)
-		placeBand(Roth_UIExpBar, yExp, wExp)
-		placeBand(Roth_UIRepBar, yRep, wRep)
-	end
-
-	--Setup Actionbars
 	local setupBarTexture = function()
-		if not cfg.show then
+		local isPad = (ns.StandardMode and ns.StandardMode.IsGamepad and ns.StandardMode:IsGamepad())
+			or (
+				C_InputInterfaceStyle
+				and C_InputInterfaceStyle.GetCurrentStyle
+				and Enum.InputDeviceInterfaceType
+				and C_InputInterfaceStyle.GetCurrentStyle() == Enum.InputDeviceInterfaceType.Gamepad
+			)
+		if not cfg.show or isPad then
 			f:Hide()
 			if t then
 				t:SetTexture(nil)
@@ -122,115 +97,27 @@ local createActionBarBackground = function(self)
 			return
 		end
 		f:Show()
-		-- Gamepad UI: the background is the plinth around the native crossbar (pad/layout.lua).
-		if ns.PadLayout and ns.PadLayout:IsActive() then
-			ns.PadLayout:DressPlinth(f, t)
-			return
-		end
-		local IsAddOnLoadedCompat = IsAddOnLoaded
-			or (C_AddOns and C_AddOns.IsAddOnLoaded)
-			or function()
-				return false
-			end
-		if IsAddOnLoadedCompat("Bartender4") then
-			t:SetTexture("Interface\\AddOns\\DiabolusUnits\\media\\actionbar_3_2")
+
+		local leftShown = MultiBarBottomLeft and MultiBarBottomLeft:IsShown()
+		local rightShown = MultiBarBottomRight and MultiBarBottomRight:IsShown()
+		if leftShown and rightShown then
+			t:SetTexture("Interface\\AddOns\\DiabolusUnits\\media\\bar3")
+		elseif leftShown or rightShown then
+			t:SetTexture("Interface\\AddOns\\DiabolusUnits\\media\\bar2")
 		else
-			--Establish Variables
-			local bar
-			local levelbar
-			local repbar
-			local leftShown = MultiBarBottomLeft and MultiBarBottomLeft:IsShown()
-			local rightShown = MultiBarBottomRight and MultiBarBottomRight:IsShown()
+			t:SetTexture("Interface\\AddOns\\DiabolusUnits\\media\\bar1")
+		end
 
-			--Determine ActionBar Status and report vehicle, 3, 2 or 1 depending on actionbars displayed
-			if leftShown and rightShown then
-				bar = "3"
-			elseif rightShown or leftShown then
-				bar = "2"
-			else
-				bar = "1"
-			end
-
-			local bar_count = 0
-			--Determine is player is max level
-			local pLevel = Secrets.Number(UnitLevel("player"))
-			if pLevel == ns.Compat.MaxPlayerLevel() or not self.cfg.expbar.show then
-				levelbar = false
-			else
-				levelbar = true
-				bar_count = bar_count + 1
-			end
-
-			--Determine if player is 'watching' a faction (show rep as exp bar)
-			local getWatchedFaction = GetWatchedFactionInfo or (ns.Compat and ns.Compat.GetWatchedFactionInfo)
-			if getWatchedFaction and getWatchedFaction() and self.cfg.repbar.show then
-				repbar = true
-				bar_count = bar_count + 1
-			else
-				repbar = false
-			end
-
-			--Select actionbar background and align related elements to fit within artwork (actionbars 1-3 are pre-set, we only need to change micromenubar, stancebar, bagbar, expbar, artifactpowerbar and repbar)
-			--If player is in vehicle, display vehicleUI artwork
-			if bar == "vehicle" then
-				t:SetTexture("Interface\\AddOns\\DiabolusUnits\\media\\vehiclebar")
-			elseif bar == "3" then
-				if bar_count == 2 then
-					t:SetTexture("Interface\\AddOns\\DiabolusUnits\\media\\actionbar_3_2")
-					placeBands(121, 367, 131, 367)
-				elseif bar_count == 1 then
-					t:SetTexture("Interface\\AddOns\\DiabolusUnits\\media\\actionbar_3_1")
-					placeBands(121, 367, 121, 367)
-				else
-					t:SetTexture("Interface\\AddOns\\DiabolusUnits\\media\\actionbar_3_0")
-					if Roth_UIExpBar and not self.cfg.expbar.show then
-						Roth_UIExpBar:Hide()
-					end
-					if Roth_UIRepBar and not self.cfg.repbar.show then
-						Roth_UIRepBar:Hide()
-					end
-				end
-			elseif bar == "2" then
-				if bar_count == 2 then
-					t:SetTexture("Interface\\AddOns\\DiabolusUnits\\media\\actionbar_2_2")
-					placeBands(101, 389, 111, 400)
-				elseif bar_count == 1 then
-					t:SetTexture("Interface\\AddOns\\DiabolusUnits\\media\\actionbar_2_1")
-					placeBands(101, 389, 101, 389)
-				else
-					t:SetTexture("Interface\\AddOns\\DiabolusUnits\\media\\actionbar_2_0")
-					if Roth_UIExpBar and not self.cfg.expbar.show then
-						Roth_UIExpBar:Hide()
-					end
-					if Roth_UIRepBar and not self.cfg.repbar.show then
-						Roth_UIRepBar:Hide()
-					end
-				end
-			elseif bar == "1" then
-				if bar_count == 2 then
-					t:SetTexture("Interface\\AddOns\\DiabolusUnits\\media\\actionbar_1_2")
-					placeBands(101, 389, 111, 400)
-				elseif bar_count == 1 then
-					t:SetTexture("Interface\\AddOns\\DiabolusUnits\\media\\actionbar_1_1")
-					-- (this case used to leave the XP bar wherever it was)
-					placeBands(101, 389, 101, 389)
-				else
-					t:SetTexture("Interface\\AddOns\\DiabolusUnits\\media\\actionbar_1_0")
-				end
-			end
+		if ns.bars and ns.bars.UpdateStatusBarLayout then
+			ns.bars.UpdateStatusBarLayout()
 		end
 	end
 
-	-- Size: config / saved option (barWidth, barHeight); not with the pad
-	-- layout, which sizes the plinth around the crossbar itself.
-	local function padLayout()
-		return ns.PadLayout and ns.PadLayout:IsActive()
-	end
 	local function applySize()
-		if padLayout() or InCombatLockdown() then
+		if InCombatLockdown() then
 			return
 		end
-		local w, h = cfg.width or 788, cfg.height or 220
+		local w, h = cfg.width or 512, cfg.height or 256
 		if math.abs(f:GetWidth() - w) > 0.5 or math.abs(f:GetHeight() - h) > 0.5 then
 			f:SetSize(w, h)
 		end
@@ -238,57 +125,6 @@ local createActionBarBackground = function(self)
 	end
 	ns.PlayerArtApplySize = applySize
 
-	-- Mouse: a grip in the top right corner of the unlocked bar (/roth unlockart).
-	f:SetResizable(true)
-	if f.SetResizeBounds then
-		f:SetResizeBounds(394, 110, 1576, 440)
-	elseif f.SetMinResize then
-		f:SetMinResize(394, 110)
-		f:SetMaxResize(1576, 440)
-	end
-	if f.dragframe then
-		local grip = CreateFrame("Button", nil, f.dragframe)
-		grip:SetSize(18, 18)
-		grip:SetPoint("TOPRIGHT", f, "TOPRIGHT", -2, -2)
-		grip:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
-		grip:SetHighlightTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Highlight")
-		grip:SetPushedTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Down")
-		for _, tex in ipairs({ grip:GetNormalTexture(), grip:GetHighlightTexture(), grip:GetPushedTexture() }) do
-			tex:SetTexCoord(0, 1, 1, 0) -- the grabber art points down-right: flip it to the top right
-		end
-		grip:SetScript("OnMouseDown", function()
-			if padLayout() or InCombatLockdown() then
-				return
-			end
-			f:StartSizing("TOPRIGHT")
-		end)
-		grip:SetScript("OnMouseUp", function()
-			f:StopMovingOrSizing()
-			if ns.Pad and ns.Pad.SetOption then
-				ns.Pad:SetOption("barWidth", math.floor(f:GetWidth() + 0.5))
-				ns.Pad:SetOption("barHeight", math.floor(f:GetHeight() + 0.5))
-			end
-		end)
-		grip:SetScript("OnEnter", function(gs)
-			GameTooltip:SetOwner(gs, "ANCHOR_TOP")
-			GameTooltip:AddLine("Drag to resize the bar", 1, 1, 1)
-			GameTooltip:Show()
-		end)
-		grip:SetScript("OnLeave", function()
-			GameTooltip:Hide()
-		end)
-	end
-	-- the XP / rep bars follow while the bar is being sized
-	f:SetScript("OnSizeChanged", function()
-		if not padLayout() then
-			setupBarTexture()
-		end
-	end)
-	if ns.Pad and ns.Pad.RegisterOptionCallback then
-		ns.Pad:RegisterOptionCallback(applySize)
-	end
-
-	--Rerun function upon ActionBars 2&3 being hidden/shown to update artwork and exp/menu/bag/stance bar locations
 	setupBarTexture()
 	ns.PlayerArt = { frame = f, texture = t, refresh = setupBarTexture }
 	if MultiBarBottomRight then
@@ -300,19 +136,17 @@ local createActionBarBackground = function(self)
 		MultiBarBottomLeft:HookScript("OnHide", setupBarTexture)
 	end
 
-	--Register events to force re-run
-	--Used for updating when exp/rep/artifact bars are hidden/shown and when vehicles are entered/exited
-	f:RegisterEvent("PLAYER_LOGIN") -- the saved size loads after this file runs
+	f:RegisterEvent("PLAYER_LOGIN")
 	f:RegisterEvent("PLAYER_LEVEL_UP")
 	f:RegisterEvent("UNIT_ENTERED_VEHICLE")
 	f:RegisterEvent("UNIT_EXITED_VEHICLE")
 	f:RegisterEvent("UNIT_INVENTORY_CHANGED")
-	f:SetScript("OnEvent", function(...)
-		local self, event, evUnit = ...
+	f:RegisterEvent("INPUT_DEVICE_INTERFACE_TRANSITION")
+	f:SetScript("OnEvent", function(_, event, evUnit)
 		if evUnit and Secrets.IsSecret(evUnit) then
 			return
 		end
-		if evUnit and evUnit ~= "player" then
+		if evUnit and evUnit ~= "player" and event ~= "INPUT_DEVICE_INTERFACE_TRANSITION" then
 			return
 		end
 		if event == "PLAYER_LOGIN" then
@@ -381,9 +215,10 @@ local createBottomLine = function(self)
 		return
 	end
 	local f = CreateFrame("Frame", "Roth_UIBottomLine", self)
-	f:SetFrameStrata("MEDIUM")
-	f:SetFrameLevel(0)
-	f:SetSize(600, 112)
+	-- Keep on LOW strata level 1 so XP/Rep bars (LOW level 5) sit visibly inside the stone trough
+	f:SetFrameStrata("LOW")
+	f:SetFrameLevel(1)
+	f:SetSize(670, 112)
 	f:SetPoint(cfg.pos.a1, cfg.pos.af, cfg.pos.a2, cfg.pos.x, cfg.pos.y)
 	f:SetScale(cfg.scale)
 	func.applyDragFunctionality(f, "bottomline")
