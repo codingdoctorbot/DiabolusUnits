@@ -323,9 +323,9 @@ bars.UpdateStatusBarLayout = function()
 			if activeBar then
 				if not isMoved then
 					activeBar:ClearAllPoints()
-					activeBar:SetPoint("BOTTOMLEFT", pframe, "BOTTOMRIGHT", -10, 5)
-					activeBar:SetPoint("BOTTOMRIGHT", powerOrb, "BOTTOMLEFT", 10, 5)
-					activeBar:SetHeight(12)
+					activeBar:SetPoint("BOTTOMLEFT", pframe, "BOTTOMRIGHT", -10, 2)
+					activeBar:SetPoint("BOTTOMRIGHT", powerOrb, "BOTTOMLEFT", 10, 2)
+					activeBar:SetHeight(9)
 				end
 				activeBar:Show()
 			end

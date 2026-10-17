@@ -305,7 +305,7 @@ if not SlashCmdList["roth"] then
 		print(
 			"|c00FF3300DiabolusUnits v"
 				.. version
-				.. " loaded. Type |r|c00FF3300/roth edit|r|c00FF3300 to customize frames or |r|c00FF3300/roth|r|c00FF3300 for commands.|r"
+				.. " loaded. Type |r|c00FF3300/diabolus edit|r|c00FF3300 to customize frames or |r|c00FF3300/diabolus|r|c00FF3300 for commands.|r"
 		)
 		_G.Roth_UI_loadMessagePrinted = true
 	end

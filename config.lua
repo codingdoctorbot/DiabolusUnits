@@ -99,15 +99,26 @@ cfg.belt = {
 }
 
 -- Seamless Gamepad <-> Standard (Keyboard/Mouse) Mode adaptation:
--- In Gamepad mode, orbs sit wide (±325) around the controller crossbar.
--- In Standard mode, the compact 12-slot Diablo stone bar (bar1/bar2/bar3) is
--- shown, Blizzard's default action buttons are scaled to fit the 12 stone slots,
--- and the Micro Menu & Bag buttons are integrated on sculpted outer docks.
+--   * Gamepad Mode: Orbs sit wide (±325) around the native Crossbar, Potion Belt sits beside Health Orb.
+--   * Standard Mode:
+--       - 12-slot Diablo stone bar (bar1/bar2/bar3) scaled to 1.18x at bottom; Orbs at ±300, Statues at -330/+325.
+--       - ActionButton1..12 & MultiBars fitted into the 12 stone slots via ns.Blizz (C base methods, zero taint).
+--       - ActionBarPageNumber (+/- paging arrows) placed on the carved left stone shoulder of bar1.tga.
+--       - Micro Menu docked on the left stone wing (Roth_UIMicroDock) and Bags on the right stone wing (Roth_UIBagDock).
+--       - Potion Belt (Roth_UIBelt) anchored directly above the Right Bag Bar Wing (Roth_UIBagDock).
+--       - Pet Action Bar (PetActionBar / PetActionBarFrame) anchored to the top-left of the uppermost active
+--         action bar row (Bar 1, Bar 2, or Bar 3).
+--   * Reload / Scale Integrity Note:
+--       - All DiabolusUnits frames use SetUserPlaced(false) so WoW's C++ layout-local.txt never overwrites
+--         Roth_UIPlayerFrame coordinates when ApplyPixelPerfectScale() changes UIParent:SetScale() on PLAYER_LOGIN.
+--       - RestoreSavedLayout() in core/editmode.lua always finishes by calling ns.StandardMode:Apply().
 cfg.standardMode = {
 	enabled = true,
 	integrateActionBars = true, -- scale & fit ActionButton1..12 / MultiBars into bar1/bar2/bar3 slots
 	integrateMicroMenu = true, -- dock Game Menu micro buttons on the left outer stone wing
 	integrateBags = true, -- dock Bag slots + Backpack on the right outer stone wing
+	integratePetBar = true, -- anchor PetActionBar to the top-left of the uppermost active actionbar row
+	beltAnchor = "bags", -- "bags" = above Roth_UIBagDock in Standard Mode; "actionbar" = top-left of top actionbar
 	dockFadeAlpha = 0.85, -- idle alpha for Micro Menu & Bag buttons (1.0 on mouseover)
 	padOrbX = 325, -- orb X offset in Gamepad mode (around crossbar)
 	standardOrbX = 300, -- orb X offset in Standard mode (hugging the 1.18x 12-slot stone bar)

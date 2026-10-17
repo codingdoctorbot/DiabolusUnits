@@ -67,3 +67,11 @@ Created **DiabolusUnits** (`/Users/erik2/Developer/WoW/DiabolusUnits`, symlinked
   - Changed `f:SetUserPlaced(true)` to `f:SetUserPlaced(false)` in `core/lib.lua` (both on creation and immediately after `StopMovingOrSizing()`) and cleared `SetUserPlaced(false)` across all `EDITABLE_FRAMES` in `RestoreSavedLayout()`, so `Roth_UI_DB.profile.framePositions` is the single source of truth and WoW's `layout-local.txt` never hijacks frame coordinates across `/reload`.
   - Called `ns.StandardMode:Apply()` at the end of `RestoreSavedLayout()` in `core/editmode.lua`.
 - **Verified**: In `~/Desktop/Screenshot 2026-10-17 at 12.17.56.png`, a clean `/reload` (with no reset needed) renders the entire HUD identically to the post-reset state.
+
+### 8. Potion Belt on Bags Wing & Pet Action Bar Anchor
+- **Design Decision Implemented**:
+  1. **Potion Belt on Bags**: Anchored `Roth_UIBelt` directly above `Roth_UIBagDock` (the right outer stone wing) in Standard Mode when `cfg.standardMode.beltAnchor == "bags"` (`belt:SetPoint("BOTTOM", bagDock, "TOP", 0, -2)`). This groups consumables/potions right above the bag bar and frees the top-left of the action bars for pet/stance commands.
+  2. **Pet Action Bar on Action Bar**: Anchored `PetActionBar` / `PetActionBarFrame` (with `PetActionButton1..10`) to the top-left of the uppermost activated action bar row (`topRowFirstBtn` = `ActionButton1`, `MultiBarBottomLeftButton1`, or `MultiBarBottomRightButton1`) with `scale = 0.85` and `BOTTOMLEFT -> TOPLEFT, 0, 6`, hooked to `ApplySystemAnchor` without reparenting (zero taint).
+  3. **Wing Alignment Polish**: Raised button centers from `31 / scale` to `35 / scale` in both `SetupMicroDock` and `SetupBagDock`, shifted MicroDock ~20px further left (`demonX - 235`) to clear the Demon's skull, and excluded `KeyRingButton` (when empty), `CharacterReagentBag0Slot`, and `BagBarExpandToggle` from `BagsBar:Layout()` so the 5 visible bags sit centered inside `d3_wing_dock.tga`.
+  4. **XP Bar Seating**: Lowered single-bar `y` from `5` to `2` (`height = 9`) in `core/bars.lua` so it seats cleanly inside the stone trough below Row 1 under `1.18x` bar scale.
+  5. **Settings Documented**: Documented `beltAnchor = "bags"`, `integratePetBar = true`, and the `/reload` scale integrity architecture in `config.lua` (`cfg.standardMode`).

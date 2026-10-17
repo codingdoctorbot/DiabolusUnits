@@ -432,7 +432,7 @@ local function SetupMicroDock(isPad, demonX)
 	if not (sm and sm.integrateMicroMenu) then
 		return
 	end
-	local defaultX = (demonX or -330) - 215
+	local defaultX = (demonX or -330) - 235
 	if not microDock then
 		microDock = CreateDock("Roth_UIMicroDock", "Micro Menu Wing", defaultX, 0, 300, 114, false)
 	end
@@ -481,7 +481,7 @@ local function SetupMicroDock(isPad, demonX)
 			Blizz.SetPoint(mm, "CENTER", container, "CENTER", 0, 0)
 		end
 		Blizz.ClearAllPoints(container)
-		Blizz.SetPoint(container, "CENTER", microDock, "BOTTOM", 0, 31 / scale)
+		Blizz.SetPoint(container, "CENTER", microDock, "BOTTOM", 0, 35 / scale)
 
 		local visW, shiftX = MeasureVisibleButtonsBounds(
 			container,
@@ -489,7 +489,7 @@ local function SetupMicroDock(isPad, demonX)
 			((mm and mm:GetWidth()) or container:GetWidth() or 275) * scale
 		)
 		Blizz.ClearAllPoints(container)
-		Blizz.SetPoint(container, "CENTER", microDock, "BOTTOM", shiftX / scale, 31 / scale)
+		Blizz.SetPoint(container, "CENTER", microDock, "BOTTOM", shiftX / scale, 35 / scale)
 
 		-- Recessed bay is 68.75% of d3_wing_dock.tga width; add 24px breathing margin inside the stone bay
 		local wingW = math.max(295, (visW + 24) / 0.6875)
@@ -523,7 +523,7 @@ local function SetupBagDock(isPad, angelX)
 	if not (sm and sm.integrateBags) then
 		return
 	end
-	local defaultX = (angelX or 325) + 195
+	local defaultX = (angelX or 325) + 210
 	if not bagDock then
 		bagDock = CreateDock("Roth_UIBagDock", "Bag Bar Wing", defaultX, 0, 260, 114, true)
 	end
@@ -539,14 +539,17 @@ local function SetupBagDock(isPad, angelX)
 	end
 
 	-- Hide KeyRingButton when player has no keys so only the 5 main bags sit cleanly in the bay
-	if _G.KeyRingButton and HasKey and not HasKey() then
+	if _G.KeyRingButton and (not _G.HasKey or not _G.HasKey()) then
+		_G.KeyRingButton.includeInLayout = false
+		_G.KeyRingButton:SetAlpha(0)
+		_G.KeyRingButton:SetSize(0.001, 0.001)
 		_G.KeyRingButton:Hide()
 	end
 
 	local activeBtns = {}
 	for _, name in ipairs(BAG_LIST) do
 		local btn = _G[name]
-		if btn and btn:IsShown() then
+		if btn and btn:IsShown() and (btn:GetAlpha() or 1) > 0.05 then
 			Blizz.SetScale(btn, 1.0)
 			activeBtns[#activeBtns + 1] = btn
 		end
@@ -559,11 +562,16 @@ local function SetupBagDock(isPad, angelX)
 			bb.BorderArt:SetAlpha(0)
 		end
 		if _G.CharacterReagentBag0Slot then
+			_G.CharacterReagentBag0Slot.includeInLayout = false
 			_G.CharacterReagentBag0Slot:SetAlpha(0)
+			_G.CharacterReagentBag0Slot:SetSize(0.001, 0.001)
 			_G.CharacterReagentBag0Slot:Hide()
 		end
 		if _G.BagBarExpandToggle then
+			_G.BagBarExpandToggle.includeInLayout = false
 			_G.BagBarExpandToggle:SetAlpha(0)
+			_G.BagBarExpandToggle:SetSize(0.001, 0.001)
+			_G.BagBarExpandToggle:Hide()
 		end
 		if bb.Layout then
 			pcall(bb.Layout, bb)
@@ -573,11 +581,11 @@ local function SetupBagDock(isPad, angelX)
 		local scale = 0.72
 		Blizz.SetScale(bb, scale)
 		Blizz.ClearAllPoints(bb)
-		Blizz.SetPoint(bb, "CENTER", bagDock, "BOTTOM", 0, 31 / scale)
+		Blizz.SetPoint(bb, "CENTER", bagDock, "BOTTOM", 0, 35 / scale)
 
-		local visW, shiftX = MeasureVisibleButtonsBounds(bb, activeBtns, 185 * scale)
+		local visW, shiftX = MeasureVisibleButtonsBounds(bb, activeBtns, 165 * scale)
 		Blizz.ClearAllPoints(bb)
-		Blizz.SetPoint(bb, "CENTER", bagDock, "BOTTOM", shiftX / scale, 31 / scale)
+		Blizz.SetPoint(bb, "CENTER", bagDock, "BOTTOM", shiftX / scale, 35 / scale)
 
 		local wingW = math.max(255, (visW + 24) / 0.6875)
 		bagDock:SetSize(wingW, 56)
@@ -594,6 +602,42 @@ local function SetupBagDock(isPad, angelX)
 				end
 			end)
 		end
+	end
+end
+
+-- Anchor the Pet Action Bar (PetActionBar / PetActionBarFrame) to the top-left of the uppermost active action bar row
+local function SetupPetBar(isPad, topRowFirstBtn)
+	local sm = cfg.standardMode
+	if isPad or not (sm and sm.integratePetBar) or not topRowFirstBtn then
+		return
+	end
+	local petBar = _G.PetActionBar or _G.PetActionBarFrame
+	if not petBar then
+		return
+	end
+	HideDividerPools(petBar)
+	if petBar.BorderArt then
+		petBar.BorderArt:SetAlpha(0)
+	end
+	for i = 1, (rawget(_G, "NUM_PET_ACTION_SLOTS") or 10) do
+		local pb = _G["PetActionButton" .. i]
+		if pb then
+			StyleActionButtonForStoneSlot(pb)
+		end
+	end
+	local scale = 0.85
+	Blizz.SetScale(petBar, scale)
+	Blizz.ClearAllPoints(petBar)
+	Blizz.SetPoint(petBar, "BOTTOMLEFT", topRowFirstBtn, "TOPLEFT", 0, 6)
+
+	if petBar.ApplySystemAnchor and not anchorHooked[petBar] then
+		anchorHooked[petBar] = true
+		hooksecurefunc(petBar, "ApplySystemAnchor", function()
+			if not StandardMode:IsGamepad() and not InCombatLockdown() and topRowFirstBtn then
+				Blizz.ClearAllPoints(petBar)
+				Blizz.SetPoint(petBar, "BOTTOMLEFT", topRowFirstBtn, "TOPLEFT", 0, 6)
+			end
+		end)
 	end
 end
 
@@ -680,23 +724,27 @@ function StandardMode:Apply()
 		end
 	end
 
+	SetupMicroDock(isPad, demonX)
+	SetupBagDock(isPad, angelX)
+	SetupPetBar(isPad, topRowFirstBtn)
+
 	-- Position Potion Belt:
 	--   - Gamepad mode: beside Health Orb
-	--   - Standard mode: anchored to the top-left of the uppermost activated action bar (1, 2, or 3 rows)
+	--   - Standard mode (default beltAnchor = "bags"): directly on top of the Right Bag Bar Wing (Roth_UIBagDock)
+	--   - Standard mode (beltAnchor = "actionbar"): top-left of the uppermost activated action bar row
 	local belt = _G.Roth_UIBelt
 	if belt and not IsUserMoved("Roth_UIBelt") and pframe then
 		belt:ClearAllPoints()
 		if isPad then
 			belt:SetPoint("BOTTOMLEFT", pframe, "BOTTOMRIGHT", cfg.belt.x or 6, cfg.belt.y or 24)
+		elseif sm.beltAnchor ~= "actionbar" and bagDock then
+			belt:SetPoint("BOTTOM", bagDock, "TOP", 0, -2)
 		elseif topRowFirstBtn then
 			belt:SetPoint("BOTTOMLEFT", topRowFirstBtn, "TOPLEFT", -4, 8)
 		else
 			belt:SetPoint("BOTTOM", pframe, "TOP", 0, -6)
 		end
 	end
-
-	SetupMicroDock(isPad, demonX)
-	SetupBagDock(isPad, angelX)
 end
 
 local ev = CreateFrame("Frame")

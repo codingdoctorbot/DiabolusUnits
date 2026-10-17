@@ -8,48 +8,55 @@
 
 ---
 
-## 2. Latest In-Game Verification (`~/Desktop/Screenshot 2026-10-17 at 12.17.56.png`)
+## 2. In-Game Architecture & Design Status
 
-### Confirmed Working in `12.17.56.png` (Clean `/reload` Without Reset)
-1. **`/reload` Persistence Fixed ([`core/lib.lua`](file:///Users/erik2/Developer/WoW/DiabolusUnits/core/lib.lua#L995-L1082), [`core/editmode.lua`](file:///Users/erik2/Developer/WoW/DiabolusUnits/core/editmode.lua#L1556-L1651))**:
-   - **Root Cause Found**: `func.applyDragFunctionality` previously called `f:SetUserPlaced(true)`, which caused WoW's C++ `layout-local.txt` to restore pre-scale coordinates on `Roth_UIPlayerFrame` when `ApplyPixelPerfectScale()` changed `UIParent:SetScale(768 / physicalHeight)` on `PLAYER_LOGIN`. Because `Roth_UIHealthOrb` is anchored `CENTER` to `Roth_UIPlayerFrame` while `Roth_UIPowerOrb`, `Roth_UIActionBarBackground`, `Roth_UIAngelFrame`, and `Roth_UIDemonFrame` are anchored to `UIParent`, only the Health Orb was pushed off-screen on `/reload` (`12.09.56.png`). Additionally, `RestoreSavedLayout()` ran on `PLAYER_LOGIN` without calling `ns.StandardMode:Apply()` afterward.
-   - **Fix**: Set `f:SetUserPlaced(false)` on frame creation and after `StopMovingOrSizing()`, cleared `SetUserPlaced(false)` on all `EDITABLE_FRAMES` in `RestoreSavedLayout()`, and called `ns.StandardMode:Apply()` at the end of `RestoreSavedLayout()`. Verified in `12.17.56.png` that a clean `/reload` now renders the full HUD immediately without needing `[ Reset UI ]`.
+### Confirmed Working & Verified In-Game
+1. **`/reload` Persistence & Scale Integrity ([`core/lib.lua`](file:///Users/erik2/Developer/WoW/DiabolusUnits/core/lib.lua), [`core/editmode.lua`](file:///Users/erik2/Developer/WoW/DiabolusUnits/core/editmode.lua))**:
+   - **Root Cause Solved**: All frames now use `f:SetUserPlaced(false)` so WoW's C++ `layout-local.txt` cannot hijack coordinates when `ApplyPixelPerfectScale()` updates `UIParent:SetScale()`. `RestoreSavedLayout()` explicitly calls `ns.StandardMode:Apply()` at the end of `PLAYER_LOGIN`. Verified in `Screenshot 2026-10-17 at 12.17.56.png` with a clean `/reload`.
 2. **1.18x Action Bar Scale & 12-Slot Stone Grid**:
-   - `Roth_UIActionBarBackground` (`bar1.tga` / `bar2.tga` / `bar3.tga`) scales to `1.18x` in Standard Mode (`standardBarScale = 1.18`), and all 12 buttons per row (`ActionButton1..12`, `MultiBarBottomLeftButton1..12`, `MultiBarBottomRightButton1..12`) fit squarely inside the 12 crossed-sword stone slots.
+   - `Roth_UIActionBarBackground` (`bar1.tga` / `bar2.tga` / `bar3.tga`) scales to `1.18x` in Standard Mode (`standardBarScale = 1.18`), and all 12 buttons per row (`ActionButton1..12`, `MultiBarBottomLeftButton1..12`, `MultiBarBottomRightButton1..12`) fit squarely inside the 12 crossed-sword stone slots via `ns.Blizz` C base methods (zero taint).
    - Health & Power Orbs (`standardOrbX = 300`), Demon (`-330`) & Angel (`+325`) statues, and `Roth_UIBottomLine` (`780px` width) hug the scaled bar cleanly.
 3. **ActionBar Paging `+/-` Buttons (`MainActionBar.ActionBarPageNumber`)**:
-   - Visible (`^ 1 v`) on the carved left stone shoulder of `bar1.tga` just to the left of `ActionButton1`.
-4. **Dynamic Potion Belt (`Roth_UIBelt`) Anchor**:
-   - Automatically anchors to the top-left of the uppermost activated action bar row (Row 3 `MultiBarBottomRightButton1` in `12.17.56.png`).
+   - Styled and anchored (`^ 1 v`) on the carved left stone shoulder of `bar1.tga` just to the left of `ActionButton1`.
+4. **Potion Belt (`Roth_UIBelt`) Anchored Above Bags ([`config.lua`](file:///Users/erik2/Developer/WoW/DiabolusUnits/config.lua), [`core/standardmode.lua`](file:///Users/erik2/Developer/WoW/DiabolusUnits/core/standardmode.lua))**:
+   - In Standard Mode (`beltAnchor = "bags"`), the 4-slot Potion Belt anchors directly above the Right Bag Bar Wing (`Roth_UIBagDock` with `BOTTOM -> TOP, 0, -2`).
+   - In Gamepad Mode, it anchors beside the Health Orb.
+   - Setting `cfg.standardMode.beltAnchor = "actionbar"` reverts it to the top-left of the action bar if preferred.
+5. **Pet Action Bar (`PetActionBar` / `PetActionBarFrame`) Anchored to Top Action Bar**:
+   - Anchored to the top-left of the uppermost activated action bar row (`topRowFirstBtn` = `ActionButton1`, `MultiBarBottomLeftButton1`, or `MultiBarBottomRightButton1`) with `scale = 0.85` and `BOTTOMLEFT -> TOPLEFT, 0, 6`. Buttons styled with crossed-sword slot backgrounds and zero taint via `ns.Blizz`.
+6. **Wing Pedestals (`Roth_UIMicroDock` & `Roth_UIBagDock`)**:
+   - Raised button vertical center to `y = 35 / scale` so buttons sit centered above the bottom stone lip of `d3_wing_dock.tga`.
+   - MicroDock positioned at `defaultX = (demonX or -330) - 235` to clear the Demon statue's skull.
+   - BagDock hides empty `KeyRingButton`, `CharacterReagentBag0Slot`, and `BagBarExpandToggle` from layout so the 5 bags center inside the right stone bay.
+7. **XP / Rep Bar Vertical Seating**:
+   - Single bar seated at `y = 2`, `height = 9` in [`core/bars.lua`](file:///Users/erik2/Developer/WoW/DiabolusUnits/core/bars.lua) so it fits inside the bottom dark stone trough below Row 1 under `1.18x` bar scale.
+8. **Chat Command**:
+   - Updated login message to `/diabolus edit` and `/diabolus` (with `/roth` alias preserved).
 
 ---
 
-## 3. Exact Polish Items Remaining (Observed in `12.17.56.png`)
-
-1. **Left Micro Menu Wing (`SetupMicroDock` in [`core/standardmode.lua`](file:///Users/erik2/Developer/WoW/DiabolusUnits/core/standardmode.lua#L430-L519))**:
-   - **Observation**: The rightmost Micro Menu button (`?` Main Menu) still slightly overlaps the Demon statue's left skull/foot at the bottom-right of the wing, and the row of buttons sits ~4px low (touching the bottom stone bevel of `d3_wing_dock.tga`).
-   - **Fix**:
-     - Shift `defaultX` ~25px further left: change `local defaultX = (demonX or -330) - 215` to `(demonX or -330) - 240` (or compute from `wingW` so the right edge of the recessed bay `defaultX + 0.34375 * wingW` sits left of `demonX - 118`).
-     - Raise vertical anchor in `SetupMicroDock` from `31 / scale` to `35.5 / scale` so the buttons sit centered vertically in the dark recessed bay above the lower stone lip.
-
-2. **Right Bag Bar Wing (`SetupBagDock` in [`core/standardmode.lua`](file:///Users/erik2/Developer/WoW/DiabolusUnits/core/standardmode.lua#L521-L598))**:
-   - **Observation**: The 5 bag buttons (`MainMenuBarBackpackButton` + `CharacterBag0..3Slot`) sit slightly toward the left half of the recessed bay (leaving empty dark bay space on the right) and ~4px low (`31 / scale`).
-   - **Fix**:
-     - Before calling `pcall(bb.Layout, bb)`, set `includeInLayout = false` and `SetSize(0.001, 0.001)` on hidden children (`_G.KeyRingButton`, `_G.CharacterReagentBag0Slot`, `_G.BagBarExpandToggle`) so Blizzard's `GridLayoutFrame:Layout()` computes `BagsBar`'s width strictly from the 5 visible bag buttons.
-     - Raise vertical anchor in `SetupBagDock` from `31 / scale` to `35.5 / scale` (and nudge `defaultX` from `(angelX or 325) + 195` to `(angelX or 325) + 215` if needed so the leftmost bag clears the Angel statue's foot).
-
-3. **XP / Rep Bar Vertical Seating at `1.18x` Bar Scale ([`core/bars.lua`](file:///Users/erik2/Developer/WoW/DiabolusUnits/core/bars.lua#L290-L332))**:
-   - **Observation**: Because `Roth_UIActionBarBackground` is scaled by `1.18x`, the single XP bar (`y = 5, height = 12`) slightly overlaps the bottom stone border below `ActionButton1..12` by ~2px.
-   - **Fix**: In `bars.UpdateStatusBarLayout()` ([`core/bars.lua`](file:///Users/erik2/Developer/WoW/DiabolusUnits/core/bars.lua#L326-L328)), lower single-bar `y` from `5` to `2` and `SetHeight(9)` (and for `count == 2`, use `y = 11` / `y = 2` with `SetHeight(8)`) so the status bar sits cleanly inside the bottom dark stone trough.
-
-4. **Chat Welcome Message String**:
-   - In `12.17.56.png`, the login message still says `Type /roth edit to customize frames or /roth for commands.`; update the printed string to `/diabolus edit` / `/diabolus` (while keeping `/roth` as an alias).
+## 3. Configuration & Settings Reference ([`config.lua`](file:///Users/erik2/Developer/WoW/DiabolusUnits/config.lua))
+```lua
+cfg.standardMode = {
+    enabled = true,
+    integrateActionBars = true, -- scale & fit ActionButton1..12 / MultiBars into bar1/bar2/bar3 slots
+    integrateMicroMenu = true,  -- dock Game Menu micro buttons on the left outer stone wing
+    integrateBags = true,       -- dock Bag slots + Backpack on the right outer stone wing
+    integratePetBar = true,    -- anchor PetActionBar to the top-left of the uppermost active actionbar row
+    beltAnchor = "bags",        -- "bags" = above Roth_UIBagDock; "actionbar" = top-left of top actionbar
+    dockFadeAlpha = 0.85,      -- idle alpha for Micro Menu & Bag buttons (1.0 on mouseover)
+    padOrbX = 325,              -- orb X offset in Gamepad mode (around crossbar)
+    standardOrbX = 300,         -- orb X offset in Standard mode (hugging 1.18x stone bar)
+    standardBarScale = 1.18,    -- scale of 12-slot stone bar & action buttons in Standard mode
+}
+```
 
 ---
 
-## 4. Key Files Reference
-- [`config.lua`](file:///Users/erik2/Developer/WoW/DiabolusUnits/config.lua) — `cfg.standardMode` (`padOrbX = 325`, `standardOrbX = 300`, `standardBarScale = 1.18`, `dockFadeAlpha = 0.85`).
-- [`core/standardmode.lua`](file:///Users/erik2/Developer/WoW/DiabolusUnits/core/standardmode.lua) — Gamepad <-> Standard Mode layout engine, 12-slot fitting, paging `+/-` buttons, wing docks (`Roth_UIMicroDock`, `Roth_UIBagDock`), and dynamic Potion Belt anchoring.
+## 4. Key Files
+- [`config.lua`](file:///Users/erik2/Developer/WoW/DiabolusUnits/config.lua) — Master HUD settings and mode configuration.
+- [`core/standardmode.lua`](file:///Users/erik2/Developer/WoW/DiabolusUnits/core/standardmode.lua) — Gamepad <-> Standard Mode layout engine, 12-slot fitting, paging `+/-` buttons, wing docks, PetBar, and Belt anchors.
 - [`core/bars.lua`](file:///Users/erik2/Developer/WoW/DiabolusUnits/core/bars.lua) — `Roth_UIActionBarBackground`, `Roth_UIBottomLine`, and 10-segment Diablo `Roth_UIExpBar` / `Roth_UIRepBar`.
 - [`core/belt.lua`](file:///Users/erik2/Developer/WoW/DiabolusUnits/core/belt.lua) — 4-slot `SecureActionButtonTemplate` Diablo Potion Belt (`Roth_UIBelt`).
 - [`core/editmode.lua`](file:///Users/erik2/Developer/WoW/DiabolusUnits/core/editmode.lua) & [`core/lib.lua`](file:///Users/erik2/Developer/WoW/DiabolusUnits/core/lib.lua) — `/diabolus edit`, `/diabolus reset`, and `RestoreSavedLayout()`.
+- [`session.md`](file:///Users/erik2/Developer/WoW/DiabolusUnits/session.md) — Chronological session changelog and verification log.
