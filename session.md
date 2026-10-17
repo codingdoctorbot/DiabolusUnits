@@ -75,3 +75,131 @@ Created **DiabolusUnits** (`/Users/erik2/Developer/WoW/DiabolusUnits`, symlinked
   3. **Wing Alignment Polish**: Raised button centers from `31 / scale` to `35 / scale` in both `SetupMicroDock` and `SetupBagDock`, shifted MicroDock ~20px further left (`demonX - 235`) to clear the Demon's skull, and excluded `KeyRingButton` (when empty), `CharacterReagentBag0Slot`, and `BagBarExpandToggle` from `BagsBar:Layout()` so the 5 visible bags sit centered inside `d3_wing_dock.tga`.
   4. **XP Bar Seating**: Lowered single-bar `y` from `5` to `2` (`height = 9`) in `core/bars.lua` so it seats cleanly inside the stone trough below Row 1 under `1.18x` bar scale.
   5. **Settings Documented**: Documented `beltAnchor = "bags"`, `integratePetBar = true`, and the `/reload` scale integrity architecture in `config.lua` (`cfg.standardMode`).
+
+### 9. Combat Taint & Pet Bar Dynamic Re-Anchoring Technical Specification (`Screenshot 2026-10-17 at 12.31.17.png`)
+
+#### A. Issue 1: Combat Taint & Action Blockage
+- **Observed Behavior**: During combat or upon state transitions in combat, Blizzard displays: `the game refused Roth_UIActionBarBackground:Show() (DiabolusUnits, blocked)`. In previous tests before swapping belt positions, combat also caused the Potion Belt (`Roth_UIBelt`) to anchor to the screen bottom or fail to reposition.
+- **Underlying Mechanism & Root Cause**:
+  - `Roth_UIPlayerFrame` is an `oUF` unit frame constructed with `CreateFrame("Button", "Roth_UIPlayerFrame", UIParent, "SecureUnitButtonTemplate")`.
+  - In `units/player.lua`, the decorative background and statue frames were instantiated as children of `Roth_UIPlayerFrame`:
+    - `Roth_UIActionBarBackground`: `CreateFrame("Frame", "Roth_UIActionBarBackground", self)`
+    - `Roth_UIAngelFrame`: `CreateFrame("Frame", "Roth_UIAngelFrame", self)`
+    - `Roth_UIDemonFrame`: `CreateFrame("Frame", "Roth_UIDemonFrame", self)`
+    - `Roth_UIBottomLine`: `CreateFrame("Frame", "Roth_UIBottomLine", self)`
+  - Under Blizzard's secure template system, any frame whose parent hierarchy traces up to a `SecureUnitButtonTemplate` is treated as part of the secure button's execution subtree.
+  - Calling `:Show()`, `:Hide()`, `:SetPoint()`, or altering attributes on any node within a secure subtree during `InCombatLockdown()` triggers an execution taint violation, resulting in Blizzard raising `ADDON_ACTION_BLOCKED`.
+  - When `setupBarTexture()` ran in response to combat events or vehicle transitions, calling `f:Show()` on `Roth_UIActionBarBackground` directly triggered the execution block.
+- **Implemented Fix in Working Tree (`units/player.lua`)**:
+  1. Decoupled all decorative art frames from `self` by reparenting directly to `UIParent`:
+     - `CreateFrame("Frame", "Roth_UIActionBarBackground", UIParent)`
+     - `CreateFrame("Frame", "Roth_UIAngelFrame", UIParent)`
+     - `CreateFrame("Frame", "Roth_UIDemonFrame", UIParent)`
+     - `CreateFrame("Frame", "Roth_UIBottomLine", UIParent)`
+  2. Added an explicit lockdown guard at the head of `setupBarTexture()`:
+     ```lua
+     if InCombatLockdown() then
+         return
+     end
+     ```
+
+#### B. Issue 2: Pet Action Bar Unanchoring on Action Bar Activation
+- **Observed Behavior**: In `Screenshot 2026-10-17 at 12.31.17.png`, after activating additional action bar rows in Interface Options, the Pet Action Bar (`PetActionBarFrame` / `PetActionBar`) detached from the stone action bar and reverted to Blizzard's default position (bottom-left of screen, hovering above the chat frame). It remained detached until the user performed a `/reload`.
+- **Underlying Mechanisms & Root Causes**:
+  1. **Classic Positioning Engine vs. Modern Edit Mode**:
+     - WoW Forever (`_classic_beta_`, Interface `11508`) uses a hybrid engine: the client supports modern Lua APIs, but action bar management and pet bar layout still rely on Classic's `UIParent_ManageFramePositions()`.
+     - When action bar rows are toggled via Interface Options (e.g. enabling `MultiBarBottomLeft` or `MultiBarBottomRight`), Blizzard's options callback does not invoke EditMode's `ApplySystemAnchor` on `PetActionBarFrame`. Instead, it executes `UIParent_ManageFramePositions()`, which calls `petBar:ClearAllPoints()` and `petBar:SetPoint()` directly to place the pet bar in its hardcoded default screen coordinates.
+     - Because `core/standardmode.lua` previously only hooked `petBar.ApplySystemAnchor`, Blizzard's positioning pass executed undetected and uncorrected.
+  2. **Stale Closure Reference in `SetupPetBar`**:
+     - `SetupPetBar(isPad, topRowFirstBtn)` previously took `topRowFirstBtn` as an input parameter and captured it inside an anonymous closure attached to `ApplySystemAnchor`.
+     - Because the hook was guarded by `if not anchorHooked[petBar]`, it executed only once during addon initialization, capturing `ActionButton1`.
+     - When the player enabled Bar 2 (`MultiBarBottomLeft`) or Bar 3 (`MultiBarBottomRight`), the closure still referenced `ActionButton1` and never updated to the newly active upper row.
+  3. **Layout Pass Race Condition on Action Bar Show/Hide**:
+     - Hooking `MultiBarBottomLeft:HookScript("OnShow", ...)` and `OnHide` triggered `StandardMode:Apply()` synchronously at the exact moment the bar began showing.
+     - Blizzard's internal layout sequence executes `UIParent_ManageFramePositions()` *after* the `OnShow` script handler returns.
+     - As a result, `StandardMode:Apply()` placed the pet bar, and milliseconds later Blizzard's engine cleared all points and placed the pet bar at the bottom-left above chat.
+  4. **Combat Lockdown and Protected Frame Integrity**:
+     - `PetActionBar` is a protected Blizzard frame containing 10 pet action buttons (`PetActionButton1..10`).
+     - Modifying anchors or calling `ClearAllPoints()` / `SetPoint()` on `PetActionBar` during `InCombatLockdown()` produces taint and `ADDON_ACTION_BLOCKED`.
+     - Re-anchoring logic must strictly verify `InCombatLockdown()`: if in combat, defer repositioning via `pendingApply = true` and execute immediately upon `PLAYER_REGEN_ENABLED`.
+
+#### C. Architectural Solution Specification
+- **1. Dynamic Upper Row Detection (`StandardMode:GetTopRowFirstButton()`)**:
+  - Dynamically inspects frame visibility at runtime rather than storing static button references:
+    ```lua
+    function StandardMode:GetTopRowFirstButton()
+        local mbLeft = _G.MultiBarBottomLeft
+        local mbRight = _G.MultiBarBottomRight
+        if mbLeft and mbLeft:IsShown() then
+            if mbRight and mbRight:IsShown() then
+                return _G.MultiBarBottomRightButton1 or _G.MultiBarBottomLeftButton1 or _G.ActionButton1
+            end
+            return _G.MultiBarBottomLeftButton1 or _G.ActionButton1
+        elseif mbRight and mbRight:IsShown() then
+            return _G.MultiBarBottomRightButton1 or _G.ActionButton1
+        end
+        return _G.ActionButton1
+    end
+    ```
+- **2. Re-entrancy-Guarded Re-anchoring (`StandardMode:AnchorPetBar()`)**:
+  - Protects against recursion using a local boolean `inPetAnchor`:
+    ```lua
+    local inPetAnchor = false
+    function StandardMode:AnchorPetBar()
+        if inPetAnchor then return end
+        if self:IsGamepad() then return end
+        local sm = cfg.standardMode
+        if not (sm and sm.integratePetBar) then return end
+        if InCombatLockdown() then
+            pendingApply = true
+            return
+        end
+        local petBar = _G.PetActionBar or _G.PetActionBarFrame
+        if not petBar then return end
+        local topBtn = self:GetTopRowFirstButton()
+        if not topBtn then return end
+
+        inPetAnchor = true
+        HideDividerPools(petBar)
+        if petBar.BorderArt then petBar.BorderArt:SetAlpha(0) end
+        for i = 1, (rawget(_G, "NUM_PET_ACTION_SLOTS") or 10) do
+            local pb = _G["PetActionButton" .. i]
+            if pb then StyleActionButtonForStoneSlot(pb) end
+        end
+        local scale = 0.85
+        Blizz.SetScale(petBar, scale)
+        Blizz.ClearAllPoints(petBar)
+        Blizz.SetPoint(petBar, "BOTTOMLEFT", topBtn, "TOPLEFT", 0, 6)
+        inPetAnchor = false
+    end
+    ```
+- **3. Hooking Blizzard's Internal SetPoint (`hooksecurefunc`)**:
+  - Hooks `petBar:SetPoint` directly so that whenever Blizzard's `UIParent_ManageFramePositions()` moves `PetActionBar`, DiabolusUnits' secure hook catches it and snaps it back to `topBtn`:
+    ```lua
+    local function HookPetBar(petBar)
+        if not petBar or anchorHooked[petBar] then return end
+        anchorHooked[petBar] = true
+        hooksecurefunc(petBar, "SetPoint", function()
+            if not inPetAnchor and not StandardMode:IsGamepad() and not InCombatLockdown() then
+                StandardMode:AnchorPetBar()
+            end
+        end)
+        if petBar.ApplySystemAnchor then
+            hooksecurefunc(petBar, "ApplySystemAnchor", function()
+                if not inPetAnchor and not StandardMode:IsGamepad() and not InCombatLockdown() then
+                    StandardMode:AnchorPetBar()
+                end
+            end)
+        end
+    end
+    ```
+  - Safe against infinite recursion: when `AnchorPetBar()` calls `Blizz.SetPoint`, `inPetAnchor` is `true`, causing the hook to return immediately.
+  - Safe against taint: `hooksecurefunc` does not overwrite the Blizzard method pointer; it merely appends an unprivileged post-hook.
+- **4. Debounced Timer Dispatch**:
+  - Toggling action bars in settings or closing the settings dialog triggers deferred layout passes via `C_Timer.After(0.02, ...)` and `C_Timer.After(0.1, ...)`.
+  - This guarantees that Blizzard's multi-pass layout engine finishes all internal calculations before DiabolusUnits computes and applies stone slot geometry and pet bar anchors.
+- **5. Event Lifecycle Coverage**:
+  - Registers `PET_BAR_UPDATE`, `PET_BAR_UPDATE_USABLE`, `UNIT_PET`, `ACTIONBAR_PAGE_CHANGED`, `UPDATE_BONUS_ACTIONBAR`, and `UPDATE_MULTI_CAST_ACTIONBAR`.
+  - All event handlers route through `InCombatLockdown()` check: if in combat, flag `pendingApply = true`; if out of combat, run `DelayedApply()`.
+
+
