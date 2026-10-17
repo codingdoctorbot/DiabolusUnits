@@ -53,6 +53,7 @@ local EDITABLE_FRAMES = {
 	{ id = "Roth_UIPartyDragFrame", name = "Party Frames", type = "unit", headerScale = "partyScale" },
 	{ id = "Roth_UIRaidDragFrame", name = "Raid Frames", type = "unit", headerScale = "raidScale" },
 	{ id = "Roth_UIBossFrame1", name = "Boss Frames", type = "unit" },
+	{ id = "Roth_UIBelt", name = "Potion Belt", type = "belt" },
 	{ id = "Roth_UIPlayerFrameCastBarDragFrame", name = "Player Cast Bar", type = "castbar" },
 	{ id = "Roth_UITargetFrameCastBarDragFrame", name = "Target Cast Bar", type = "castbar" },
 	{ id = "Roth_UIFocusFrameCastBarDragFrame", name = "Focus Cast Bar", type = "castbar" },
@@ -354,6 +355,13 @@ function EditMode:SetElementEnabled(entry, enabled)
 		end
 	elseif entry.type == "swing" and ns.cfg and ns.cfg.swingTimer then
 		ns.cfg.swingTimer.enabled = enabled
+	elseif entry.type == "belt" then
+		if ns.cfg and ns.cfg.belt then
+			ns.cfg.belt.show = enabled
+		end
+		if ns.Belt and ns.Belt.SetShown then
+			ns.Belt.SetShown(enabled)
+		end
 	end
 
 	local db = GetDB()
@@ -558,6 +566,29 @@ function EditMode:GetSpacingInfo(entry)
 						db.barWidth = v
 						db.barHeight = h
 					end
+				end
+			end,
+		}
+	elseif entry.type == "belt" then
+		local b = rawget(_G, "Roth_UIBelt")
+		local val = 26
+		if b and b.GetPoint then
+			local _, _, _, _, y = b:GetPoint(1)
+			val = math.floor((y or 26) + 0.5)
+		end
+		return {
+			label = "Vertical Spacing (Y):",
+			unit = "px",
+			min = 0,
+			max = 150,
+			step = 2,
+			value = val,
+			apply = function(v)
+				if b and not InCombatLockdown() then
+					local pt, relTo, relPt, x = b:GetPoint(1)
+					b:ClearAllPoints()
+					b:SetPoint(pt or "BOTTOMLEFT", relTo or UIParent, relPt or "BOTTOMRIGHT", x or -12, v)
+					EditMode:SaveFramePosition(b)
 				end
 			end,
 		}
@@ -1463,8 +1494,10 @@ function EditMode:SetActive(on, quiet, fromBlizzard)
 			Roth_UILock(group, true)
 		end
 	end
-	if ns.SwingTimer and ns.SwingTimer.SetEditing then
-		ns.SwingTimer.SetEditing(on)
+	for _, part in ipairs({ ns.Belt, ns.SwingTimer }) do
+		if part and part.SetEditing then
+			part.SetEditing(on)
+		end
 	end
 
 	-- Also ensure every frame in EDITABLE_FRAMES with a dragframe is unlocked/locked

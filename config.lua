@@ -89,6 +89,15 @@ cfg.buffCoverage = {
 	blessing = true, -- paladin: members without a blessing from you
 }
 
+-- Diablo potion belt above the bar: best health potion, healthstone, best
+-- mana potion, bandage (Key Bindings > AddOns > DiabolusUnits: Belt 1-4).
+cfg.belt = {
+	show = true,
+	icons = false, -- item icons inside the flasks (the liquid colour already says which is which)
+	x = -12, -- offset relative to health orb BOTTOMRIGHT
+	y = 26, -- above bottom edge / XP bar
+}
+
 ---------------------------------------------
 -- // Embeds // --
 ---------------------------------------------
