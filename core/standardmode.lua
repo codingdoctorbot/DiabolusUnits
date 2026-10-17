@@ -62,6 +62,41 @@ local function IsUserMoved(frameName)
 	return prof and prof.framePositions and prof.framePositions[frameName] ~= nil
 end
 
+-- Default scale per mode for the frames the layout sizes. Edit layout reads these
+-- through StandardMode:DefaultScale, so wheel-scaling starts from what is on screen.
+function StandardMode:DefaultScales(isPad)
+	local sm = cfg.standardMode or {}
+	if isPad then
+		return {
+			Roth_UIActionBarBackground = 1,
+			Roth_UIPlayerFrame = 1,
+			Roth_UIDemonFrame = 1,
+			Roth_UIAngelFrame = 1,
+		}
+	end
+	return {
+		Roth_UIActionBarBackground = sm.standardBarScale or 1.18,
+		Roth_UIPlayerFrame = sm.standardOrbScale or 1, -- both orbs: the power orb is its child
+		Roth_UIDemonFrame = sm.standardStatueScale or 1,
+		Roth_UIAngelFrame = sm.standardStatueScale or 1,
+	}
+end
+
+function StandardMode:DefaultScale(name)
+	if not (cfg.standardMode and cfg.standardMode.enabled) then
+		return nil
+	end
+	return self:DefaultScales(self:IsGamepad())[name]
+end
+
+-- BOTTOM-anchor a frame to UIParent with x/y given in UIParent units,
+-- whatever the frame's own (possibly inherited) scale is
+local function PlaceAtBottom(f, x, y)
+	local k = f:GetEffectiveScale() / UIParent:GetEffectiveScale()
+	f:ClearAllPoints()
+	f:SetPoint("BOTTOM", UIParent, "BOTTOM", x / k, y / k)
+end
+
 local function HideDividerPools(frame)
 	if not frame then
 		return
@@ -427,12 +462,13 @@ local function MeasureVisibleButtonsBounds(container, buttons, fallbackWidth)
 	return fallbackWidth, 0
 end
 
-local function SetupMicroDock(isPad, demonX)
+local function SetupMicroDock(isPad, demonX, statueScale)
 	local sm = cfg.standardMode
 	if not (sm and sm.integrateMicroMenu) then
 		return
 	end
-	local defaultX = (demonX or -330) - 235
+	-- wing tucks behind the demon statue; a smaller statue needs the wing closer in
+	local defaultX = (demonX or -330) - (235 - 160 * (1 - (statueScale or 1)))
 	if not microDock then
 		microDock = CreateDock("Roth_UIMicroDock", "Micro Menu Wing", defaultX, 0, 300, 114, false)
 	end
@@ -503,7 +539,7 @@ local function SetupMicroDock(isPad, demonX)
 			anchorHooked[mm] = true
 			hooksecurefunc(mm, "ResetMicroMenuPosition", function()
 				if not StandardMode:IsGamepad() and not InCombatLockdown() then
-					SetupMicroDock(false, demonX)
+					SetupMicroDock(false, demonX, statueScale)
 				end
 			end)
 		end
@@ -511,19 +547,19 @@ local function SetupMicroDock(isPad, demonX)
 			anchorHooked[container] = true
 			hooksecurefunc(container, "ApplySystemAnchor", function()
 				if not StandardMode:IsGamepad() and not InCombatLockdown() then
-					SetupMicroDock(false, demonX)
+					SetupMicroDock(false, demonX, statueScale)
 				end
 			end)
 		end
 	end
 end
 
-local function SetupBagDock(isPad, angelX)
+local function SetupBagDock(isPad, angelX, statueScale)
 	local sm = cfg.standardMode
 	if not (sm and sm.integrateBags) then
 		return
 	end
-	local defaultX = (angelX or 325) + 210
+	local defaultX = (angelX or 325) + (210 - 160 * (1 - (statueScale or 1)))
 	if not bagDock then
 		bagDock = CreateDock("Roth_UIBagDock", "Bag Bar Wing", defaultX, 0, 260, 114, true)
 	end
@@ -598,23 +634,54 @@ local function SetupBagDock(isPad, angelX)
 			anchorHooked[bb] = true
 			hooksecurefunc(bb, "ApplySystemAnchor", function()
 				if not StandardMode:IsGamepad() and not InCombatLockdown() then
-					SetupBagDock(false, angelX)
+					SetupBagDock(false, angelX, statueScale)
 				end
 			end)
 		end
 	end
 end
 
--- Anchor the Pet Action Bar (PetActionBar / PetActionBarFrame) to the top-left of the uppermost active action bar row
-local function SetupPetBar(isPad, topRowFirstBtn)
+-- First button of the uppermost action bar row that is fitted into the stone grid
+-- (read at call time, so toggling Bar 2 / Bar 3 is picked up)
+function StandardMode:GetTopRowFirstButton()
+	local mbLeft = _G.MultiBarBottomLeft
+	local mbRight = _G.MultiBarBottomRight
+	local leftShown = mbLeft and mbLeft:IsShown()
+	local rightShown = mbRight and mbRight:IsShown()
+	if rightShown then
+		return _G.MultiBarBottomRightButton1 or _G.ActionButton1
+	elseif leftShown then
+		return _G.MultiBarBottomLeftButton1 or _G.ActionButton1
+	end
+	return _G.ActionButton1
+end
+
+local inPetAnchor = false
+
+-- Anchor the Pet Action Bar to the top-left of the uppermost active action bar row.
+-- PetActionBar is protected, so this only runs out of combat; in combat it queues
+-- a full Apply for PLAYER_REGEN_ENABLED.
+function StandardMode:AnchorPetBar()
+	if inPetAnchor then
+		return
+	end
 	local sm = cfg.standardMode
-	if isPad or not (sm and sm.integratePetBar) or not topRowFirstBtn then
+	if not (sm and sm.enabled and sm.integratePetBar) or self:IsGamepad() then
 		return
 	end
 	local petBar = _G.PetActionBar or _G.PetActionBarFrame
 	if not petBar then
 		return
 	end
+	if InCombatLockdown() then
+		pendingApply = true
+		return
+	end
+	local topBtn = self:GetTopRowFirstButton()
+	if not topBtn then
+		return
+	end
+	inPetAnchor = true
 	HideDividerPools(petBar)
 	if petBar.BorderArt then
 		petBar.BorderArt:SetAlpha(0)
@@ -625,20 +692,65 @@ local function SetupPetBar(isPad, topRowFirstBtn)
 			StyleActionButtonForStoneSlot(pb)
 		end
 	end
-	local scale = 0.85
-	Blizz.SetScale(petBar, scale)
+	Blizz.SetScale(petBar, 0.85)
 	Blizz.ClearAllPoints(petBar)
-	Blizz.SetPoint(petBar, "BOTTOMLEFT", topRowFirstBtn, "TOPLEFT", 0, 6)
+	Blizz.SetPoint(petBar, "BOTTOMLEFT", topBtn, "TOPLEFT", 0, 6)
+	inPetAnchor = false
+end
 
-	if petBar.ApplySystemAnchor and not anchorHooked[petBar] then
-		anchorHooked[petBar] = true
-		hooksecurefunc(petBar, "ApplySystemAnchor", function()
-			if not StandardMode:IsGamepad() and not InCombatLockdown() and topRowFirstBtn then
-				Blizz.ClearAllPoints(petBar)
-				Blizz.SetPoint(petBar, "BOTTOMLEFT", topRowFirstBtn, "TOPLEFT", 0, 6)
-			end
-		end)
+-- Blizzard moves the pet bar back into its default bottom stack from
+-- EditModeManagerFrame:UpdateBottomActionBarPositions(), which calls
+-- bar:ClearAllPoints()/SetPoint() directly (not ApplySystemAnchor). It runs when
+-- action bars are toggled, the pet bar shows, the override bar changes and
+-- whenever the XP/rep tracking bars change shown state
+-- (StatusTrackingBarContainerMixin:UpdateShownState). Re-anchor after each pass.
+local function HookPetBarMovers()
+	local petBar = _G.PetActionBar or _G.PetActionBarFrame
+	local function reanchor()
+		if not inPetAnchor then
+			StandardMode:AnchorPetBar()
+		end
 	end
+	local emm = _G.EditModeManagerFrame
+	if emm and emm.UpdateBottomActionBarPositions and not anchorHooked[emm] then
+		anchorHooked[emm] = true
+		hooksecurefunc(emm, "UpdateBottomActionBarPositions", reanchor)
+	end
+	if petBar and not anchorHooked[petBar] then
+		anchorHooked[petBar] = true
+		if petBar.ApplySystemAnchor then
+			hooksecurefunc(petBar, "ApplySystemAnchor", reanchor)
+		end
+		petBar:HookScript("OnShow", reanchor)
+	end
+end
+
+-- Position the Potion Belt (skipped while the user has a saved position for it):
+--   - Gamepad mode: beside the Health Orb
+--   - Standard mode, beltAnchor = "bags" (default): on top of the bag wing (Roth_UIBagDock)
+--   - Standard mode, beltAnchor = "actionbar": top-left of the uppermost active action bar row
+-- The belt holds secure buttons, so it can only be moved out of combat.
+-- Returns true when it placed the belt.
+function StandardMode:AnchorBelt()
+	local sm = cfg.standardMode
+	local belt = _G.Roth_UIBelt
+	local pframe = _G.Roth_UIPlayerFrame
+	if not (sm and sm.enabled) or not belt or not pframe or IsUserMoved("Roth_UIBelt") then
+		return false
+	end
+	if InCombatLockdown() then
+		pendingApply = true
+		return true
+	end
+	belt:ClearAllPoints()
+	if self:IsGamepad() then
+		belt:SetPoint("BOTTOMLEFT", pframe, "BOTTOMRIGHT", cfg.belt.x or 6, cfg.belt.y or 24)
+	elseif sm.beltAnchor ~= "actionbar" and bagDock and bagDock:IsShown() then
+		belt:SetPoint("BOTTOM", bagDock, "TOP", 0, -2)
+	else
+		belt:SetPoint("BOTTOMLEFT", self:GetTopRowFirstButton() or pframe, "TOPLEFT", -4, 8)
+	end
+	return true
 end
 
 -- Apply mode-appropriate layout (always runs out of combat)
@@ -654,11 +766,12 @@ function StandardMode:Apply()
 
 	local isPad = self:IsGamepad()
 	local sm = cfg.standardMode
-	local orbX = isPad and (sm.padOrbX or 325) or (sm.standardOrbX or 300)
-	local demonX = -(orbX + 30)
-	local angelX = orbX + 25
-	local bottomW = isPad and 670 or 780
-	local barScale = isPad and 1.0 or (sm.standardBarScale or 1.18)
+	local orbX = isPad and (sm.padOrbX or 325) or (sm.standardOrbX or 325)
+	local statueScale = isPad and 1 or (sm.standardStatueScale or 1)
+	-- statue offsets from the orb centre shrink with the statue art
+	local demonX = -(orbX + 30 * statueScale)
+	local angelX = orbX + 25 * statueScale
+	local bottomW = isPad and 670 or (2 * orbX + 180)
 
 	local pframe = _G.Roth_UIPlayerFrame
 	local powerOrb = _G.Roth_UIPowerOrb
@@ -667,25 +780,28 @@ function StandardMode:Apply()
 	local bottomLine = _G.Roth_UIBottomLine
 	local barBg = _G.Roth_UIActionBarBackground
 
-	if barBg then
-		barBg:SetScale(barScale)
+	-- Mode default scales (orbs, statues, stone bar); a scale saved in the edit layout wins
+	local gs = (ns.EditMode and ns.EditMode.GetGlobalScale and ns.EditMode:GetGlobalScale()) or 1
+	for name in pairs(self:DefaultScales(isPad)) do
+		local f = _G[name]
+		if f then
+			local s = (ns.EditMode and ns.EditMode.GetScale and ns.EditMode:GetScale(f)) or self:DefaultScale(name)
+			f:SetScale(s * gs)
+		end
 	end
 
+	local orbY = cfg.units.player.pos.y or 10
 	if pframe and not IsUserMoved("Roth_UIPlayerFrame") then
-		pframe:ClearAllPoints()
-		pframe:SetPoint("BOTTOM", UIParent, "BOTTOM", -orbX, cfg.units.player.pos.y or 10)
+		PlaceAtBottom(pframe, -orbX, orbY)
 	end
 	if powerOrb and not IsUserMoved("Roth_UIPowerOrb") then
-		powerOrb:ClearAllPoints()
-		powerOrb:SetPoint("BOTTOM", UIParent, "BOTTOM", orbX, cfg.units.player.pos.y or 10)
+		PlaceAtBottom(powerOrb, orbX, orbY)
 	end
 	if demon and not IsUserMoved("Roth_UIDemonFrame") then
-		demon:ClearAllPoints()
-		demon:SetPoint("BOTTOM", UIParent, "BOTTOM", demonX, cfg.units.player.art.demon.pos.y or 6)
+		PlaceAtBottom(demon, demonX, cfg.units.player.art.demon.pos.y or 6)
 	end
 	if angel and not IsUserMoved("Roth_UIAngelFrame") then
-		angel:ClearAllPoints()
-		angel:SetPoint("BOTTOM", UIParent, "BOTTOM", angelX, cfg.units.player.art.angel.pos.y or 6)
+		PlaceAtBottom(angel, angelX, cfg.units.player.art.angel.pos.y or 6)
 	end
 	if bottomLine and not IsUserMoved("Roth_UIBottomLine") then
 		bottomLine:SetSize(bottomW, 112)
@@ -699,7 +815,6 @@ function StandardMode:Apply()
 		ns.bars.UpdateStatusBarLayout()
 	end
 
-	local topRowFirstBtn = _G.ActionButton1
 	if not isPad then
 		HideBlizzardBarArt()
 		HookActionBarForStandardMode(_G.MainActionBar)
@@ -710,41 +825,23 @@ function StandardMode:Apply()
 			FitActionBarPaging(barBg)
 			local mbLeft = _G.MultiBarBottomLeft
 			local mbRight = _G.MultiBarBottomRight
+			-- Bar 2 = MultiBarBottomLeft, Bar 3 = MultiBarBottomRight; Bar 3 alone takes row 2
 			if mbLeft and mbLeft:IsShown() then
 				FitActionBarRow("MultiBarBottomLeftButton", 54, barBg)
-				topRowFirstBtn = _G.MultiBarBottomLeftButton1 or topRowFirstBtn
 				if mbRight and mbRight:IsShown() then
 					FitActionBarRow("MultiBarBottomRightButton", 91, barBg)
-					topRowFirstBtn = _G.MultiBarBottomRightButton1 or topRowFirstBtn
 				end
 			elseif mbRight and mbRight:IsShown() then
 				FitActionBarRow("MultiBarBottomRightButton", 54, barBg)
-				topRowFirstBtn = _G.MultiBarBottomRightButton1 or topRowFirstBtn
 			end
 		end
 	end
 
-	SetupMicroDock(isPad, demonX)
-	SetupBagDock(isPad, angelX)
-	SetupPetBar(isPad, topRowFirstBtn)
-
-	-- Position Potion Belt:
-	--   - Gamepad mode: beside Health Orb
-	--   - Standard mode (default beltAnchor = "bags"): directly on top of the Right Bag Bar Wing (Roth_UIBagDock)
-	--   - Standard mode (beltAnchor = "actionbar"): top-left of the uppermost activated action bar row
-	local belt = _G.Roth_UIBelt
-	if belt and not IsUserMoved("Roth_UIBelt") and pframe then
-		belt:ClearAllPoints()
-		if isPad then
-			belt:SetPoint("BOTTOMLEFT", pframe, "BOTTOMRIGHT", cfg.belt.x or 6, cfg.belt.y or 24)
-		elseif sm.beltAnchor ~= "actionbar" and bagDock then
-			belt:SetPoint("BOTTOM", bagDock, "TOP", 0, -2)
-		elseif topRowFirstBtn then
-			belt:SetPoint("BOTTOMLEFT", topRowFirstBtn, "TOPLEFT", -4, 8)
-		else
-			belt:SetPoint("BOTTOM", pframe, "TOP", 0, -6)
-		end
-	end
+	SetupMicroDock(isPad, demonX, statueScale)
+	SetupBagDock(isPad, angelX, statueScale)
+	HookPetBarMovers()
+	self:AnchorPetBar()
+	self:AnchorBelt()
 end
 
 local ev = CreateFrame("Frame")
@@ -779,19 +876,20 @@ if EventRegistry and EventRegistry.RegisterCallback then
 	end, StandardMode)
 end
 
-if _G.MultiBarBottomLeft then
-	_G.MultiBarBottomLeft:HookScript("OnShow", function()
-		StandardMode:Apply()
-	end)
-	_G.MultiBarBottomLeft:HookScript("OnHide", function()
+-- Toggling Bar 2 / Bar 3 changes which row is on top. Apply once on the next
+-- frame, after Blizzard's own layout pass for the toggle has finished.
+local applyQueued = false
+local function QueueApply()
+	if applyQueued then
+		return
+	end
+	applyQueued = true
+	C_Timer.After(0, function()
+		applyQueued = false
 		StandardMode:Apply()
 	end)
 end
-if _G.MultiBarBottomRight then
-	_G.MultiBarBottomRight:HookScript("OnShow", function()
-		StandardMode:Apply()
-	end)
-	_G.MultiBarBottomRight:HookScript("OnHide", function()
-		StandardMode:Apply()
-	end)
+for _, bar in ipairs({ _G.MultiBarBottomLeft, _G.MultiBarBottomRight }) do
+	bar:HookScript("OnShow", QueueApply)
+	bar:HookScript("OnHide", QueueApply)
 end

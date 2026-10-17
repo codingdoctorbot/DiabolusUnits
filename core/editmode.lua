@@ -136,12 +136,10 @@ end
 
 function EditMode:ApplyGlobalScale(scale)
 	scale = scale or self:GetGlobalScale()
-	local db = GetDB()
 	for _, entry in ipairs(EDITABLE_FRAMES) do
 		local f = rawget(_G, entry.id)
 		if f and f.SetScale and not InCombatLockdown() and not entry.headerScale then
-			local indScale = (db and db.frameScales and db.frameScales[entry.id]) or 1.0
-			f:SetScale(indScale * scale)
+			f:SetScale(self:GetScale(f) * scale)
 		end
 	end
 	self:ApplyHeaderScales()
@@ -180,7 +178,9 @@ function EditMode:GetScale(frame)
 	if entry and entry.headerScale then
 		return HEADER_DEFAULT[entry.headerScale] or 1.0
 	end
-	return 1.0
+	-- orbs, statues and stone bar are sized by the standard/gamepad layout
+	local def = name and ns.StandardMode and ns.StandardMode:DefaultScale(name)
+	return def or 1.0
 end
 
 function EditMode:SetScale(frame, scale)
@@ -720,7 +720,16 @@ function EditMode:ResetAllToDefault()
 	for _, entry in ipairs(EDITABLE_FRAMES) do
 		local f = rawget(_G, entry.id)
 		if f then
-			self:SetScale(f, entry.headerScale and HEADER_DEFAULT[entry.headerScale] or 1.0)
+			local layoutDefault = not entry.headerScale and ns.StandardMode and ns.StandardMode:DefaultScale(entry.id)
+			if layoutDefault then
+				-- orbs, statues, stone bar: show the layout default without saving it,
+				-- so a later change of the default still applies
+				if not InCombatLockdown() then
+					f:SetScale(layoutDefault)
+				end
+			else
+				self:SetScale(f, entry.headerScale and HEADER_DEFAULT[entry.headerScale] or 1.0)
+			end
 			if f.defaultPosition then
 				f:ClearAllPoints()
 				local pos = f.defaultPosition
@@ -1563,6 +1572,17 @@ local function RestoreSavedLayout()
 	if ns.func and ns.func.ApplyPixelPerfectScale then
 		ns.func.ApplyPixelPerfectScale()
 	end
+
+	-- One-time cleanup: "Reset UI" used to save a scale of 1 for every frame, which
+	-- would now pin the orbs, statues and stone bar below their layout default scale
+	if not db.layoutScaleDefaults and db.frameScales then
+		for _, name in ipairs({ "Roth_UIActionBarBackground", "Roth_UIPlayerFrame", "Roth_UIDemonFrame", "Roth_UIAngelFrame" }) do
+			if db.frameScales[name] == 1 then
+				db.frameScales[name] = nil
+			end
+		end
+	end
+	db.layoutScaleDefaults = true
 
 	-- Restore global scale & individual scales
 	local gs = EditMode:GetGlobalScale()

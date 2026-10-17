@@ -82,5 +82,18 @@ units\party.lua
 units\raid.lua
 units\nameplates.lua
 units\player.lua
+core\beltdata.lua
 core\belt.lua
 core\standardmode.lua
+
+# Settings window (framework ported from PulseHaptics UI/Panel) and minimap button
+settings\Settings.lua
+settings\Theme.lua
+settings\Popup.lua
+settings\Rows.lua
+settings\Sidebar.lua
+settings\Gamepad.lua
+settings\Content.lua
+settings\Spec.lua
+settings\Panel.lua
+settings\Minimap.lua

@@ -148,19 +148,16 @@ local function SlashCmd(cmd)
 		if ns.TaintCheck then
 			ns.TaintCheck:Run()
 		end
+	elseif cmd == "food" then
+		if ns.Belt and ns.Belt.DebugFood then
+			ns.Belt.DebugFood()
+		end
 	elseif cmd == "auras" then
 		if ns.TaintCheck then
 			ns.TaintCheck:ProbeAuras("target")
 		end
-	elseif cmd:match("config") then
-		if InCombatLockdown() then
-			return
-		end
-		if ns.panel:IsShown() then
-			ns.panel:Hide()
-		else
-			ns.panel:Show()
-		end
+	elseif cmd == "" or cmd:match("config") or cmd == "settings" then
+		ns.UI.Panel.Toggle()
 	elseif cmd:match("resettemplates") then
 		ns.db.resetTemplates()
 	elseif cmd == "edit" or cmd:match("^unlock") then
@@ -282,7 +279,7 @@ local function SlashCmd(cmd)
 		)
 		print("|c00FF3300/roth lockall|r, to finish editing and lock frames")
 		print("|c00FF3300/roth resetall|r, to reset all frames to default layout")
-		print("|c00FF3300/roth config|r, to open the orb configuration panel")
+		print("|c00FF3300/roth|r or |c00FF3300/roth config|r, to open the settings window")
 		print("|c00FF3300/roth resettemplates|r, to reset orb templates")
 		print("|c00FF3300/roth scale <number>|r, to scale all unit frames and art globally")
 		print("|c00FF3300/roth autoscale [on|off]|r, to toggle pixel-perfect (768/h) UI scaling")
@@ -305,7 +302,7 @@ if not SlashCmdList["roth"] then
 		print(
 			"|c00FF3300DiabolusUnits v"
 				.. version
-				.. " loaded. Type |r|c00FF3300/diabolus edit|r|c00FF3300 to customize frames or |r|c00FF3300/diabolus|r|c00FF3300 for commands.|r"
+				.. " loaded. Type |r|c00FF3300/diabolus edit|r|c00FF3300 to customize frames or |r|c00FF3300/diabolus|r|c00FF3300 for settings.|r"
 		)
 		_G.Roth_UI_loadMessagePrinted = true
 	end

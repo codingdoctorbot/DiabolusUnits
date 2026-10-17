@@ -443,8 +443,8 @@ function Roth_UI:LoadConfig()
 		},
 	}
 
-	LibStub("AceConfig-3.0"):RegisterOptionsTable("Roth_Config", options, { "roth_config" })
-	LibStub("AceConfigDialog-3.0"):AddToBlizOptions("Roth_Config", "DiabolusUnits")
+	-- The AceConfig pages (Esc > Options > AddOns) are replaced by the DiabolusUnits settings
+	-- window (settings/); `options` is still built so AddConfig callers keep working.
 	order = 1
 	Roth_UI.cfg.font = LSM:Fetch("font", Roth_UI.configDB.profile.chatFont)
 end

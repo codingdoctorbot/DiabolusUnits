@@ -89,11 +89,12 @@ cfg.buffCoverage = {
 	blessing = true, -- paladin: members without a blessing from you
 }
 
--- Diablo potion belt above the bar: best health potion, healthstone, best
--- mana potion, bandage (Key Bindings > AddOns > DiabolusUnits: Belt 1-4).
+-- Diablo potion belt: best health potion, healthstone, mana potion (rage / Thistle Tea
+-- for warriors / rogues), buff food, bandage (Key Bindings > AddOns > DiabolusUnits: Belt 1-5).
 cfg.belt = {
 	show = true,
-	icons = false, -- item icons inside the flasks (the liquid colour already says which is which)
+	icons = true, -- item icons and cooldown swipe inside the flasks
+	foodWarnMinutes = 10, -- food flask pulses when Well Fed has less than this left (or is missing)
 	x = 6, -- offset relative to health orb BOTTOMRIGHT (clear of the orb rim)
 	y = 24, -- above bottom stone ledge / XP bar
 }
@@ -101,7 +102,8 @@ cfg.belt = {
 -- Seamless Gamepad <-> Standard (Keyboard/Mouse) Mode adaptation:
 --   * Gamepad Mode: Orbs sit wide (±325) around the native Crossbar, Potion Belt sits beside Health Orb.
 --   * Standard Mode:
---       - 12-slot Diablo stone bar (bar1/bar2/bar3) scaled to 1.18x at bottom; Orbs at ±300, Statues at -330/+325.
+--       - 12-slot Diablo stone bar (bar1/bar2/bar3) scaled to 1.30x at bottom; orbs and statues at 0.85x,
+--         orbs at ±325 with the statues just outside them.
 --       - ActionButton1..12 & MultiBars fitted into the 12 stone slots via ns.Blizz (C base methods, zero taint).
 --       - ActionBarPageNumber (+/- paging arrows) placed on the carved left stone shoulder of bar1.tga.
 --       - Micro Menu docked on the left stone wing (Roth_UIMicroDock) and Bags on the right stone wing (Roth_UIBagDock).
@@ -121,8 +123,10 @@ cfg.standardMode = {
 	beltAnchor = "bags", -- "bags" = above Roth_UIBagDock in Standard Mode; "actionbar" = top-left of top actionbar
 	dockFadeAlpha = 0.85, -- idle alpha for Micro Menu & Bag buttons (1.0 on mouseover)
 	padOrbX = 325, -- orb X offset in Gamepad mode (around crossbar)
-	standardOrbX = 300, -- orb X offset in Standard mode (hugging the 1.18x 12-slot stone bar)
-	standardBarScale = 1.18, -- scale of the 12-slot stone bar & action buttons in Standard mode
+	standardOrbX = 325, -- orb X offset in Standard mode (hugging the 12-slot stone bar)
+	standardBarScale = 1.30, -- scale of the 12-slot stone bar & action buttons in Standard mode
+	standardOrbScale = 0.85, -- default scale of both orbs in Standard mode (edit layout scale wins)
+	standardStatueScale = 0.85, -- default scale of the demon & angel statues in Standard mode
 }
 
 ---------------------------------------------

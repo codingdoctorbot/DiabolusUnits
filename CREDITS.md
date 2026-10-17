@@ -65,3 +65,15 @@ Code that was copied keeps a pointer to its source in the file's header comment.
 chat keyboard's word prediction and dictionaries, and without the parts it
 took from ConsolePort (Artistic License 2.0). Roth's changes are in
 `embeds/EasyController/_roth_pre.lua` and `_roth_post.lua`.
+
+## Potion belt item rankings
+
+The ranked item lists in `core/beltdata.lua` (health and mana potions,
+healthstones, bandages, food, battleground items) follow **AutoPotion** by
+**ollidiemaus** (version 3.17.2, its `Core/*/Forever.lua` lists). AutoPotion
+is "all rights reserved"; only item IDs and their order (game data) were
+taken, the belt code is DiabolusUnits' own. Licensing to be settled before
+any public release.
+
+The settings window framework (`settings/`) is ported from **PulseHaptics**
+(same author as DiabolusUnits).

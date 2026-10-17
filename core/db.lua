@@ -278,7 +278,7 @@
     FillMissing(Roth_UI_DB_CHAR, db:GetOrbDefaults())
     db.char = Roth_UI_DB_CHAR
     if db.char.reload then
-      ns.panel:Show()
+      if ns.UI and ns.UI.Panel then ns.UI.Panel.Open("health") end
       db.char.reload = false
     end
     --update the orb view

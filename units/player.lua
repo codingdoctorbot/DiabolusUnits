@@ -42,7 +42,7 @@ end
 --actionbar background (compact zork bar1/bar2/bar3 slot grid in Standard Mode)
 local createActionBarBackground = function(self)
 	local cfg = self.cfg.art.actionbarbackground
-	local f = CreateFrame("Frame", "Roth_UIActionBarBackground", self)
+	local f = CreateFrame("Frame", "Roth_UIActionBarBackground", UIParent)
 	f:SetFrameStrata("LOW")
 	f:SetFrameLevel(0)
 	f:SetSize(cfg.width or 512, cfg.height or 256)
@@ -78,7 +78,16 @@ local createActionBarBackground = function(self)
 	t:SetAllPoints(f)
 	f.texture = t
 
+	-- The action buttons are anchored to this frame, so in combat it is
+	-- protected by anchoring: Show/Hide here is refused ("Roth_UIActionBarBackground:Show()
+	-- blocked"). Defer the whole update to PLAYER_REGEN_ENABLED instead.
+	local pendingTexture = false
 	local setupBarTexture = function()
+		if InCombatLockdown() then
+			pendingTexture = true
+			return
+		end
+		pendingTexture = false
 		local isPad = (ns.StandardMode and ns.StandardMode.IsGamepad and ns.StandardMode:IsGamepad())
 			or (
 				C_InputInterfaceStyle
@@ -142,7 +151,14 @@ local createActionBarBackground = function(self)
 	f:RegisterEvent("UNIT_EXITED_VEHICLE")
 	f:RegisterEvent("UNIT_INVENTORY_CHANGED")
 	f:RegisterEvent("INPUT_DEVICE_INTERFACE_TRANSITION")
+	f:RegisterEvent("PLAYER_REGEN_ENABLED")
 	f:SetScript("OnEvent", function(_, event, evUnit)
+		if event == "PLAYER_REGEN_ENABLED" then
+			if pendingTexture then
+				setupBarTexture()
+			end
+			return
+		end
 		if evUnit and Secrets.IsSecret(evUnit) then
 			return
 		end
@@ -167,7 +183,7 @@ local createAngelFrame = function(self)
 	if not self.cfg.art.angel.show then
 		return
 	end
-	local f = CreateFrame("Frame", "Roth_UIAngelFrame", self)
+	local f = CreateFrame("Frame", "Roth_UIAngelFrame", UIParent)
 	f:SetSize(320, 160)
 	f:SetFrameStrata("MEDIUM")
 	f:SetFrameLevel(0)
@@ -190,7 +206,7 @@ local createDemonFrame = function(self)
 	if not self.cfg.art.demon.show then
 		return
 	end
-	local f = CreateFrame("Frame", "Roth_UIDemonFrame", self)
+	local f = CreateFrame("Frame", "Roth_UIDemonFrame", UIParent)
 	f:SetSize(320, 160)
 	f:SetFrameStrata("MEDIUM")
 	f:SetFrameLevel(0)
@@ -214,7 +230,7 @@ local createBottomLine = function(self)
 	if not cfg.show then
 		return
 	end
-	local f = CreateFrame("Frame", "Roth_UIBottomLine", self)
+	local f = CreateFrame("Frame", "Roth_UIBottomLine", UIParent)
 	-- Keep on LOW strata level 1 so XP/Rep bars (LOW level 5) sit visibly inside the stone trough
 	f:SetFrameStrata("LOW")
 	f:SetFrameLevel(1)
