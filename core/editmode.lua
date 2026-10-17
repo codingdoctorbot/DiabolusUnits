@@ -1589,6 +1589,16 @@ local function RestoreSavedLayout()
 		end
 	end
 
+	-- Ensure no editable frame is hijacked by WoW's layout-local.txt
+	if not InCombatLockdown() then
+		for _, entry in ipairs(EDITABLE_FRAMES) do
+			local f = rawget(_G, entry.id)
+			if f and f.SetUserPlaced then
+				f:SetUserPlaced(false)
+			end
+		end
+	end
+
 	-- Restore frame positions
 	if db.framePositions and not InCombatLockdown() then
 		for name, pos in pairs(db.framePositions) do
@@ -1643,6 +1653,11 @@ local function RestoreSavedLayout()
 		and ns.cfg.units.player.art.bottomline
 	then
 		ns.cfg.units.player.art.bottomline.pos.y = db.bottomLineY
+	end
+
+	-- Re-apply Standard/Gamepad mode layout after restoring saved overrides
+	if ns.StandardMode and ns.StandardMode.Apply then
+		ns.StandardMode:Apply()
 	end
 end
 

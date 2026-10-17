@@ -992,6 +992,9 @@ func.applyDragFunctionality = function(f, special)
 	df:SetScript("OnDragStop", function(self)
 		local parent = self:GetParent()
 		parent:StopMovingOrSizing()
+		if parent.SetUserPlaced then
+			parent:SetUserPlaced(false)
+		end
 		if ns.EditMode and ns.EditMode.SaveFramePosition then
 			ns.EditMode:SaveFramePosition(parent)
 		end
@@ -1025,7 +1028,7 @@ func.applyDragFunctionality = function(f, special)
 		f:SetMovable(false)
 	else
 		f:SetMovable(true)
-		f:SetUserPlaced(true)
+		f:SetUserPlaced(false)
 		if not cfg.framesLocked then
 			f.dragframe:Show()
 			f.dragframe:EnableMouse(true)
@@ -1058,7 +1061,7 @@ func.simpleDragFunc = function(f)
 	f:SetHitRectInsets(-15, -15, -15, -15)
 	f:SetClampedToScreen(true)
 	f:SetMovable(true)
-	f:SetUserPlaced(true)
+	f:SetUserPlaced(false)
 
 	f:EnableMouse(true)
 
@@ -1079,6 +1082,9 @@ func.simpleDragFunc = function(f)
 	end)
 	f:SetScript("OnDragStop", function(s)
 		s:StopMovingOrSizing()
+		if s.SetUserPlaced then
+			s:SetUserPlaced(false)
+		end
 	end)
 end
 
