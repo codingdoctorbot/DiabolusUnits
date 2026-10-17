@@ -108,9 +108,10 @@ cfg.standardMode = {
 	integrateActionBars = true, -- scale & fit ActionButton1..12 / MultiBars into bar1/bar2/bar3 slots
 	integrateMicroMenu = true, -- dock Game Menu micro buttons on the left outer stone wing
 	integrateBags = true, -- dock Bag slots + Backpack on the right outer stone wing
-	dockFadeAlpha = 0.45, -- idle alpha for Micro Menu & Bag docks (1.0 on mouseover)
+	dockFadeAlpha = 0.85, -- idle alpha for Micro Menu & Bag buttons (1.0 on mouseover)
 	padOrbX = 325, -- orb X offset in Gamepad mode (around crossbar)
-	standardOrbX = 265, -- orb X offset in Standard mode (hugging the 12-slot bar)
+	standardOrbX = 300, -- orb X offset in Standard mode (hugging the 1.18x 12-slot stone bar)
+	standardBarScale = 1.18, -- scale of the 12-slot stone bar & action buttons in Standard mode
 }
 
 ---------------------------------------------

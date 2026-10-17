@@ -55,19 +55,20 @@ local function IsUserMoved(frameName)
 	return prof and prof.framePositions and prof.framePositions[frameName] ~= nil
 end
 
+local function IsUserScaled(frameName)
+	local prof = ns.LayoutProfile and ns.LayoutProfile()
+	return prof and prof.frameScales and prof.frameScales[frameName] ~= nil
+end
+
 -- Safely hide Blizzard's decorative actionbar art, EndCaps (Left/Right), borders, dividers & duplicate status bars
 local function HideBlizzardBarArt()
-	-- 1. WoW Forever (Camelot) MainActionBar EndCaps, BorderArt, PageNumber, and Dividers
+	-- 1. WoW Forever (Camelot) MainActionBar EndCaps, BorderArt, and Dividers
 	local mab = _G.MainActionBar
 	if mab then
 		mab.hideBarArt = true
 		if mab.BorderArt then
 			mab.BorderArt:SetAlpha(0)
 			mab.BorderArt:Hide()
-		end
-		if mab.ActionBarPageNumber then
-			mab.ActionBarPageNumber:SetAlpha(0)
-			mab.ActionBarPageNumber:Hide()
 		end
 		if mab.EndCaps then
 			if mab.EndCaps.LeftEndCap then
@@ -118,7 +119,7 @@ local function HideBlizzardBarArt()
 		end
 	end
 
-	-- 2. Legacy / classic named textures and page buttons
+	-- 2. Legacy / classic named textures and duplicate status bars
 	local artTextures = {
 		"MainMenuBarLeftEndCap",
 		"MainMenuBarRightEndCap",
@@ -159,10 +160,7 @@ local function HideBlizzardBarArt()
 		end
 	end
 
-	local pageFrames = {
-		"ActionBarUpButton",
-		"ActionBarDownButton",
-		"MainMenuBarPageNumber",
+	local hiddenFrames = {
 		"MainMenuBarPerformanceBar",
 		"MainMenuBarPerformanceBarFrame",
 		"MainMenuBarPerformanceBarFrameButton",
@@ -170,7 +168,7 @@ local function HideBlizzardBarArt()
 		"MainMenuExpBar",
 		"ReputationWatchBar",
 	}
-	for _, name in ipairs(pageFrames) do
+	for _, name in ipairs(hiddenFrames) do
 		local f = _G[name]
 		if f then
 			f:SetAlpha(0)
@@ -257,6 +255,28 @@ local function FitActionBarRow(prefix, rowBottomY, barFrame)
 	end
 end
 
+-- Position ActionBarPageNumber (+/- arrows and page number) on the carved left stone shoulder of bar1.tga
+local function SetupActionBarPaging(barFrame)
+	if not barFrame then
+		return
+	end
+	local mab = _G.MainActionBar
+	local pageFrame = mab and mab.ActionBarPageNumber
+	if pageFrame then
+		pageFrame:SetAlpha(0.92)
+		pageFrame:Show()
+		local barEff = barFrame:GetEffectiveScale() or 1
+		local parent = pageFrame:GetParent()
+		local parentEff = (parent and parent:GetEffectiveScale()) or barEff
+		local unitScale = 0.80
+		local pageScale = unitScale * (barEff / parentEff)
+		Blizz.SetScale(pageFrame, pageScale)
+		Blizz.ClearAllPoints(pageFrame)
+		-- Place on the carved stone shoulder just left of ActionButton1 (slot 1 left edge is -188)
+		Blizz.SetPoint(pageFrame, "CENTER", barFrame, "BOTTOM", -196.5 / unitScale, 36.5 / unitScale)
+	end
+end
+
 local function HookActionBarForStandardMode(bar)
 	if not bar or bar._diabolusLayoutHooked then
 		return
@@ -278,7 +298,7 @@ end
 -- Create a sculpted Diablo stone wing dock (using d3_wing_dock.tga) that tucks behind the Demon/Angel statue
 local function CreateDock(name, labelText, defaultX, defaultY, artWidth, artHeight, mirrorUV)
 	local dock = CreateFrame("Frame", name, UIParent)
-	dock:SetSize(artWidth, 54)
+	dock:SetSize(artWidth, 56)
 	dock:SetFrameStrata("LOW")
 	dock:SetFrameLevel(0)
 	dock:SetPoint("BOTTOM", UIParent, "BOTTOM", defaultX, defaultY)
@@ -342,14 +362,43 @@ local function WireDockHover(dock, targetFrame, buttons)
 	end
 end
 
-local function SetupMicroDock(isPad)
+-- Compute the horizontal offset needed so that the actual visible buttons' bounding box
+-- sits dead-center inside container
+local function ComputeVisibleButtonsCenterBias(container, buttons)
+	local cLeft = container.GetLeft and container:GetLeft()
+	local cRight = container.GetRight and container:GetRight()
+	if not cLeft or not cRight then
+		return 0
+	end
+	local cMid = 0.5 * (cLeft + cRight)
+	local minL, maxR
+	for _, btn in ipairs(buttons) do
+		if btn and btn.IsShown and btn:IsShown() and (not btn.GetAlpha or btn:GetAlpha() > 0.05) then
+			local l = btn.GetLeft and btn:GetLeft()
+			local r = btn.GetRight and btn:GetRight()
+			if l and r and (r - l) > 2 then
+				if not minL or l < minL then
+					minL = l
+				end
+				if not maxR or r > maxR then
+					maxR = r
+				end
+			end
+		end
+	end
+	if minL and maxR then
+		return cMid - 0.5 * (minL + maxR)
+	end
+	return 0
+end
+
+local function SetupMicroDock(isPad, demonX)
 	local sm = cfg.standardMode
 	if not (sm and sm.integrateMicroMenu) then
 		return
 	end
 	if not microDock then
-		-- Docked on the left outer wing (tucked behind the Demon statue at x = -295)
-		microDock = CreateDock("Roth_UIMicroDock", "Micro Menu Wing", -480, 0, 300, 114, false)
+		microDock = CreateDock("Roth_UIMicroDock", "Micro Menu Wing", -535, 0, 290, 114, false)
 	end
 	if isPad then
 		microDock:Hide()
@@ -386,31 +435,43 @@ local function SetupMicroDock(isPad)
 	-- In WoW Forever (Camelot), MicroMenuContainer / MicroMenu is a GridLayoutFrame
 	local container = mmc or mm
 	if container then
-		local scale = 0.70
+		local scale = 0.68
 		Blizz.SetScale(container, scale)
-		Blizz.ClearAllPoints(container)
-		-- Center inside the recessed bay of d3_wing_dock (y = 31 in screen units = 31 / scale in container units)
-		Blizz.SetPoint(container, "CENTER", microDock, "BOTTOM", -4 / scale, 31 / scale)
 		if mm and mm ~= container then
 			Blizz.SetScale(mm, 1.0)
 			Blizz.ClearAllPoints(mm)
 			Blizz.SetPoint(mm, "CENTER", container, "CENTER", 0, 0)
 		end
+
 		local cw = ((mm and mm:GetWidth()) or container:GetWidth() or 275) * scale
-		-- Recessed bay is 68.75% of the wing texture width
-		local wingW = math.max(290, cw / 0.68)
+		-- Recessed bay is 68.75% of d3_wing_dock.tga width (x = 80..432 of 512px)
+		local wingW = math.max(285, (cw + 14) / 0.6875)
 		microDock:SetSize(wingW, 56)
 		if microDock.art then
 			microDock.art:SetSize(wingW, 114)
 		end
+
+		-- Position microDock so the right edge of its recessed bay (+0.34375 * wingW) clears the Demon statue's
+		-- left foot (demonX - 92), while the right stone shoulder (0.15625 * wingW = ~45px) tucks behind the Demon
+		local dockX = (demonX or -330) - 92 - math.floor(0.34375 * wingW)
+		microDock.defaultPosition.x = dockX
+		if not IsUserMoved("Roth_UIMicroDock") then
+			microDock:ClearAllPoints()
+			microDock:SetPoint("BOTTOM", UIParent, "BOTTOM", dockX, 0)
+		end
+
+		local biasX = ComputeVisibleButtonsCenterBias(container, activeBtns)
+		Blizz.ClearAllPoints(container)
+		Blizz.SetPoint(container, "CENTER", microDock, "BOTTOM", biasX, 31 / scale)
 		WireDockHover(microDock, container, activeBtns)
 
 		if mm and not mm._diabolusDockHooked and mm.ResetMicroMenuPosition then
 			mm._diabolusDockHooked = true
 			hooksecurefunc(mm, "ResetMicroMenuPosition", function()
 				if not StandardMode:IsGamepad() and not InCombatLockdown() and microDock then
+					local b = ComputeVisibleButtonsCenterBias(container, activeBtns)
 					Blizz.ClearAllPoints(container)
-					Blizz.SetPoint(container, "CENTER", microDock, "BOTTOM", -4 / scale, 31 / scale)
+					Blizz.SetPoint(container, "CENTER", microDock, "BOTTOM", b, 31 / scale)
 				end
 			end)
 		end
@@ -418,22 +479,22 @@ local function SetupMicroDock(isPad)
 			container._diabolusAnchorHooked = true
 			hooksecurefunc(container, "ApplySystemAnchor", function()
 				if not StandardMode:IsGamepad() and not InCombatLockdown() and microDock then
+					local b = ComputeVisibleButtonsCenterBias(container, activeBtns)
 					Blizz.ClearAllPoints(container)
-					Blizz.SetPoint(container, "CENTER", microDock, "BOTTOM", -4 / scale, 31 / scale)
+					Blizz.SetPoint(container, "CENTER", microDock, "BOTTOM", b, 31 / scale)
 				end
 			end)
 		end
 	end
 end
 
-local function SetupBagDock(isPad)
+local function SetupBagDock(isPad, angelX)
 	local sm = cfg.standardMode
 	if not (sm and sm.integrateBags) then
 		return
 	end
 	if not bagDock then
-		-- Docked on the right outer wing (tucked behind the Angel statue at x = +290)
-		bagDock = CreateDock("Roth_UIBagDock", "Bag Bar Wing", 455, 0, 250, 114, true)
+		bagDock = CreateDock("Roth_UIBagDock", "Bag Bar Wing", 505, 0, 240, 114, true)
 	end
 	if isPad then
 		bagDock:Hide()
@@ -441,10 +502,16 @@ local function SetupBagDock(isPad)
 	end
 	bagDock:Show()
 
+	-- Hide KeyRingButton when player has no keys so it doesn't add empty padding on the left of the Bag Bar
+	if _G.KeyRingButton and (not _G.HasKey or not _G.HasKey()) then
+		_G.KeyRingButton:SetAlpha(0)
+		_G.KeyRingButton:Hide()
+	end
+
 	local activeBtns = {}
 	for _, name in ipairs(BAG_LIST) do
 		local btn = _G[name]
-		if btn and (name ~= "KeyRingButton" or btn:IsShown()) then
+		if btn and btn:IsShown() and (not btn.GetAlpha or btn:GetAlpha() > 0.05) then
 			Blizz.SetScale(btn, 1.0)
 			activeBtns[#activeBtns + 1] = btn
 		end
@@ -471,31 +538,47 @@ local function SetupBagDock(isPad)
 		end
 		if _G.BagBarExpandToggle then
 			_G.BagBarExpandToggle:SetAlpha(0)
+			_G.BagBarExpandToggle:SetSize(0.001, 0.001)
+			_G.BagBarExpandToggle:Hide()
 		end
 		if bb.Layout then
 			pcall(bb.Layout, bb)
 		end
 
-		local scale = 0.66
+		local scale = 0.68
 		Blizz.SetScale(bb, scale)
-		Blizz.ClearAllPoints(bb)
-		-- Center inside the recessed bay of d3_wing_dock (y = 31 in screen units = 31 / scale in bb units)
-		Blizz.SetPoint(bb, "CENTER", bagDock, "BOTTOM", 4 / scale, 31 / scale)
 
-		local bw = (bb:GetWidth() or 180) * scale
-		local wingW = math.max(245, bw / 0.68)
+		local bw = (#activeBtns * 33) * scale
+		if bw < 140 then
+			bw = 155
+		end
+		local wingW = math.max(235, (bw + 16) / 0.6875)
 		bagDock:SetSize(wingW, 56)
 		if bagDock.art then
 			bagDock.art:SetSize(wingW, 114)
 		end
+
+		-- Position bagDock so the left edge of its recessed bay (-0.34375 * wingW) clears the Angel statue's
+		-- right foot/wing (angelX + 92), while the left stone shoulder tucks behind the Angel
+		local dockX = (angelX or 325) + 92 + math.floor(0.34375 * wingW)
+		bagDock.defaultPosition.x = dockX
+		if not IsUserMoved("Roth_UIBagDock") then
+			bagDock:ClearAllPoints()
+			bagDock:SetPoint("BOTTOM", UIParent, "BOTTOM", dockX, 0)
+		end
+
+		local biasX = ComputeVisibleButtonsCenterBias(bb, activeBtns)
+		Blizz.ClearAllPoints(bb)
+		Blizz.SetPoint(bb, "CENTER", bagDock, "BOTTOM", biasX, 31 / scale)
 		WireDockHover(bagDock, bb, activeBtns)
 
 		if bb.ApplySystemAnchor and not bb._diabolusAnchorHooked then
 			bb._diabolusAnchorHooked = true
 			hooksecurefunc(bb, "ApplySystemAnchor", function()
 				if not StandardMode:IsGamepad() and not InCombatLockdown() and bagDock then
+					local b = ComputeVisibleButtonsCenterBias(bb, activeBtns)
 					Blizz.ClearAllPoints(bb)
-					Blizz.SetPoint(bb, "CENTER", bagDock, "BOTTOM", 4 / scale, 31 / scale)
+					Blizz.SetPoint(bb, "CENTER", bagDock, "BOTTOM", b, 31 / scale)
 				end
 			end)
 		end
@@ -515,10 +598,10 @@ function StandardMode:Apply()
 
 	local isPad = self:IsGamepad()
 	local sm = cfg.standardMode
-	local orbX = isPad and (sm.padOrbX or 325) or (sm.standardOrbX or 265)
+	local orbX = isPad and (sm.padOrbX or 325) or (sm.standardOrbX or 300)
 	local demonX = -(orbX + 30)
 	local angelX = orbX + 25
-	local bottomW = isPad and 670 or 550
+	local bottomW = isPad and 670 or 800
 
 	local pframe = _G.Roth_UIPlayerFrame
 	local powerOrb = _G.Roth_UIPowerOrb
@@ -526,6 +609,10 @@ function StandardMode:Apply()
 	local angel = _G.Roth_UIAngelFrame
 	local bottomLine = _G.Roth_UIBottomLine
 	local barBg = _G.Roth_UIActionBarBackground
+
+	if barBg and not IsUserScaled("Roth_UIActionBarBackground") then
+		barBg:SetScale(isPad and 1.0 or (sm.standardBarScale or 1.18))
+	end
 
 	if pframe and not IsUserMoved("Roth_UIPlayerFrame") then
 		pframe:ClearAllPoints()
@@ -555,17 +642,7 @@ function StandardMode:Apply()
 		ns.bars.UpdateStatusBarLayout()
 	end
 
-	-- Position Potion Belt: in Gamepad mode beside Health Orb; in Standard mode above the Health Orb's inner shoulder so it clears the 3 action bar rows
-	local belt = _G.Roth_UIBelt
-	if belt and not IsUserMoved("Roth_UIBelt") and pframe then
-		belt:ClearAllPoints()
-		if isPad then
-			belt:SetPoint("BOTTOMLEFT", pframe, "BOTTOMRIGHT", cfg.belt.x or 6, cfg.belt.y or 24)
-		else
-			belt:SetPoint("BOTTOM", pframe, "TOP", 0, -6)
-		end
-	end
-
+	local topRowFirstBtn = _G.ActionButton1
 	if not isPad then
 		HideBlizzardBarArt()
 		HookActionBarForStandardMode(_G.MainActionBar)
@@ -573,21 +650,40 @@ function StandardMode:Apply()
 		HookActionBarForStandardMode(_G.MultiBarBottomRight)
 		if sm.integrateActionBars and barBg then
 			FitActionBarRow("ActionButton", 23, barBg)
+			SetupActionBarPaging(barBg)
 			local mbLeft = _G.MultiBarBottomLeft
 			local mbRight = _G.MultiBarBottomRight
 			if mbLeft and mbLeft:IsShown() then
 				FitActionBarRow("MultiBarBottomLeftButton", 54, barBg)
+				topRowFirstBtn = _G.MultiBarBottomLeftButton1 or topRowFirstBtn
 				if mbRight and mbRight:IsShown() then
 					FitActionBarRow("MultiBarBottomRightButton", 91, barBg)
+					topRowFirstBtn = _G.MultiBarBottomRightButton1 or topRowFirstBtn
 				end
 			elseif mbRight and mbRight:IsShown() then
 				FitActionBarRow("MultiBarBottomRightButton", 54, barBg)
+				topRowFirstBtn = _G.MultiBarBottomRightButton1 or topRowFirstBtn
 			end
 		end
 	end
 
-	SetupMicroDock(isPad)
-	SetupBagDock(isPad)
+	-- Position Potion Belt:
+	--   - In Gamepad mode: beside Health Orb
+	--   - In Standard mode: anchored to the top-left of the uppermost activated actionbar row (Bar 1, 2, or 3)
+	local belt = _G.Roth_UIBelt
+	if belt and not IsUserMoved("Roth_UIBelt") and pframe then
+		belt:ClearAllPoints()
+		if isPad then
+			belt:SetPoint("BOTTOMLEFT", pframe, "BOTTOMRIGHT", cfg.belt.x or 6, cfg.belt.y or 24)
+		elseif topRowFirstBtn then
+			belt:SetPoint("BOTTOMLEFT", topRowFirstBtn, "TOPLEFT", -4, 8)
+		else
+			belt:SetPoint("BOTTOM", pframe, "TOP", 0, -6)
+		end
+	end
+
+	SetupMicroDock(isPad, demonX)
+	SetupBagDock(isPad, angelX)
 end
 
 local ev = CreateFrame("Frame")

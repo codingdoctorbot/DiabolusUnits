@@ -291,9 +291,9 @@ bars.UpdateStatusBarLayout = function()
 			if exp and showExp then
 				if not expMoved then
 					exp:ClearAllPoints()
-					exp:SetPoint("BOTTOMLEFT", pframe, "BOTTOMRIGHT", -8, 14)
-					exp:SetPoint("BOTTOMRIGHT", powerOrb, "BOTTOMLEFT", 8, 14)
-					exp:SetHeight(10)
+					exp:SetPoint("BOTTOMLEFT", pframe, "BOTTOMRIGHT", -10, 14)
+					exp:SetPoint("BOTTOMRIGHT", powerOrb, "BOTTOMLEFT", 10, 14)
+					exp:SetHeight(9)
 				end
 				exp:Show()
 			elseif exp and not expMoved then
@@ -303,9 +303,9 @@ bars.UpdateStatusBarLayout = function()
 			if rep and showRep then
 				if not repMoved then
 					rep:ClearAllPoints()
-					rep:SetPoint("BOTTOMLEFT", pframe, "BOTTOMRIGHT", -8, 2)
-					rep:SetPoint("BOTTOMRIGHT", powerOrb, "BOTTOMLEFT", 8, 2)
-					rep:SetHeight(10)
+					rep:SetPoint("BOTTOMLEFT", pframe, "BOTTOMRIGHT", -10, 4)
+					rep:SetPoint("BOTTOMRIGHT", powerOrb, "BOTTOMLEFT", 10, 4)
+					rep:SetHeight(9)
 				end
 				rep:Show()
 			elseif rep and not repMoved then
@@ -323,8 +323,8 @@ bars.UpdateStatusBarLayout = function()
 			if activeBar then
 				if not isMoved then
 					activeBar:ClearAllPoints()
-					activeBar:SetPoint("BOTTOMLEFT", pframe, "BOTTOMRIGHT", -8, 2)
-					activeBar:SetPoint("BOTTOMRIGHT", powerOrb, "BOTTOMLEFT", 8, 2)
+					activeBar:SetPoint("BOTTOMLEFT", pframe, "BOTTOMRIGHT", -10, 5)
+					activeBar:SetPoint("BOTTOMRIGHT", powerOrb, "BOTTOMLEFT", 10, 5)
 					activeBar:SetHeight(12)
 				end
 				activeBar:Show()
