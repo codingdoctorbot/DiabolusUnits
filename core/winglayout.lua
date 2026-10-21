@@ -14,6 +14,54 @@ Layout.Atlas = {
 	capWidth = 44, centerWidth = 56, joinWidth = 12, heightUnits = 46,
 }
 Layout.MAX_CENTER_TILES = 128
+
+-- Harness kits built by tools/build_harness_art.swift from proposedart/.
+-- Ratios are cropped source width / height; textures are power-of-two stretched.
+Layout.HarnessKits = {
+	{ id = "gothic_silver", label = "Gothic silver harness",
+		capLeft = 0.581, capRight = 0.581, railTop = 1.957, railBottom = 1.588, crest = 1.645 },
+	{ id = "antique_bronze", label = "Antique bronze harness",
+		capLeft = 0.790, capRight = 0.801, railTop = 2.400, railBottom = 2.769 },
+	{ id = "d2_leather", label = "Stitched leather belt",
+		capLeft = 1.025, capRight = 1.029, railTop = 2.769, railBottom = 4.091 },
+	{ id = "horadric_alchemist", label = "Horadric oxblood sash",
+		capLeft = 0.763, capRight = 0.773, railTop = 2.983, railBottom = 3.681, crest = 2.059 },
+	{ id = "tactical_ironclad", label = "Black iron frame",
+		capLeft = 0.584, capRight = 0.588, railTop = 2.507, railBottom = 2.350 },
+	{ id = "demonic_obsidian", label = "Demonic obsidian",
+		capLeft = 0.758, capRight = 0.775, railTop = 1.978, railBottom = 2.195 },
+	{ id = "angelic_cathedral", label = "Angelic cathedral",
+		capLeft = 0.707, capRight = 0.725, railTop = 2.118, railBottom = 2.769 },
+}
+for _, kit in ipairs(Layout.HarnessKits) do Layout.HarnessKits[kit.id] = kit end
+-- Harness geometry in the same units as Layout.Atlas: the bay keeps the stone
+-- channel so button scale is unchanged; rails frame it and caps span both.
+Layout.Harness = { channel = 36, rail = 10, crestOverhang = 4, railUnderCap = 0.25 }
+Layout.Tints = {
+	natural = { 1, 1, 1 },
+	warm = { 0.95, 0.84, 0.70 },
+	dark = { 0.72, 0.69, 0.66 },
+}
+
+-- Metrics for one style and side. cap is the outer (screen-edge) end, join the
+-- end beside the statue. Unknown names fall back to the stone atlas.
+function Layout.Style(first, second, third)
+	local name, side = first, second
+	if first == Layout then name, side = second, third end
+	local kit = Layout.HarnessKits[name]
+	if not kit then
+		local A = Layout.Atlas
+		return { kind = "stone", name = "stone", channel = A.channel, cap = A.capWidth,
+			join = A.joinWidth, base = A.base, artH = A.heightUnits, tile = A.centerWidth }
+	end
+	local H = Layout.Harness
+	local capH = H.channel + H.rail * 2
+	local left, right = capH * kit.capLeft, capH * kit.capRight
+	return { kind = "harness", name = name, kit = kit, channel = H.channel, rail = H.rail,
+		capH = capH, artH = capH + (kit.crest and H.crestOverhang or 0), base = H.rail,
+		cap = side == "bags" and right or left, join = side == "bags" and left or right,
+		tile = H.rail * min(kit.railTop, kit.railBottom) }
+end
 -- Target optical sizes, not claims that an arbitrary native atlas is calibrated.
 Layout.DefaultMetrics = {
 	micro = { bodyHeight = 28, gap = 1, padding = 2 },
@@ -130,11 +178,14 @@ function Layout.SolveWing(first, second)
 	if not obstacles then return nil, "invalid-statue-geometry" end
 	local padding = number(s.padding) and max(0, s.padding) or 2
 	local height, width = s.bodyHeight + padding * 2, s.bodyWidth + padding * 2
-	local piece = height / Layout.Atlas.channel
-	local cap, join, base, artH = 44 * piece, 12 * piece, 6 * piece, 46 * piece
+	local style = Layout.Style(s.style, s.side)
+	local piece = height / style.channel
+	local cap, join = style.cap * piece, style.join * piece
+	local base, artH = style.base * piece, style.artH * piece
 	-- Tile capacity is independent of the eventual fitted q: shrinking the whole
 	-- composition cannot reduce its number of source tiles.
-	if math.ceil(width / (Layout.Atlas.centerWidth * piece)) > Layout.MAX_CENTER_TILES then
+	local span = style.kind == "harness" and width + cap + join or width
+	if math.ceil(span / (style.tile * piece)) > Layout.MAX_CENTER_TILES then
 		return nil, "too-many-center-tiles"
 	end
 	local screen, requested = s.screen, s.requestedScale
@@ -203,6 +254,7 @@ function Layout.SolveWing(first, second)
 		paintLocal = { l = localL, r = localR, b = 0, t = artH }, localWidth = width,
 		totalWidth = width + cap + join, bayHeight = height, capWidth = cap, joinWidth = join,
 		artHeight = artH, baseHeight = base, pieceScale = piece, requestedScale = requested,
+		style = style.name,
 		fitScale = q / requested, fitted = q < requested - EPS,
 		status = q < requested - EPS and "fitted" or "requested", side = s.side }
 end
@@ -301,9 +353,74 @@ function Layout.CanRender(first, second, third)
 	for _, key in ipairs({ "pieceScale", "localWidth", "capWidth", "joinWidth", "artHeight", "totalWidth" }) do
 		if not number(s[key]) or s[key] <= 0 then return nil, "invalid-render-geometry" end
 	end
-	local count = math.ceil(s.localWidth / (Layout.Atlas.centerWidth * s.pieceScale))
+	local style = Layout.Style(s.style, side)
+	local count
+	if style.kind == "harness" then
+		local span = s.localWidth + (s.capWidth + s.joinWidth) * (1 - Layout.Harness.railUnderCap)
+		count = math.ceil(span / (style.tile * s.pieceScale))
+	else
+		count = math.ceil(s.localWidth / (Layout.Atlas.centerWidth * s.pieceScale))
+	end
 	if count > Layout.MAX_CENTER_TILES then return nil, "too-many-center-tiles" end
 	return true, count
+end
+
+local HARNESS_MEDIA = "Interface\\AddOns\\DiabolusUnits\\media\\harness\\"
+
+-- Caps are separate left/right textures, so neither side mirrors texcoords.
+-- Rails tile under the caps far enough to hide their inner silhouettes.
+local function RenderHarness(art, s, side, style)
+	local piece, kit = s.pieceScale, style.kit
+	local path = HARNESS_MEDIA .. kit.id .. "\\"
+	local leftW = side == "micro" and s.capWidth or s.joinWidth
+	local rightW = side == "micro" and s.joinWidth or s.capWidth
+	local rail, capH = style.rail * piece, style.capH * piece
+	local tint = Layout.Tints[s.tint] or Layout.Tints.natural
+	local used = 0
+	local function part(layer, sublevel)
+		used = used + 1
+		local texture = art.parts[used]
+		if not texture then
+			texture = art:CreateTexture(nil, layer, nil, sublevel)
+			art.parts[used] = texture
+		else
+			texture:SetDrawLayer(layer, sublevel)
+		end
+		texture:ClearAllPoints()
+		texture:SetTexCoord(0, 1, 0, 1)
+		texture:Show()
+		return texture
+	end
+	local function place(texture, file, x, y, width, height)
+		texture:SetTexture(path .. file)
+		texture:SetVertexColor(tint[1], tint[2], tint[3])
+		texture:SetPoint("BOTTOMLEFT", art, "BOTTOMLEFT", x, y)
+		texture:SetSize(width, height)
+	end
+	local backing = part("BACKGROUND", -7)
+	backing:SetColorTexture(0.03, 0.025, 0.02, 0.55)
+	backing:SetPoint("BOTTOMLEFT", art, "BOTTOMLEFT", leftW, s.baseHeight)
+	backing:SetSize(s.localWidth, s.bayHeight)
+	local under = Layout.Harness.railUnderCap
+	local x0, x1 = leftW * (1 - under), leftW + s.localWidth + rightW * under
+	for _, row in ipairs({ { "rail_bottom", kit.railBottom, 0 }, { "rail_top", kit.railTop, capH - rail } }) do
+		local tileWidth, x = rail * row[2], x0
+		while x < x1 - EPS do
+			local width = min(tileWidth, x1 - x)
+			local texture = part("BACKGROUND", -6)
+			place(texture, row[1], x, row[3], width, rail)
+			texture:SetTexCoord(0, width / tileWidth, 0, 1)
+			x = x + width
+		end
+	end
+	place(part("BACKGROUND", -5), "cap_left", 0, 0, leftW, capH)
+	place(part("BACKGROUND", -5), "cap_right", leftW + s.localWidth, 0, rightW, capH)
+	if kit.crest then
+		local height = s.artHeight - capH + rail * 1.4
+		local width = height * kit.crest
+		place(part("BACKGROUND", -4), "crest", leftW + (s.localWidth - width) / 2, s.artHeight - height, width, height)
+	end
+	return used
 end
 
 -- The caller owns the dock's actual scale and UIParent anchoring. Its bottom
@@ -316,11 +433,15 @@ function Layout.Render(first, second, third, fourth)
 	local ready, count = Layout.CanRender(s, side)
 	if not ready then return nil, count end
 	local tileWidth = Layout.Atlas.centerWidth * s.pieceScale
-	if dock.art and not dock.art.__wingV2 then dock.art:Hide(); dock.art = nil end
+	local style = Layout.Style(s.style, side)
+	-- Styles use different layers and texture files, so a style change rebuilds.
+	if dock.art and (not dock.art.__wingV2 or dock.art.__wingStyle ~= style.name) then
+		dock.art:Hide(); dock.art = nil
+	end
 	local art = dock.art
 	if not art then
 		art = CreateFrame("Frame", nil, dock)
-		art.__wingV2, art.parts = true, {}
+		art.__wingV2, art.__wingStyle, art.parts = true, style.name, {}
 		if art.EnableMouse then art:EnableMouse(false) end
 		art:SetFrameLevel(dock:GetFrameLevel())
 		dock.art = art
@@ -329,6 +450,14 @@ function Layout.Render(first, second, third, fourth)
 	art:ClearAllPoints()
 	art:SetPoint("BOTTOMLEFT", dock, "BOTTOMLEFT", -(side == "micro" and s.capWidth or s.joinWidth), 0)
 	art:SetSize(s.totalWidth, s.artHeight)
+	if style.kind == "harness" then
+		local used = RenderHarness(art, s, side, style)
+		for i = used + 1, #art.parts do art.parts[i]:Hide() end
+		art:Show()
+		dock.paintBounds, dock.bodyBounds, dock.bayBounds = s.paintUI, s.bodyUI, s.bayUI
+		dock.wingSolution, dock.fitStatus = s, s.status
+		return true
+	end
 	local used = 0
 	local function piece(source, x, width, fraction)
 		used = used + 1

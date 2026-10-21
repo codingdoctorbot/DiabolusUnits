@@ -843,10 +843,11 @@ local function FitControls(dock, container, buttons, side, statue, deferred)
     local statueRects=StatueRects(statue,side=="micro" and "demon" or "angel")
     if not statueRects then dock.layoutStatus="pending-statue";return false end
     local solution,reason=W.SolveWing({side=side,bodyWidth=width,bodyHeight=height,padding=2,
-        requestedScale=requested,preferredCenterX=cx,bottom=bottom,
+        requestedScale=requested,preferredCenterX=cx,bottom=bottom,style=sm.wingStyle,
         joinOffsetUI=offset,screen={l=0,r=UIParent:GetWidth(),b=0,t=UIParent:GetHeight()},
         statueRects=statueRects})
     if not solution then dock.layoutStatus=reason; return false end
+    solution.tint=sm.wingTint
     local ready,renderReason=W.CanRender(solution,side)
     if not ready then dock.layoutStatus=renderReason;return false end
     local plan={dock=dock,container=container,buttons=buttons,shown=shown,width=width,height=height,

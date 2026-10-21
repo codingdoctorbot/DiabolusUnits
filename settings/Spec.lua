@@ -350,6 +350,50 @@ function Spec.BuildLayoutPage()
 			layout()
 		end,
 	}
+	rows[#rows + 1] = {
+		kind = "dropdown",
+		child = true,
+		label = "Wing style",
+		tooltip = "Artwork behind the game menu and bag buttons. Carved stone is the original; the harness styles frame the buttons with caps and rails.",
+		enabledWhen = sm,
+		options = function()
+			local options = { { value = "stone", label = "Carved stone (original)" } }
+			for _, kit in ipairs(ns.WingLayout and ns.WingLayout.HarnessKits or {}) do
+				options[#options + 1] = { value = kit.id, label = kit.label }
+			end
+			return options
+		end,
+		get = function()
+			return Settings.Get("standardMode.wingStyle") or "stone"
+		end,
+		set = function(value)
+			Settings.Set("standardMode.wingStyle", value)
+			layout()
+		end,
+	}
+	rows[#rows + 1] = {
+		kind = "dropdown",
+		child = true,
+		label = "Harness tint",
+		tooltip = "Color grade for the harness styles. Warm pulls metal toward the statues' bronze; dark sinks it into the stone bar.",
+		enabledWhen = function()
+			return sm() and (Settings.Get("standardMode.wingStyle") or "stone") ~= "stone"
+		end,
+		options = function()
+			return {
+				{ value = "natural", label = "Natural" },
+				{ value = "warm", label = "Warm bronze" },
+				{ value = "dark", label = "Darkened" },
+			}
+		end,
+		get = function()
+			return Settings.Get("standardMode.wingTint") or "natural"
+		end,
+		set = function(value)
+			Settings.Set("standardMode.wingTint", value)
+			layout()
+		end,
+	}
 	for _, wing in ipairs({ { "micro", "Game menu" }, { "bag", "Bags" } }) do
 		for _, dimension in ipairs({
 			{ "BodyHeight", "button height", "Height of the painted button body before the wing's requested scale.", 20, 36 },

@@ -9,3 +9,5 @@ ignore:
   - GEMINI.md
   - docs
   - mockups
+  - tools
+  - proposedart

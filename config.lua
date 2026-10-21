@@ -118,6 +118,8 @@ cfg.standardMode = {
 	microButtonGap = 1, bagButtonGap = 2,
 	microJoinOffset = 0, bagJoinOffset = 0,
 	dockY = 0, -- complete stone base rests on the screen edge
+	wingStyle = "stone", -- "stone" or a WingLayout.HarnessKits id (gothic_silver, antique_bronze, ...)
+	wingTint = "natural", -- harness styles only: "natural", "warm" or "dark"
 	microButtonsX = 0, -- game menu buttons inside their bay (0 = cleanly centered in the recessed bay)
 	bagButtonsX = 0, -- bag buttons inside their bay (0 = cleanly centered in the recessed bay)
 	beltDockX = 18, -- horizontal offset of potion belt over bag dock (shifts right to clear angel statue)
