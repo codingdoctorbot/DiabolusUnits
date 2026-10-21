@@ -6,7 +6,7 @@ Diabolus Orbs Forever is the WoW Forever edition of Roth UI, and many people's w
 
 | Years | Who | What |
 |---|---|---|
-| ~2008–2016 | **zork** (Lars Norberg) | Created oUF_Diablo and Roth UI: the Diablo orbs, the art, the layout. MIT licence. <https://github.com/zorker/rothui> |
+| ~2008–2016 | **zork** (Erik Raetz) | Created oUF_Diablo and Roth UI: the Diablo orbs, the art, the layout. MIT licence. <https://github.com/zorker/rothui> |
 | 2012–2018 | **Galaxy** (Galaxy119 / Joker119) | Maintainer; zork handed the project over at Legion launch (2016). rTooltip ("Galaxy – 2016"). <https://github.com/joker-119/Roth_UI> |
 | 2025 | **EchoZulu69er** | TBC Anniversary edition: compatibility fixes and modernisation (assisted by Grok and Cursor AI). |
 | 2026 | **codingdoctorbot** | WoW Forever edition (Interface 16001): secret-value port; gamepad layer; party and raid frames; rings; rumble; healer features; potion belt; pad HUD mover. Built with AI assistance: Claude (Anthropic) wrote most of the code and tests from stage 0 on; Gemini / Antigravity (Google) did the first port pass and two audits. |
@@ -22,7 +22,7 @@ These ship inside Roth UI and keep their own authors and licences.
 | rTooltip | Galaxy | MIT (Roth UI) |
 | ShinyBuffs (`embeds/Roth_ShinyBuffs`) | Seerah, edited for Roth UI | to confirm before any release |
 | RothFont (keeps the saved variable `PhanxFontDB`) | probably derived from Phanx's PhanxFont | origin and licence to confirm |
-| Target frame art | Goldpaw (Diabolic UI) | to confirm before any release |
+| Diabolic UI 2016 art in `media/` (target frames, tooltip, action bar, chat buttons, cast bar, statusbar3, glowTex, backdropBorder, vehiclebar; 44 files, byte-identical to the 2016 release) | Lars "Goldpaw" Norberg (Diabolic UI, <https://github.com/thExiled/DiabolicUI>, July 2016) | MIT, no artwork exclusion (`LICENSE-DiabolicUI.txt`). Later Diabolic UI releases (2022+) exclude their art; use only art present in the 2016 release |
 | Fonts in `media/`: Diablo Std (titles), Expressway (text), Cracked Narrow | not recorded in the add-on | to confirm before any release (nine unused fonts were removed in stage 25) |
 | AceDB-3.0 and CallbackHandler-1.0 | Ace3 Development Team | BSD-style (`Libs/Ace3-LICENSE.txt`) |
 | LibStub | LibStub contributors | Public domain (notice in `Libs/LibStub/LibStub.lua`) |
@@ -49,7 +49,7 @@ Code that was copied keeps a pointer to its source in the file's header comment.
 | `units/nameplates.lua` | **Plater** (Terciob and contributors), its WoW Forever build (`Plater_Camelot.toc`, `libs/DF/unitframe_midnight.lua`, `Plater_Auras.lua`) | Techniques only: keeping Blizzard's plate hidden with a hook on its Show; cast bars on `UnitCastingDuration` → `SetTimerDuration`; aura timers on `GetAuraDuration` → `SetCooldownFromDurationObject`. Roth's code is its own | GPLv2 (per its CurseForge page; no licence file in the download): no code copied, so nothing of Plater's is in Roth |
 | `units/nameplates.lua` | Blizzard's `Blizzard_NamePlates` (Forever) | The plate life cycle and the soft-target icon (`SetUnitCursorTexture` with the `SoftTargetIcon*` settings) | — |
 
-**Before any public release:** confirm permission or licences for ShinyBuffs, RothFont / PhanxFont, the Diabolic UI art, the fonts and the Diablo-style artwork in `media/`. ForeverUnitFrames and MSUF ship no licence file. Roth uses their techniques and game-data tables, not their code, but ask their authors before publishing anyway.
+**Before any public release:** confirm permission or licences for ShinyBuffs, RothFont / PhanxFont, the fonts and the Diablo-style artwork in `media/`. ForeverUnitFrames and MSUF ship no licence file. Roth uses their techniques and game-data tables, not their code, but ask their authors before publishing anyway.
 
 ## Thanks
 
