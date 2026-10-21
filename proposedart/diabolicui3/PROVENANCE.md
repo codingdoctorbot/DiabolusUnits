@@ -12,3 +12,5 @@ Selection rule: only files whose SHA-1 matches no file in DiabolicUI2 (reference
 Caveat: "new in the fork" is a byte and name comparison. A fork file could still be an edit of Goldpaw art; check visually before shipping, and credit Arahort and Karina Kisenkova in CREDITS.md when any file is used.
 
 Update (same day): Goldpaw's original 2016 DiabolicUI (github.com/thExiled/DiabolicUI, commits by Lars Norberg, July 2016) is plain MIT with no artwork exclusion. Its 176 textures are staged in `../diabolicui2016/` with the license. Eight DiabolicUI3 files are byte-identical to it (chatbutton-maximize, blank, orb2, shade-circle ×2, micromenu-toggle, bar-small, minimap-mask-opaque), so those are MIT too. The 2022 DiabolicUI2 art restriction applies only to art first published after 2016.
+
+Update (same day): at the user's direction, after their own licence review, the complete `Assets/` folder of the DiabolicUI3 download is now included here, including the files previously excluded above (DiabolicUI2-identical files and `point_*`). The classification above remains as a record of each file's origin.

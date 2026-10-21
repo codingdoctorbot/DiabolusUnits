@@ -4,5 +4,3 @@
 # Finder metadata.
 .DS_Store
 
-# 2016 DiabolicUI textures (MIT): re-download from github.com/thExiled/DiabolicUI; copy used files into media/.
-/proposedart/diabolicui2016/*.tga
