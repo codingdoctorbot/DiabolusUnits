@@ -7,7 +7,7 @@ License: the CurseForge project's License field reads **Public Domain**. The sam
 Selection rule: only files whose SHA-1 matches no file in DiabolicUI2 (reference copy) and whose name does not appear in DiabolicUI2 — i.e. new in the fork, covered by the fork's Public Domain label. Excluded:
 - 45 files byte-identical to DiabolicUI2 (Goldpaw, All Rights Reserved).
 - 7 files identical to existing DiabolusUnits media (already present).
-- 10 `point_*.tga` class-power textures: names match Goldpaw's AzeriteUI and could not be checked locally.
+- 9 `point_*.tga` class-power textures: names match Goldpaw's AzeriteUI and could not be checked locally.
 
 Caveat: "new in the fork" is a byte and name comparison. A fork file could still be an edit of Goldpaw art; check visually before shipping, and credit Arahort and Karina Kisenkova in CREDITS.md when any file is used.
 
