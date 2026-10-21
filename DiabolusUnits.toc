@@ -45,6 +45,7 @@ core\db.lua
 core\panel.lua
 core\slashcmd.lua
 core\taintcheck.lua
+core\diabolicart.lua
 core\lib.lua
 core\nativeauras.lua
 core\healbars.lua

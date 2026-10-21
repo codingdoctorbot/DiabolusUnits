@@ -675,6 +675,7 @@ func.createPortrait = function(self)
 			border:SetAllPoints(borderholder)
 			border:SetTexture(mediapath .. "portrait_border")
 			border:SetVertexColor(0.6, 0.5, 0.5)
+			ns.DiabolicArt.Portrait(border, t)
 			self.Border = border
 
 			local gloss = borderholder:CreateTexture(nil, "BACKGROUND", nil, -5)
@@ -691,6 +692,7 @@ func.createPortrait = function(self)
 			border:SetAllPoints(back)
 			border:SetTexture(mediapath .. "portrait_border")
 			border:SetVertexColor(0.6, 0.5, 0.5)
+			ns.DiabolicArt.Portrait(border, t)
 			self.Border = border
 
 			local gloss = back:CreateTexture(nil, "BACKGROUND", nil, -5)
@@ -712,6 +714,7 @@ func.createPortrait = function(self)
 			border:SetAllPoints(borderholder)
 			border:SetTexture(mediapath .. "portrait_border")
 			border:SetVertexColor(0.6, 0.5, 0.5)
+			ns.DiabolicArt.Portrait(border, t)
 			self.Border = border
 
 			local gloss = borderholder:CreateTexture(nil, "BACKGROUND", nil, -5)
@@ -728,6 +731,7 @@ func.createPortrait = function(self)
 			border:SetAllPoints(back)
 			border:SetTexture(mediapath .. "portrait_border")
 			border:SetVertexColor(0.6, 0.5, 0.5)
+			ns.DiabolicArt.Portrait(border, t)
 			self.Border = border
 
 			local gloss = back:CreateTexture(nil, "BACKGROUND", nil, -5)
@@ -778,6 +782,7 @@ func.createStandAlonePortrait = function(self)
 		border:SetAllPoints(borderholder)
 		border:SetTexture(mediapath .. "portrait_border")
 		border:SetVertexColor(0.6, 0.5, 0.5)
+		ns.DiabolicArt.Portrait(border, t)
 
 		local gloss = borderholder:CreateTexture(nil, "BACKGROUND", nil, -5)
 		gloss:SetAllPoints(borderholder)
@@ -793,6 +798,7 @@ func.createStandAlonePortrait = function(self)
 		border:SetAllPoints(back)
 		border:SetTexture(mediapath .. "portrait_border")
 		border:SetVertexColor(0.6, 0.5, 0.5)
+		ns.DiabolicArt.Portrait(border, t)
 
 		local gloss = back:CreateTexture(nil, "BACKGROUND", nil, -5)
 		gloss:SetAllPoints(back)

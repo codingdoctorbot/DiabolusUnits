@@ -2188,6 +2188,31 @@ function Spec.BuildInterfaceSkinPage()
 			Panel.MarkDirty()
 		end },
 	}
+	local function art()
+		if ns.DiabolicArt then ns.DiabolicArt.Refresh() end
+	end
+	rows[#rows + 1] = { kind = "header", label = "Diabolic UI art" }
+	rows[#rows + 1] = { kind = "text", body = "Optional rose-bronze pieces from the original Diabolic UI (2016, MIT). Each switch keeps the original art when off and applies immediately." }
+	rows[#rows + 1] = cfgCheckbox("diabolicArt.portraits", "Portrait frames", "Rose-bronze frames on the player, target, focus and party portraits instead of the plain grey border. Portrait size and position are unchanged.", art)
+	rows[#rows + 1] = {
+		kind = "dropdown",
+		label = "Orb rim",
+		tooltip = "A bronze rim around the health and power orbs. The glass version adds Diabolic UI's own glass over the orb's existing gloss.",
+		options = function()
+			return {
+				{ value = "none", label = "None (original)" },
+				{ value = "ring", label = "Bronze rim" },
+				{ value = "glass", label = "Bronze rim with glass" },
+			}
+		end,
+		get = function() return Settings.Get("diabolicArt.orbRing") or "none" end,
+		set = function(value)
+			Settings.Set("diabolicArt.orbRing", value)
+			art()
+		end,
+	}
+	rows[#rows + 1] = cfgCheckbox("diabolicArt.minimapRing", "Minimap ring", "Spiked bronze ring around the minimap. The native rim is faded underneath and comes back when this is off.", art)
+	rows[#rows + 1] = cfgCheckbox("diabolicArt.smallFrames", "Small target-of-target and focus frames", "Single-bar frames sized for these small units instead of the large two-bar target art. The power bar moves just below the health frame. Switching in combat applies afterwards.", art)
 	local skipped = {}
 	for _, entry in ipairs({ { "chat", "Chat" }, { "minimap", "Minimap" }, { "objectives", "Objectives" }, { "gamepad", "Gamepad" } }) do
 		local owner = ns.InterfaceSkin and ns.InterfaceSkin.GetConflict(entry[1])

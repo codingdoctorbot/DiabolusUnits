@@ -54,6 +54,14 @@ cfg.movableAuras = false
 -- A dark inner rim on both orbs, so the liquid reads as inside the glass.
 cfg.orbInnerShadow = true
 
+-- Diabolic UI (2016, MIT) art, each optional; off keeps the original art (core/diabolicart.lua).
+cfg.diabolicArt = {
+	portraits = false, -- rose-bronze portrait frames on player, target, focus and party
+	orbRing = "none", -- "none", "ring" (bronze rim) or "glass" (rim with its own glass)
+	minimapRing = false, -- spiked bronze ring around the minimap; fades the native rim
+	smallFrames = false, -- target-of-target and focus: small single-bar frames instead of the large two-bar art
+}
+
 -- Diablo nameplates: iron frames, threat/target glows, cast bars, and player debuffs.
 cfg.nameplates = {
 	enabled = true,

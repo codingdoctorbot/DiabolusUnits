@@ -29,6 +29,7 @@ local createArtwork = function(self)
 	local t = self:CreateTexture(nil, "BORDER", nil, -8)
 	t:SetAllPoints(self)
 	t:SetTexture("Interface\\AddOns\\DiabolusUnits\\media\\targettarget")
+	self.FrameArt = t
 end
 
 --create health frames
@@ -167,6 +168,8 @@ local function createStyle(self)
 	--createhealthPower
 	createHealthFrame(self)
 	createPowerFrame(self)
+	--optional Diabolic UI small single-bar frames (cfg.diabolicArt.smallFrames)
+	ns.DiabolicArt.SmallFrame(self, { self.FrameArt, self.Health.glow, self.Power.glow })
 
 	--health power strings
 	createHealthPowerStrings(self)

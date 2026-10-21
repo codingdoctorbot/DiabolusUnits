@@ -560,6 +560,9 @@ local createOrb = function(self, type)
 	highlight:SetAlpha(orbcfg.highlight.alpha or 1)
 	orb.highlight = highlight
 
+	--optional Diabolic UI rim around the orb (cfg.diabolicArt.orbRing)
+	ns.DiabolicArt.Orb(orb, overlay, orb.size)
+
 	--orb values
 	local values = CreateFrame("Frame", "$parentValues", overlay)
 	values:SetAllPoints(orb)
