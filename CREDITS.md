@@ -22,7 +22,7 @@ These ship inside Roth UI and keep their own authors and licences.
 | rTooltip | Galaxy | MIT (Roth UI) |
 | ShinyBuffs (`embeds/Roth_ShinyBuffs`) | Seerah, edited for Roth UI | to confirm before any release |
 | RothFont (keeps the saved variable `PhanxFontDB`) | probably derived from Phanx's PhanxFont | origin and licence to confirm |
-| Diabolic UI 2016 art in `media/` (target frames, tooltip, action bar, chat buttons, cast bar, statusbar3, glowTex, backdropBorder, vehiclebar; 44 files, byte-identical to the 2016 release) | Lars "Goldpaw" Norberg (Diabolic UI, <https://github.com/thExiled/DiabolicUI>, July 2016) | MIT, no artwork exclusion (`LICENSE-DiabolicUI.txt`). Later Diabolic UI releases (2022+) exclude their art; use only art present in the 2016 release |
+| Diabolic UI 2016 art in `media/` (target frames, tooltip, action bar, chat buttons, cast bar, statusbar3, glowTex, backdropBorder, vehiclebar; 44 files, byte-identical to the 2016 release) and `media/diabolic/` (portrait, globe, minimap and small-bar frames; `globe_ring` has its glass cleared) | Lars "Goldpaw" Norberg (Diabolic UI, <https://github.com/thExiled/DiabolicUI>, July 2016) | MIT, no artwork exclusion (`LICENSE-DiabolicUI.txt`). Later Diabolic UI releases (2022+) exclude their art; use only art present in the 2016 release |
 | Fonts in `media/`: Diablo Std (titles), Expressway (text), Cracked Narrow | not recorded in the add-on | to confirm before any release (nine unused fonts were removed in stage 25) |
 | AceDB-3.0 and CallbackHandler-1.0 | Ace3 Development Team | BSD-style (`Libs/Ace3-LICENSE.txt`) |
 | LibStub | LibStub contributors | Public domain (notice in `Libs/LibStub/LibStub.lua`) |
