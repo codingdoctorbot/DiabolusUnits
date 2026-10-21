@@ -1,16 +1,7 @@
+-- Orb defaults and per-character settings (Roth_UI_DB_CHAR).
 
-  ---------------------------------------------
-  --  Roth_UI - db
-  ---------------------------------------------
-
-  -- Database (DB)
-
-  ---------------------------------------------
-
-  --get the addon namespace
   local addon, ns = ...
 
-  --object container
   local db = CreateFrame("Frame")
   ns.db = db
   db.default = {}
@@ -21,9 +12,7 @@
   local tremove = tremove
   local strlower = strlower
 
-  ---------------------------------------------
   --DEFAULTS
-  ---------------------------------------------
 
   --default orb setup
   function db:GetOrbDefaults()
@@ -195,9 +184,7 @@
     }
   end
 
-  ---------------------------------------------
   --LOAD SAVED VARIABLES
-  ---------------------------------------------
 
   --db script on variables loaded
   db:SetScript("OnEvent", function(self, event)
@@ -218,9 +205,7 @@
   end)
   db:RegisterEvent("VARIABLES_LOADED")
 
-  ---------------------------------------------
   --DB RESET
-  ---------------------------------------------
 
   --full template reset
   db.resetTemplates = function()
@@ -228,9 +213,7 @@
     ReloadUI()
   end
 
-  ---------------------------------------------
   --CHARACTER DATA
-  ---------------------------------------------
 
   --load character data defaults
   db.loadCharacterDataDefaults = function(type)
@@ -252,11 +235,7 @@
     ns.panel.updateOrbView()
   end
 
-  -- Fills every key the saved table lacks from the defaults (deep), keeping
-  -- what is there. A character table can exist without HEALTH / POWER: the
-  -- old embedded notepad created Roth_UI_DB_CHAR = {} before this ran, and
-  -- every orb update then indexed the missing HEALTH table (thousands of
-  -- errors a minute in the 2026-10-16 client test).
+  -- Deep-fill missing defaults without replacing existing character settings.
   local function FillMissing(target, defaults)
     for k, v in pairs(defaults) do
       if target[k] == nil then
@@ -285,9 +264,7 @@
     ns.panel.updateOrbView()
   end
 
-  ---------------------------------------------
   --GLOBAL DATA
-  ---------------------------------------------
 
   --load global data defaults
   db.loadGlobalDataDefaults = function()
@@ -306,9 +283,7 @@
     db.list.template = Roth_UI_DB_GLOB.TEMPLATE_LIST
   end
 
-  ---------------------------------------------
   --TEMPLATES
-  ---------------------------------------------
 
   function db:CopyTable(source, target)
     for key, value in pairs(source) do
@@ -390,9 +365,7 @@
     ns.panel.updatePanelView()
   end
 
-  ---------------------------------------------
   --LIST / MODELS
-  ---------------------------------------------
 
   --mode list for dropdown
   db.list.model = {
@@ -619,9 +592,7 @@
   }
   db.getListModel = function() return db.list.model end
 
-  ---------------------------------------------
   --LIST / FILLING TEXTURES
-  ---------------------------------------------
 
   --filling texture list for dropdown
   db.list.filling_texture = {
@@ -650,16 +621,12 @@
   }
   db.getListFillingTexture = function() return db.list.filling_texture end
 
-  ---------------------------------------------
   --LIST / TEMPLATEs
-  ---------------------------------------------
 
   db.list.template = {} --reference for later
   db.getListTemplate = function() return db.list.template end
 
-  ---------------------------------------------
   --LIST / HEALTH TAGs
-  ---------------------------------------------
 
   --health tag list for dropdown
   db.list.tag = {

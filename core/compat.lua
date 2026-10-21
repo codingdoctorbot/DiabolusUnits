@@ -1,7 +1,5 @@
------------------------------------------
 -- API Compatibility Module for WoW Forever (16001) & Modern Engine
 -- Provides wrapper functions for deprecated/structured APIs and secret-safe helpers
------------------------------------------
 
 local _, ns = ...
 
@@ -14,9 +12,7 @@ local pcall = pcall
 local select = select
 local math_floor = math.floor
 
------------------------------------------
 -- REPUTATION API COMPATIBILITY
------------------------------------------
 
 -- Wrapper for GetWatchedFactionInfo
 -- Returns: name, standing, min, max, value, factionID
@@ -66,9 +62,7 @@ function Compat.GetFactionInfo(index)
 	return nil
 end
 
------------------------------------------
 -- ADDON MANAGEMENT API COMPATIBILITY
------------------------------------------
 
 function Compat.GetNumAddOns()
 	if GetNumAddOns then
@@ -146,9 +140,7 @@ function Compat.MaxPlayerLevel()
 	return 60
 end
 
------------------------------------------
 -- SPELL API COMPATIBILITY
------------------------------------------
 
 -- The game's own GetSpellInfo, if it has one (WoW Forever does not). Captured
 -- at load: Roth used to install Compat.GetSpellInfo as the global and then
@@ -178,9 +170,7 @@ function Compat.GetSpellInfo(spellIdentifier)
 	return nil
 end
 
------------------------------------------
 -- AURA API COMPATIBILITY (C_UnitAuras)
------------------------------------------
 
 local function NormalizeFilter(filter)
 	if not filter or filter == "" then
@@ -339,9 +329,7 @@ end
 -- Blizzard code calls it, and Roth's own code uses ns.Compat directly.
 -- (oUF's master looter element finds C_PartyInfo.GetLootMethod itself.)
 
------------------------------------------
 -- SECRET-SAFE ACTION BUTTON UPDATER
------------------------------------------
 
 function Compat.UpdateActionButton(button, buttonIndex, lastCooldownState, lastCurrentAction)
 	if not button then
@@ -503,9 +491,7 @@ function Compat.UpdateActionButton(button, buttonIndex, lastCooldownState, lastC
 	end
 end
 
------------------------------------------
 -- UTILITY FUNCTIONS
------------------------------------------
 
 function Compat.SafeCall(func, ...)
 	if type(func) == "function" then

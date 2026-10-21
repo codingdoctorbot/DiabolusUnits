@@ -1,40 +1,8 @@
----------------------------------------------
---  Roth_UI - Diablo nameplates
----------------------------------------------
--- Roth's own plates over WoW Forever's nameplates: zork's iron bar art
--- (targettarget, as the raid bars) with the health inside, the name and
--- level above, a head for elites / rares / bosses under it, the threat
--- colour on the iron, a gold glow on your target, a cast bar with the
--- orange interrupt-ready burn (core/castbars.lua), and the debuffs you put
--- on the unit.
---
--- How it fits the game (Blizzard_NamePlates, Forever's "Camelot" build):
---  * The game creates one base frame per plate (NAME_PLATE_CREATED) and
---    hands it a unit token on NAME_PLATE_UNIT_ADDED. A Roth plate is a child
---    of that base, so it follows it, and the game keeps placing, scaling,
---    fading and clicking the base itself; nothing of ours takes the mouse.
---  * Blizzard's own plate (base.UnitFrame, taken from a pool on every add)
---    is hidden, and kept hidden by a hook on its Show, Plater's way
---    (Plater.lua OnRetailNamePlateShow). Should it ever be protected, its
---    alpha goes to 0 instead (alpha is not restricted).
---  * Forbidden plates (friendly units inside instances) come with their own
---    events and frames that add-ons may not touch; Roth leaves them be.
---  * Soft targeting (what the gamepad will hit or talk to): the game draws
---    its icon on Blizzard's plate (NamePlateDriverMixin
---    UpdateSoftTargetIconInternal), which is hidden here, so a Roth plate
---    draws it itself with the same call (SetUnitCursorTexture, the
---    SoftTargetIcon* / SoftTargetNameplateSize settings) and adds a red glow
---    on the soft enemy.
---
--- Hidden values: health, max health, threat and cast info can be secret in
--- combat. Health goes to the status bar as it comes; the cast bar is driven
--- by the game's own duration object (UnitCastingDuration /
--- UnitChannelDuration -> StatusBar:SetTimerDuration, as Plater's Forever
--- build and Roth's oUF cast bar do); "cannot be interrupted" only sets
--- alphas (SetAlphaFromBoolean) and colours (C_CurveUtil); debuff timers use
--- C_UnitAuras.GetAuraDuration -> Cooldown:SetCooldownFromDurationObject and
--- stack counts GetAuraApplicationDisplayCount. A threat status that cannot
--- be read leaves the colour as it was. Nothing secret is compared in Lua.
+-- Diablo nameplates using zork's iron bar artwork; Plater was a lifecycle/API reference.
+-- Custom plates follow Blizzard's base frames without taking mouse input.
+-- Fade native plates through global post-hooks; do not Hide() or hook pooled frames.
+-- Leave forbidden plates untouched. Recreate the game's soft-target cursor on ours.
+-- Secret health/cast/aura values go to C setters, curves, and duration objects.
 
 local _, ns = ...
 
@@ -67,9 +35,7 @@ end
 NP.plates = {} -- unit token -> Roth plate
 local hiddenBlizzard = setmetatable({}, { __mode = "k" }) -- Blizzard UnitFrame -> keep hidden?
 
----------------------------------------------
 -- BUILD
----------------------------------------------
 
 local function Text(parent, size, layer)
 	local fs = func.createFontString(parent, cfg.font, size, "THINOUTLINE")
@@ -256,9 +222,7 @@ function NP.Create(base)
 	return plate
 end
 
----------------------------------------------
 -- UPDATE
----------------------------------------------
 
 function NP.UpdateHealth(plate)
 	local unit = plate.unit
@@ -392,9 +356,7 @@ function NP.UpdateSoftTarget(plate)
 	plate.SoftIcon:SetShown(shown)
 end
 
----------------------------------------------
 -- CAST BAR
----------------------------------------------
 
 local function CastColor(cb, notInterruptible)
 	-- gold, or grey when it cannot be interrupted, without testing the (maybe secret) flag
@@ -480,9 +442,7 @@ function NP.UpdateCast(plate)
 	end
 end
 
----------------------------------------------
 -- DEBUFFS (yours)
----------------------------------------------
 
 function NP.UpdateDebuffs(plate)
 	local row = plate.Debuffs
@@ -526,9 +486,7 @@ function NP.UpdateDebuffs(plate)
 	row:SetWidth(math.max(1, shown * 20 - 2))
 end
 
----------------------------------------------
 -- ATTACH / DETACH
----------------------------------------------
 
 -- Other nameplate add-ons draw their own: Roth steps aside for them.
 NP.OTHERS = { "Plater", "Kui_Nameplates", "TidyPlates_ThreatPlates", "TidyPlates", "NeatPlates", "EKplates", "nPlates" }
@@ -557,17 +515,8 @@ function NP.Wanted(unit)
 	return not Secrets.Bool(UnitIsFriend, "player", unit)
 end
 
--- Blizzard's plate is faded, never hidden: Hide() from add-on code runs the
--- CompactUnitFrame's OnHide in our context, and the pooled frame then
--- carried tainted fields into NamePlateDriverFrame:OnNamePlateAdded and its
--- health updates (blocked actions and "secret value" errors, 2026-10-16).
--- Faded, it keeps running untainted and can be handed back at any time.
---
--- Nothing is hooked on the frame itself: an earlier hooksecurefunc(uf,
--- "Show") left Forever's pooled plate frames with a nil Show, so Blizzard's
--- CompactUnitFrame_UpdateVisible failed with "attempt to call a nil value"
--- on every plate it re-used. Blizzard's global functions that show the
--- frame or set its alpha are post-hooked instead; the hooks only SetAlpha.
+-- Fade rather than Hide() native plates to avoid tainting pooled frame lifecycle state.
+-- Hook global update functions; per-frame Show hooks previously broke pooled frames.
 local function Refade(frame)
 	if frame and hiddenBlizzard[frame] then
 		frame:SetAlpha(0)
@@ -636,9 +585,7 @@ function NP.Detach(unit)
 	end
 end
 
----------------------------------------------
 -- EVENTS
----------------------------------------------
 
 local CAST_START = {
 	UNIT_SPELLCAST_START = false,

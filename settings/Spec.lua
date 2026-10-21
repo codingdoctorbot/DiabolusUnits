@@ -1,16 +1,6 @@
--- DiabolusUnits — settings/Spec.lua
---
--- What the settings window contains, as data: one build function per page returning a flat
--- array of row specs (kinds: header, text, checkbox, slider, dropdown, button, color — see
--- settings/Rows.lua). Pages are built the first time they are opened.
---
--- Sources:
---   * Orbs: the old orb panel's save/load/update functions (core/panel.lua, ns.panel), so
---     every orb setting keeps its Roth_UI_DB_CHAR key and live update. Its window is no
---     longer shown; its StaticPopup / UIDropDownMenu routes are not reached from here.
---   * Layout and belt: config.lua values through ns.Settings (settings/Settings.lua).
---   * Fonts and profiles: the AceDB profile (Roth_Config / RothFont).
---   * The edit layout itself stays in core/editmode.lua; the window only opens it.
+-- Lazy page definitions for the settings window.
+-- Orb rows reuse core/panel.lua helpers and Roth_UI_DB_CHAR; cfg rows use ns.Settings.
+-- Fonts/profiles use AceDB. Moving and sizing frames stays in core/editmode.lua.
 
 local _, ns = ...
 
@@ -20,8 +10,6 @@ local Settings = ns.Settings
 
 local Spec = {}
 Panel.Spec = Spec
-
-local MEDIA = "Interface\\AddOns\\DiabolusUnits\\media\\"
 
 local function print_(msg)
 	print("|cffdb9e47DiabolusUnits:|r " .. msg)
@@ -39,7 +27,7 @@ local function reloadButton(label)
 	}
 end
 
--- ── cfg-backed rows ───────────────────────────────────────────────────────────
+-- cfg-backed rows
 
 local function cfgCheckbox(path, label, tooltip, after)
 	return {
@@ -66,11 +54,18 @@ local function cfgSlider(path, label, tooltip, min, max, step, after)
 		min = min,
 		max = max,
 		step = step,
+  format = path:lower():find("scale", 1, true) and function(value) return ("%d%%"):format(value * 100 + 0.5) end or nil,
 		get = function()
+   if path == "units.target.scale" and ns.EditMode and _G.Roth_UITargetFrame then
+    return ns.EditMode:GetScale(_G.Roth_UITargetFrame)
+   end
 			return Settings.Get(path)
 		end,
 		set = function(value)
 			Settings.Set(path, value)
+   if path == "units.target.scale" and ns.EditMode and _G.Roth_UITargetFrame then
+    ns.EditMode:SetScale(_G.Roth_UITargetFrame, value)
+   end
 			if after then
 				after(value)
 			end
@@ -82,7 +77,7 @@ local function layout()
 	Settings.QueueLayout()
 end
 
--- ── Overview ──────────────────────────────────────────────────────────────────
+-- Overview
 
 function Spec.BuildOverviewPage()
 	local rows = {}
@@ -128,9 +123,9 @@ function Spec.BuildOverviewPage()
 		kind = "button",
 		label = "Frame positions and sizes",
 		buttonText = "Reset layout",
-		tooltip = "Puts every frame back in its default place and size (the edit layout's Reset UI).",
+		tooltip = "Resets frame positions and sizes in the active keyboard or gamepad layout. The other layout is kept.",
 		onClick = function()
-			Popup.Confirm("Reset every frame's position and size to the default layout?", "Reset layout", function()
+			Popup.Confirm("Reset frame positions and sizes in the active input layout? The other input layout is kept.", "Reset layout", function()
 				if ns.EditMode and ns.EditMode.ResetAllToDefault then
 					ns.EditMode:ResetAllToDefault()
 				end
@@ -139,12 +134,15 @@ function Spec.BuildOverviewPage()
 	}
 	rows[#rows + 1] = {
 		kind = "button",
-		label = "Settings on the Layout and Belt pages",
+		label = "Addon option defaults",
 		buttonText = "Reset settings",
-		tooltip = "Returns the Layout and Belt pages to config.lua's defaults. Orbs, fonts and frame positions are not touched.",
+		tooltip = "Resets addon options in this profile. Saved frame positions, fonts and per-character orb appearance are kept.",
 		onClick = function()
-			Popup.Confirm("Return the Layout and Belt settings to their defaults?", "Reset settings", function()
+			Popup.Confirm("Reset addon options in this profile? Saved frame positions, fonts and orb appearance are kept.", "Reset settings", function()
 				Settings.ResetAll()
+    if ns.CastBars then ns.CastBars.RefreshAppearance() end
+    if ns.Tooltips then ns.Tooltips.Refresh() end
+    if ns.InterfaceSkin then ns.InterfaceSkin.Refresh() end
 				layout()
 				Panel.MarkDirty()
 			end)
@@ -154,7 +152,36 @@ function Spec.BuildOverviewPage()
 	return rows
 end
 
--- ── Layout ────────────────────────────────────────────────────────────────────
+-- Layout
+
+function Spec.BuildGamepadPage()
+ local rows = {
+  { kind = "text", body = "Gamepad has its own saved positions, sizes and visibility. Use Edit Layout while gamepad mode is active. Keyboard keeps its existing layout. Changes in combat wait until combat ends." },
+  cfgCheckbox("gamepadLayout.followCrossbar", "Follow the gamepad actionbar", "Default orbs, art and castbar follow the native actionbar. Move or scale the bar in Forever Edit Mode. Saved Diabolus positions take priority.", layout),
+  { kind = "header", label = "Gamepad starting layout" },
+  { kind = "text", body = "Saved Edit Layout positions and sizes take priority over these defaults. Reset UI affects only the active input mode." },
+ }
+ for _, item in ipairs({
+  { "orbX", "Orb distance from center", 280, 550, 5 },
+  { "orbY", "Orb height", 0, 150, 1 },
+  { "orbScale", "Orb scale", 0.5, 1.2, 0.01 },
+  { "artScale", "Statue art scale", 0.5, 1.2, 0.01 },
+  { "artY", "Statue base height", -20, 40, 1 },
+  { "castGap", "Castbar gap above actionbar", 24, 140, 1 },
+  { "castScale", "Castbar scale", 0.5, 1.5, 0.01 },
+  { "swingGap", "Weapon timer gap", 8, 80, 1 },
+  { "targetScale", "Target scale", 0.5, 1.5, 0.01 },
+  { "beltScale", "Potion belt scale", 0.5, 1.2, 0.01 },
+  { "beltY", "Potion belt height", 0, 150, 1 },
+ }) do
+  rows[#rows + 1] = cfgSlider("gamepadLayout." .. item[1], item[2], nil, item[3], item[4], item[5], layout)
+ end
+ rows[#rows + 1] = cfgCheckbox("gamepadLayout.arrangePanels", "Separate chat and quest panels", "Keep gamepad chat on the left and quests on the right. Keyboard panel positions are restored when switching back.", layout)
+ rows[#rows + 1] = { kind = "header", label = "Native radial menu" }
+ rows[#rows + 1] = cfgCheckbox("gamepadLayout.centerRadial", "Center the radial menu", "Keep the native menu and controller navigation, with a centered position.", layout)
+ rows[#rows + 1] = cfgSlider("gamepadLayout.radialScale", "Radial menu scale", nil, 0.6, 1.2, 0.01, layout)
+ return rows
+end
 
 function Spec.BuildLayoutPage()
 	local rows = {}
@@ -323,61 +350,47 @@ function Spec.BuildLayoutPage()
 			layout()
 		end,
 	}
-	rows[#rows + 1] = {
-		kind = "slider",
-		child = true,
-		label = "Left wing distance",
-		tooltip = "Distance of the game menu wing outward from the demon statue.",
-		min = 180,
-		max = 350,
-		step = 5,
-		enabledWhen = sm,
-		get = function()
-			return Settings.Get("standardMode.microDockOffset")
-		end,
-		set = function(value)
-			Settings.Set("standardMode.microDockOffset", value)
-			layout()
-		end,
-	}
-	rows[#rows + 1] = {
-		kind = "slider",
-		child = true,
-		label = "Right wing distance",
-		tooltip = "Distance of the bag bar wing outward from the angel statue.",
-		min = 180,
-		max = 350,
-		step = 5,
-		enabledWhen = sm,
-		get = function()
-			return Settings.Get("standardMode.bagDockOffset")
-		end,
-		set = function(value)
-			Settings.Set("standardMode.bagDockOffset", value)
-			layout()
-		end,
-	}
+	for _, wing in ipairs({ { "micro", "Game menu" }, { "bag", "Bags" } }) do
+		for _, dimension in ipairs({
+			{ "BodyHeight", "button height", "Height of the painted button body before the wing's requested scale.", 20, 36 },
+			{ "ButtonGap", "button spacing", "Clear space between the painted button bodies.", 0, 6 },
+			{ "JoinOffset", "statue join offset", "Adjust the wing's default join beside the statue. A saved wing position takes priority.", -160, 160 },
+		}) do
+			local row = cfgSlider("standardMode." .. wing[1] .. dimension[1],
+				wing[2] .. " " .. dimension[2], dimension[3], dimension[4], dimension[5], 1, layout)
+			row.child = true
+			row.enabledWhen = sm
+			rows[#rows + 1] = row
+		end
+	end
 
-	rows[#rows + 1] = { kind = "header", label = "Tooltip" }
+	rows[#rows + 1] = { kind = "header", label = "Experience bar" }
 	rows[#rows + 1] = {
 		kind = "dropdown",
-		label = "Tooltip position",
-		tooltip = "Where tooltips appear. Each spot is clear of the orbs, wings, belt and pet frame. Following the mouse works with keyboard and mouse only.",
+		label = "XP and rested colors",
+		tooltip = "Applies to both keyboard/mouse and gamepad layouts. Rested XP extends beyond your current XP and appears only while a rested bonus is available.",
 		options = function()
 			return {
-				{ value = "bottomright", label = "Bottom right, above the belt" },
-				{ value = "bottomleft", label = "Bottom left, above the game menu" },
-				{ value = "center", label = "Above the action bars" },
-				{ value = "cursor", label = "Follow the mouse" },
+				{ value = "purple", label = "Purple XP / blue rested" },
+				{ value = "amber", label = "Amber XP / deep amber rested" },
 			}
 		end,
 		get = function()
-			return Settings.Get("rtooltip.anchor") or "bottomright"
+			return Settings.Get("units.player.expbar.colorStyle") or "amber"
 		end,
 		set = function(value)
-			Settings.Set("rtooltip.anchor", value)
+			Settings.Set("units.player.expbar.colorStyle", value)
+			if ns.bars and ns.bars.RefreshExperienceAppearance then
+				ns.bars.RefreshExperienceAppearance()
+			end
 		end,
 	}
+	rows[#rows + 1] = {
+		kind = "text",
+		body = "The bright fill is earned XP. The darker amber or blue extension is your remaining rested bonus, capped at the end of this level. Hover the bar for exact amounts.",
+	}
+
+ rows[#rows + 1] = cfgSlider("standardMode.dockY", "Wing height", "Raise or lower both default wings. A wing moved in Edit Layout keeps its saved position.", -10, 30, 1, layout)
 
 	rows[#rows + 1] = { kind = "header", label = "Interface scale" }
 	rows[#rows + 1] = {
@@ -402,7 +415,7 @@ function Spec.BuildLayoutPage()
 	return rows
 end
 
--- ── Belt ──────────────────────────────────────────────────────────────────────
+-- Belt
 
 function Spec.BuildBeltPage()
 	local rows = {}
@@ -410,9 +423,9 @@ function Spec.BuildBeltPage()
 		kind = "text",
 		gap = 8,
 		body = "Five sockets, the best of each from your bags: health potion, healthstone, mana potion "
-			.. "(mana gem first for mages, rage potion for warriors, Thistle Tea for rogues), buff food "
-			.. "and bandage. Bandages always go on yourself; inside a battleground its free draughts "
-			.. "and bandages come first. An empty socket goes dark.\n\nThe food socket is for the Well Fed "
+			.. "(mana gem first for mages, rage potion for warriors, Thistle Tea for rogues), food "
+			.. "and bandage, plus an optional sixth drink socket. Bandages always go on yourself; inside a battleground its free draughts "
+			.. "and bandages come first. An empty socket shows a dim category icon.\n\nThe food socket is for the Well Fed "
 			.. "buff: its swipe shows how much of the buff is left and its rim pulses when the buff is "
 			.. "missing or running low.\n\n"
 			.. "Key bindings: Key Bindings > AddOns > DiabolusUnits.",
@@ -422,9 +435,52 @@ function Spec.BuildBeltPage()
 			ns.Belt.SetShown(value)
 		end
 	end)
+	local function refreshPolicy()
+		if ns.Belt then
+			ns.Belt:PolicyChanged()
+		end
+	end
+	rows[#rows + 1] = cfgCheckbox(
+		"belt.buffFoodFirst",
+		"Prefer buff food when Well Fed is missing",
+		"Choose a stat meal when the buff is known to be missing. Otherwise use ordinary food first.",
+		refreshPolicy
+	)
+	rows[#rows + 1] = {
+		kind = "dropdown",
+		label = "Preferred food stat",
+		tooltip = "Prioritize meals with this bonus. Other food remains available if you have none. Auto uses a class default; choose a stat for your role.",
+		options = function()
+			return {
+				{ value = "auto", label = "Auto (class default)" },
+				{ value = "str", label = "Strength" },
+				{ value = "agi", label = "Agility" },
+				{ value = "sta", label = "Stamina" },
+				{ value = "int", label = "Intellect" },
+				{ value = "spi", label = "Spirit" },
+				{ value = "mp5", label = "Mana regeneration" },
+				{ value = "hp5", label = "Health regeneration" },
+			}
+		end,
+		get = function()
+			return Settings.Get("belt.foodStat") or "auto"
+		end,
+		set = function(value)
+			Settings.Set("belt.foodStat", value)
+			refreshPolicy()
+		end,
+	}
+	if ns.Belt and ns.Belt.powerType == "mana" then
+		rows[#rows + 1] = cfgCheckbox(
+			"belt.includeRejuvenation",
+			"Allow rejuvenation potions",
+			"Allow potions that restore both health and mana in the mana socket. Mage gems still come first.",
+			refreshPolicy
+		)
+	end
 	rows[#rows + 1] = cfgSlider(
 		"belt.foodWarnMinutes",
-		"Warn when Well Fed has less than (minutes)",
+		"Well Fed warning (minutes)",
 		"The food socket's rim pulses below this, and when the buff is gone, as long as you carry buff food.",
 		1,
 		30,
@@ -435,28 +491,69 @@ function Spec.BuildBeltPage()
 			end
 		end
 	)
+	rows[#rows + 1] = cfgCheckbox(
+		"belt.showDrink",
+		"Show a separate drink socket",
+		"Add water as socket 6. The first five sockets and bindings stay in the same order. Changes wait until combat ends.",
+		refreshPolicy
+	)
+	rows[#rows + 1] = { kind = "header", label = "Action bar shortcuts" }
 	rows[#rows + 1] = {
-		kind = "dropdown",
-		label = "Place the belt",
-		tooltip = "Keyboard layout only; with a gamepad the belt sits beside the health orb. A position set in the edit layout wins.",
-		options = function()
-			return {
-				{ value = "bags", label = "Above the bag wing" },
-				{ value = "actionbar", label = "Above the action bars" },
-			}
-		end,
-		get = function()
-			return Settings.Get("standardMode.beltAnchor") or "bags"
-		end,
-		set = function(value)
-			Settings.Set("standardMode.beltAnchor", value)
-			layout()
-		end,
+		kind = "text",
+		body = "Create a shortcut, then place the macro from your cursor onto an action bar. Each macro clicks one belt socket and follows its selected item.\n\nDirect bindings are also available under Key Bindings > AddOns > DiabolusUnits (Belt 1–6). You can use either method, or both.",
 	}
+	rows[#rows + 1] = cfgCheckbox(
+		"belt.macroStopCasting",
+		"Stop casting from bar macros",
+		"Add /stopcasting before each shortcut's /click. Off by default. Direct belt clicks and direct key bindings keep their normal behavior.",
+		refreshPolicy
+	)
+	for index = 1, 6 do
+		local slot = index
+		rows[#rows + 1] = {
+			kind = "button",
+			label = "Belt " .. slot .. ": " .. (ns.Belt and ns.Belt.labels[slot] or tostring(slot)),
+			buttonText = "Create / pick up macro",
+			tooltip = "Creates a character macro on request, or picks up the existing belt shortcut. Custom macros are preserved.",
+			enabledWhen = function()
+				return slot ~= 6 or Settings.Get("belt.showDrink")
+			end,
+			onClick = function()
+				if ns.Belt then
+					local _, message = ns.Belt:PickupMacro(slot)
+					print_(message)
+				end
+			end,
+		}
+	end
+	rows[#rows + 1] = { kind = "header", label = "Above the bags" }
+	rows[#rows + 1] = { kind = "text", body = "The keyboard belt follows the bag wing. Dragging it in Edit Layout adjusts these preferences. Automatic fitting keeps the requested size and offsets saved. Gamepad placement is separate." }
+	for _, definition in ipairs({
+		{ "Horizontal offset", -300, 300, false },
+		{ "Gap above the shelf", 4, 150, true },
+	}) do
+		local isGap = definition[4]
+		rows[#rows + 1] = {
+			kind = "slider", label = definition[1], min = definition[2], max = definition[3], step = 1,
+			tooltip = "Preferred offset in UI units. Fitting may adjust its applied position to keep the belt clear.",
+			enabledWhen = function() return ns.StandardMode and ns.StandardMode:IsDockedBelt() end,
+			get = function()
+				if not ns.StandardMode then return isGap and 6 or 0 end
+				local x, gap = ns.StandardMode:GetBeltDockOffsets()
+				return isGap and gap or x
+			end,
+			set = function(value)
+				if ns.StandardMode then
+					if isGap then ns.StandardMode:SetBeltDockOffsets(nil, value)
+					else ns.StandardMode:SetBeltDockOffsets(value, nil) end
+				end
+			end,
+		}
+	end
 	return rows
 end
 
--- ── Orbs ──────────────────────────────────────────────────────────────────────
+-- Orbs
 
 local function orbList(list)
 	local out = {}
@@ -604,6 +701,11 @@ local function buildOrbPage(orb, kind)
 	rows[#rows + 1] = { kind = "header", label = "3D model" }
 	rows[#rows + 1] = check("ModelEnable", "Show a 3D model in the orb", "An animated model drawn inside the liquid.")
 	rows[#rows + 1] = dropdown("ModelAnimation", "Model", "Which model to show.", db.getListModel, modelOn)
+	rows[#rows + 1] = {
+		kind = "button", child = true, label = "Visual model gallery", buttonText = "Browse models",
+		tooltip = "Preview eight models at a time, search by name/category/ID, and choose a model. Browsing keeps your orb unchanged until you use a selection.",
+		onClick = function() if Panel.OrbGallery then Panel.OrbGallery.Open(orb, kind) end end,
+	}
 	rows[#rows + 1] = slider("ModelAlpha", "Opacity", nil, 0, 1, 0.01, modelOn)
 	rows[#rows + 1] = slider("ModelScale", "Camera distance", nil, 0.1, 6, 0.01, modelOn)
 	rows[#rows + 1] = slider("ModelPosX", "Horizontal position", nil, -5, 5, 0.01, modelOn)
@@ -706,7 +808,7 @@ function Spec.BuildPowerOrbPage()
 	return buildOrbPage("Power", "POWER")
 end
 
--- ── Fonts ─────────────────────────────────────────────────────────────────────
+-- Fonts
 
 function Spec.BuildFontsPage()
 	local rows = {}
@@ -766,7 +868,7 @@ function Spec.BuildFontsPage()
 	return rows
 end
 
--- ── Profiles ──────────────────────────────────────────────────────────────────
+-- Profiles
 
 function Spec.BuildProfilesPage()
 	local rows = {}
@@ -886,9 +988,113 @@ function Spec.BuildProfilesPage()
 	return rows
 end
 
--- ── Unit Frames ───────────────────────────────────────────────────────────────
+-- Castbars
 
--- ── Unit Frames Subtab Helpers ──────────────────────────────────────────────
+local function refreshCastbars()
+ if ns.CastBars then ns.CastBars.RefreshAppearance() end
+end
+
+local function castbarTab(unit)
+ local path = "units." .. unit .. ".castbar."
+ local frameName = ({ player = "Roth_UIPlayerFrame", target = "Roth_UITargetFrame", focus = "Roth_UIFocusFrame" })[unit] .. "CastBarDragFrame"
+ local rows = {
+  { kind = "text", body = "Move and scale the whole castbar in Edit Layout. These options change its contents and proportions; keyboard and gamepad keep their saved placements." },
+  { kind = "header", label = "Appearance" },
+  cfgSlider(path .. "width", "Bar width", "Width of the fill; the stone frame follows it.", 160, 420, 5, refreshCastbars),
+  cfgSlider(path .. "height", "Bar height", "Height of the fill inside the stone frame.", 10, 26, 1, refreshCastbars),
+  {
+   kind = "slider", label = "Frame scale (current layout)", min = 0.5, max = 2, step = 0.05,
+   tooltip = "The same scale as Edit Layout. Changes only the active keyboard or gamepad layout. Enable this castbar and reload if its frame does not exist yet.",
+   enabledWhen = function() return rawget(_G, frameName) ~= nil end,
+   format = function(value) return ("%d%%"):format(value * 100 + 0.5) end,
+   get = function() return ns.EditMode and ns.EditMode:GetScale(rawget(_G, frameName)) or 1 end,
+   set = function(value)
+    if ns.EditMode then ns.EditMode:SetScale(rawget(_G, frameName), value) end
+   end,
+  },
+  cfgSlider(path .. "TextSize", "Text size", "Spell name, countdown and pushback text size before frame scaling.", 8, 18, 1, refreshCastbars),
+  cfgCheckbox(path .. "showName", "Spell name", "Show the name of the spell being cast.", refreshCastbars),
+  cfgCheckbox(path .. "showTime", "Remaining time", "Show the cast or channel countdown.", refreshCastbars),
+  cfgSlider(path .. "timeToHold", "Interrupted / failed hold", "Seconds to keep a failed or interrupted cast visible. Zero hides it immediately.", 0, 2, 0.1, refreshCastbars),
+ }
+ rows[#rows + 1] = { kind = "header", label = unit == "player" and "Casting feedback" or "Interrupts" }
+ if unit == "player" then
+  rows[#rows + 1] = cfgCheckbox(path .. "showDelay", "Cast pushback", "Show added cast time in red (+seconds), or channel time lost (-seconds).", refreshCastbars)
+  rows[#rows + 1] = cfgCheckbox(path .. "latency", "Latency zone", "Shade the latency allowance using your current connection latency.", refreshCastbars)
+  rows[#rows + 1] = cfgCheckbox(path .. "channelTicks", "Channel tick marks", "Mark the known tick intervals for supported channeled spells.", refreshCastbars)
+ else
+  rows[#rows + 1] = cfgCheckbox(path .. "interruptReady", "Interrupt-ready glow", "Glow during an interruptible hostile cast when your interrupt is ready.", refreshCastbars)
+ end
+ return rows
+end
+
+function Spec.BuildPlayerCastbarTab() return castbarTab("player") end
+function Spec.BuildTargetCastbarTab() return castbarTab("target") end
+function Spec.BuildFocusCastbarTab() return castbarTab("focus") end
+
+-- Tooltips
+
+local function refreshTooltips()
+ if ns.Tooltips then ns.Tooltips.Refresh() end
+end
+
+function Spec.BuildTooltipPage()
+ local rows = {
+  { kind = "text", body = "Custom Diablo tooltips. Dragged Edit Layout positions take priority; choosing an anchor restores its default placement. Width and height are minima, so longer content still fits." },
+  { kind = "header", label = "Appearance" },
+  cfgSlider("rtooltip.scale", "Tooltip scale", "Scale tooltips, including item comparisons.", 0.5, 2, 0.05, refreshTooltips),
+  cfgSlider("rtooltip.width", "Minimum width", "Zero uses the content width. Longer content can expand beyond this minimum.", 0, 500, 10, refreshTooltips),
+  cfgSlider("rtooltip.height", "Minimum height", "Zero uses the content height. Longer tooltips can expand so text stays visible.", 0, 500, 10, refreshTooltips),
+  cfgSlider("rtooltip.opacity", "Background opacity", "Opacity of the tooltip background. Text and borders stay readable.", 0.4, 1, 0.05, refreshTooltips),
+  cfgCheckbox("rtooltip.itemDress", "Item decorations", "Add the Diablo title plate and footer to item tooltips.", refreshTooltips),
+  cfgCheckbox("rtooltip.itemIcon", "Item icon", "Show the framed icon beside decorated item tooltips.", refreshTooltips),
+  cfgCheckbox("rtooltip.qualityBorder", "Item quality border", "Color item borders by quality. Off uses the neutral frame.", refreshTooltips),
+  { kind = "header", label = "Details" },
+  cfgCheckbox("rtooltip.showSpellID", "Spell IDs", "Include the spell ID on spell and aura tooltips."),
+  cfgCheckbox("rtooltip.showTarget", "Unit's target", "Include the hovered unit's current target."),
+  cfgCheckbox("rtooltip.showHealth", "Unit health bar", "Show the thin health bar above unit tooltips.", refreshTooltips),
+  { kind = "header", label = "Keyboard and mouse" },
+ }
+ local function position(path, label, gamepad)
+  return {
+   kind = "dropdown", label = label,
+   tooltip = "Choosing an anchor clears that mode's dragged position. Directly anchored button tooltips keep their own placement.",
+   options = function()
+    local options = {
+     { value = "bottomright", label = "Bottom right" },
+     { value = "bottomleft", label = "Bottom left" },
+     { value = "center", label = "Above the action bars" },
+    }
+    if gamepad then
+     table.insert(options, 1, { value = "top", label = "Top center" })
+    else
+     options[#options + 1] = { value = "cursor", label = "Follow the mouse" }
+    end
+    return options
+   end,
+   get = function() return Settings.Get(path) end,
+   set = function(value)
+    Settings.Set(path, value)
+    local db = ns.BaseLayoutProfile and ns.BaseLayoutProfile()
+    if gamepad then db = db and db.gamepadLayout end
+    if db and db.framePositions then db.framePositions.Roth_UITooltipAnchor = nil end
+    refreshTooltips()
+   end,
+  }
+ end
+ rows[#rows + 1] = position("rtooltip.anchor", "Tooltip position", false)
+ rows[#rows + 1] = cfgSlider("rtooltip.offsetX", "Horizontal offset", "Move the fixed tooltip anchor left or right; cursor mode ignores this.", -400, 400, 5)
+ rows[#rows + 1] = cfgSlider("rtooltip.offsetY", "Vertical offset", "Move the fixed tooltip anchor up or down; cursor mode ignores this.", -300, 300, 5)
+ rows[#rows + 1] = { kind = "header", label = "Gamepad" }
+ rows[#rows + 1] = position("rtooltip.gamepadAnchor", "Gamepad tooltip position", true)
+ rows[#rows + 1] = cfgSlider("rtooltip.gamepadOffsetX", "Gamepad horizontal offset", "Adjust the gamepad tooltip anchor independently of mouse mode.", -400, 400, 5)
+ rows[#rows + 1] = cfgSlider("rtooltip.gamepadOffsetY", "Gamepad vertical offset", "Adjust the gamepad tooltip anchor independently of mouse mode.", -300, 300, 5)
+ return rows
+end
+
+-- Unit Frames
+
+-- Unit Frames Subtab Helpers
 
 local function refreshTarget()
 	if ns.func and ns.func.refreshTargetFrame then
@@ -943,7 +1149,7 @@ local function refreshRaid()
 	end
 end
 
--- ── Target Subtab ─────────────────────────────────────────────────────────────
+-- Target Subtab
 
 function Spec.BuildTargetUnitTab()
 	local rows = {}
@@ -995,7 +1201,7 @@ function Spec.BuildTargetUnitTab()
 			end
 
 			return (
-				"|cffdfaa46[Live Preview]|r  |cffffd100%s|r\n"
+				"|cffdfaa46Text sample|r  |cffffd100%s|r\n"
 				.. "  • |cffaaaaaaHealth:|r %s   |cffaaaaaaPower:|r %s\n"
 				.. "  • |cffaaaaaaAuras Grow:|r |cffffffff%s|r"
 			):format(titleLine, sampleHp[hFmt] or hFmt, samplePp[pFmt] or pFmt, auraPl:upper())
@@ -1012,7 +1218,7 @@ function Spec.BuildTargetUnitTab()
 	rows[#rows + 1] = cfgSlider(
 		"units.target.scale",
 		"Target frame scale",
-		"Base scale of the target frame.",
+		"Size in the active keyboard or gamepad layout. Edit Layout reads and changes the same value.",
 		0.6,
 		2.0,
 		0.05,
@@ -1200,7 +1406,7 @@ function Spec.BuildTargetUnitTab()
 	return rows
 end
 
--- ── Focus Subtab ──────────────────────────────────────────────────────────────
+-- Focus Subtab
 
 function Spec.BuildFocusUnitTab()
 	local rows = {}
@@ -1227,7 +1433,7 @@ function Spec.BuildFocusUnitTab()
 				none = "|cff888888(Hidden)|r",
 			}
 			return (
-				"|cffdfaa46[Live Preview]|r  |cffffd100[70] Archmage Vargoth|r\n"
+				"|cffdfaa46Text sample|r  |cffffd100[70] Archmage Vargoth|r\n"
 				.. "  • |cffaaaaaaHealth:|r %s   |cffaaaaaaPower:|r %s"
 			):format(sampleHp[hFmt] or hFmt, samplePp[pFmt] or pFmt)
 		end,
@@ -1339,7 +1545,7 @@ function Spec.BuildFocusUnitTab()
 	return rows
 end
 
--- ── Target of Target Subtab ───────────────────────────────────────────────────
+-- Target of Target Subtab
 
 function Spec.BuildToTUnitTab()
 	local rows = {}
@@ -1358,7 +1564,7 @@ function Spec.BuildToTUnitTab()
 				none = "(Hidden)",
 			}
 			return (
-				"|cffdfaa46[Live Preview]|r\n"
+				"|cffdfaa46Text sample|r\n"
 				.. "  • |cffaaaaaaToT Bar Text:|r |cffffffff%s|r\n"
 				.. "  • |cffaaaaaaFocus Target Text:|r |cffffffff%s|r"
 			):format(sample[totFmt] or totFmt, sample[ftFmt] or ftFmt)
@@ -1453,7 +1659,7 @@ function Spec.BuildToTUnitTab()
 	return rows
 end
 
--- ── Pet Subtab ────────────────────────────────────────────────────────────────
+-- Pet Subtab
 
 function Spec.BuildPetUnitTab()
 	local rows = {}
@@ -1473,7 +1679,7 @@ function Spec.BuildPetUnitTab()
 				none = "(Hidden)",
 			}
 			return (
-				"|cffdfaa46[Live Preview]|r\n"
+				"|cffdfaa46Text sample|r\n"
 				.. "  • |cffaaaaaaPet Health Text:|r |cffffffff%s|r  |cffaaaaaaHappiness Diamond:|r %s\n"
 				.. "  • |cffaaaaaaPet Target Text:|r |cffffffff%s|r"
 			):format(
@@ -1556,7 +1762,7 @@ function Spec.BuildPetUnitTab()
 	return rows
 end
 
--- ── Party Subtab ──────────────────────────────────────────────────────────────
+-- Party Subtab
 
 function Spec.BuildPartyUnitTab()
 	local rows = {}
@@ -1575,7 +1781,7 @@ function Spec.BuildPartyUnitTab()
 				none = "(Hidden)",
 			}
 			return (
-				"|cffdfaa46[Live Preview]|r\n"
+				"|cffdfaa46Text sample|r\n"
 				.. "  • |cffaaaaaaParty Health Text:|r |cffffffff%s|r\n"
 				.. "  • |cffaaaaaaOut-of-Range Fade:|r |cffffffff%d%% opacity|r"
 			):format(sample[partyFmt] or partyFmt, math.floor(alpha * 100))
@@ -1644,7 +1850,7 @@ function Spec.BuildPartyUnitTab()
 	return rows
 end
 
--- ── Raid Subtab ───────────────────────────────────────────────────────────────
+-- Raid Subtab
 
 function Spec.BuildRaidUnitTab()
 	local rows = {}
@@ -1664,7 +1870,7 @@ function Spec.BuildRaidUnitTab()
 				none = "(Hidden)",
 			}
 			return (
-				"|cffdfaa46[Live Preview]|r\n"
+				"|cffdfaa46Text sample|r\n"
 				.. "  • |cffaaaaaaLayout Style:|r |cffffffff%s|r\n"
 				.. "  • |cffaaaaaaRaid Health Text:|r |cffffffff%s|r\n"
 				.. "  • |cffaaaaaaOut-of-Range Fade:|r |cffffffff%d%% opacity|r"
@@ -1763,7 +1969,7 @@ function Spec.BuildUnitFramesPage()
 	return Spec.BuildTargetUnitTab()
 end
 
--- ── Nameplates ────────────────────────────────────────────────────────────────
+-- Nameplates
 
 function Spec.BuildNameplatesPage()
 	local rows = {}
@@ -1857,7 +2063,7 @@ function Spec.BuildNameplatesPage()
 	return rows
 end
 
--- ── Help ──────────────────────────────────────────────────────────────────────
+-- Help
 
 function Spec.BuildHelpPage()
 	return {
@@ -1876,7 +2082,7 @@ function Spec.BuildHelpPage()
 		{
 			kind = "text",
 			gap = 10,
-			body = "D-pad moves, A selects, B goes back, LB / RB switch pages, LT / RT scroll, "
+			body = "D-pad moves, A opens a page or edits a setting, B steps back. In Unit frames, Left / Right switches subpages on the tab row; A / Down enters settings and Up from the first setting returns to tabs. X / Y (Square / Triangle) also switches subpages. LB / RB changes categories, LT / RT scrolls, "
 				.. "Back closes. The window closes when combat starts.",
 		},
 		{ kind = "header", label = "Credits" },
@@ -1893,23 +2099,83 @@ function Spec.BuildHelpPage()
 	}
 end
 
--- ── Page list ─────────────────────────────────────────────────────────────────
+-- Native interface skin
+
+function Spec.BuildInterfaceSkinPage()
+	local function refresh()
+		if ns.InterfaceSkin then ns.InterfaceSkin.Refresh() end
+	end
+	local function color(key, label, tooltip)
+		return {
+			kind = "color", label = label, tooltip = tooltip,
+			get = function()
+				local c = Settings.Get("interfaceSkin." .. key)
+				return c.r, c.g, c.b
+			end,
+			set = function(r, g, b)
+				Settings.Set("interfaceSkin." .. key, { r = r, g = g, b = b })
+				refresh()
+			end,
+		}
+	end
+	local rows = {
+		{ kind = "text", body = "Restyle the native interface with subtle metal edging and amber accents. Frames keep their normal controls, positions and scale. Changes made in combat apply afterwards. Settings are saved in this profile." },
+		cfgCheckbox("interfaceSkin.enabled", "Enable interface skin", "Switch the whole skin on or restore the native appearance.", refresh),
+		{ kind = "header", label = "Components" },
+		cfgCheckbox("interfaceSkin.chat", "Chat windows and tabs", "Adds a thin border and background; recolors tab labels. Chat messages and channel colors are kept.", refresh),
+		cfgCheckbox("interfaceSkin.minimap", "Minimap trim", "Recolors the native circular frame and top trim. Zone text, mail, tracking icons and the map keep their normal colors.", refresh),
+		cfgCheckbox("interfaceSkin.objectives", "Objective tracker", "Styles the content background and section headings. Quest text, progress, difficulty colors and quest items remain native.", refresh),
+		cfgCheckbox("interfaceSkin.gamepad", "Gamepad actionbar trim", "Tints native button rims, group frames and shoulder backgrounds. Keeps spell icons, cooldowns, equipped-item indicators and focus effects.", refresh),
+		cfgCheckbox("interfaceSkin.respectOtherAddons", "Let other skin addons take priority", "Skips components owned by known chat, minimap, tracker or full-interface addons. Disable an individual component for any unrecognized skin addon.", refresh),
+		{ kind = "header", label = "Palette" },
+		color("border", "Metal border", "Shared trim color for chat, minimap and objective headings."),
+		color("accent", "Accent and headings", "Selected chat tabs and objective section headings. Status and warning colors are preserved."),
+		color("text", "Inactive tab text", "Readable text for inactive chat tabs. Does not recolor chat messages or quest objectives."),
+		color("gamepadBorder", "Gamepad border", "Independent tint for the native gamepad actionbar trim. White restores the texture's original colors."),
+		cfgSlider("interfaceSkin.backgroundOpacity", "Background opacity", "Background behind chat and objective tracker content. Minimap and actionbar backgrounds stay native.", 0, 0.8, 0.02, refresh),
+		cfgSlider("interfaceSkin.borderWidth", "Border thickness", "Thickness in UI units; follows each component's existing scale. Applies to chat and objective backgrounds.", 1, 3, 1, refresh),
+		cfgCheckbox("interfaceSkin.headerFont", "Use addon font for labels", "Uses your configured detail font for chat tabs and objective section headings, at their native size. Chat messages and objective text keep their own font settings.", refresh),
+		{ kind = "button", label = "Skin defaults", buttonText = "Reset skin", onClick = function()
+			for _, key in ipairs({ "enabled", "chat", "minimap", "objectives", "gamepad", "respectOtherAddons", "border", "accent", "text", "gamepadBorder", "backgroundOpacity", "borderWidth", "headerFont" }) do
+				local path = "interfaceSkin." .. key
+				Settings.Set(path, Settings.Default(path))
+			end
+			refresh()
+			Panel.MarkDirty()
+		end },
+	}
+	local skipped = {}
+	for _, entry in ipairs({ { "chat", "Chat" }, { "minimap", "Minimap" }, { "objectives", "Objectives" }, { "gamepad", "Gamepad" } }) do
+		local owner = ns.InterfaceSkin and ns.InterfaceSkin.GetConflict(entry[1])
+		if owner then skipped[#skipped + 1] = entry[2] .. ": " .. owner end
+	end
+	if #skipped > 0 then
+		rows[#rows + 1] = { kind = "text", body = "Detected skin addons (priority option above): " .. table.concat(skipped, "; ") .. "." }
+	end
+	return rows
+end
+
+-- Page list
 
 function Spec.BuildPages()
 	return {
-		{ id = "overview", label = "DiabolusUnits", icon = MEDIA .. "d2_skull", build = Spec.BuildOverviewPage },
+		{ id = "overview", label = "Overview", icon = "overview", build = Spec.BuildOverviewPage },
 		{
 			id = "layout",
-			label = "Layout",
+			label = "Keyboard layout",
 			indent = 1,
-			icon = "Interface\\Icons\\INV_Misc_Gear_01",
+			icon = "layout",
 			build = Spec.BuildLayoutPage,
+		},
+		{
+			id = "gamepad", label = "Gamepad layout", indent = 1,
+			icon = "gamepad", build = Spec.BuildGamepadPage,
 		},
 		{
 			id = "unitframes",
 			label = "Unit frames",
 			indent = 1,
-			icon = "Interface\\Icons\\Spell_Holy_PrayerofShadowProtection",
+			icon = "unitframes",
 			tabs = {
 				{ id = "target", label = "Target", frameName = "Roth_UITargetFrame", build = Spec.BuildTargetUnitTab },
 				{ id = "focus", label = "Focus", frameName = "Roth_UIFocusFrame", build = Spec.BuildFocusUnitTab },
@@ -1925,53 +2191,64 @@ function Spec.BuildPages()
 			},
 			build = Spec.BuildUnitFramesPage,
 		},
+  {
+   id = "castbars", label = "Castbars", indent = 1, icon = "castbars",
+   tabs = {
+    { id = "player", label = "Player", frameName = "Roth_UIPlayerFrameCastBarDragFrame", build = Spec.BuildPlayerCastbarTab },
+    { id = "target", label = "Target", frameName = "Roth_UITargetFrameCastBarDragFrame", build = Spec.BuildTargetCastbarTab },
+    { id = "focus", label = "Focus", frameName = "Roth_UIFocusFrameCastBarDragFrame", build = Spec.BuildFocusCastbarTab },
+   },
+   build = Spec.BuildPlayerCastbarTab,
+  },
+  { id = "tooltips", label = "Tooltips", indent = 1, icon = "tooltips", build = Spec.BuildTooltipPage },
 		{
 			id = "nameplates",
 			label = "Nameplates",
 			indent = 1,
-			icon = "Interface\\Icons\\INV_Shield_06",
+			icon = "nameplates",
 			build = Spec.BuildNameplatesPage,
 		},
 		{
 			id = "health",
 			label = "Health orb",
 			indent = 1,
-			icon = "Interface\\Icons\\INV_Potion_54",
+			icon = "health",
 			build = Spec.BuildHealthOrbPage,
 		},
 		{
 			id = "power",
 			label = "Power orb",
 			indent = 1,
-			icon = "Interface\\Icons\\INV_Potion_76",
+			icon = "power",
 			build = Spec.BuildPowerOrbPage,
 		},
 		{
 			id = "belt",
 			label = "Potion belt",
 			indent = 1,
-			icon = "Interface\\Icons\\INV_Belt_03",
+			icon = "belt",
 			build = Spec.BuildBeltPage,
 		},
+		{ id = "interfaceSkin", label = "Interface skin", indent = 1, icon = "layout", build = Spec.BuildInterfaceSkinPage },
 		{
 			id = "fonts",
 			label = "Fonts",
 			indent = 1,
-			icon = "Interface\\Icons\\INV_Misc_Note_01",
+			icon = "fonts",
 			build = Spec.BuildFontsPage,
 		},
 		{
 			id = "profiles",
 			label = "Profiles",
 			indent = 1,
-			icon = "Interface\\Icons\\INV_Misc_Book_09",
+			icon = "profiles",
 			build = Spec.BuildProfilesPage,
 		},
 		{
 			id = "help",
 			label = "Help",
 			indent = 1,
-			icon = "Interface\\Icons\\INV_Misc_QuestionMark",
+			icon = "help",
 			build = Spec.BuildHelpPage,
 		},
 	}

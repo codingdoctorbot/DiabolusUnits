@@ -1,25 +1,7 @@
----------------------------------------------
---  DiabolusUnits - Potion Belt
----------------------------------------------
--- Diablo's belt: five sockets holding the best of each from your bags:
---   1 health potion   2 healthstone   3 mana potion (rage potion for warriors,
---   Thistle Tea for rogues, mana gems first for mages)   4 food   5 bandage
--- "Best" comes from ranked item lists (core/beltdata.lua); an item that is not
--- listed is still found by its type and name, ranked by item level. Inside a
--- battleground the free draughts and bandages are used first. Items you are too
--- low level for are skipped. Bandages always go on yourself.
---
--- Each socket shows the item's icon, how many you carry and its cooldown (round
--- swipe); its rim glows in the slot's colour and goes dark when you have none. The
--- food socket is about the Well Fed buff, not about eating to regenerate: it prefers
--- buff food, its swipe shows how much of the buff is left, and its rim pulses when the
--- buff is missing or about to run out (cfg.belt.foodWarnMinutes) while you carry buff
--- food. Key bindings: Key Bindings > AddOns > DiabolusUnits: Belt 1-5.
---
--- The buttons are secure; what they hold can only change out of combat, so an
--- item looted in a fight takes its slot when the fight ends. Counts and
--- cooldowns update in combat. Auras are secret in combat on Forever, so the food
--- socket keeps its last known buff state until the fight ends.
+-- Potion belt: health, healthstone, class resource, food, bandage, and optional drink.
+-- core/beltdata.lua ranks known items; unknown items use the bag-scan fallback.
+-- Secure button assignments change only out of combat; counts and cooldowns update live.
+-- Food warnings retain the last readable Well Fed state while auras are restricted.
 
 local _, ns = ...
 
@@ -31,7 +13,7 @@ local Belt = {}
 ns.Belt = Belt
 
 local MEDIA = "Interface\\AddOns\\DiabolusUnits\\media\\"
-local SLOTS = { "health", "healthstone", "mana", "food", "bandage" }
+local SLOTS = { "health", "healthstone", "mana", "food", "bandage", "drink" }
 local SIZE, GAP = 34, 8
 local LIQUID = {
 	health = { 0.85, 0.08, 0.05 },
@@ -41,6 +23,7 @@ local LIQUID = {
 	energy = { 0.95, 0.8, 0.15 },
 	food = { 0.85, 0.55, 0.15 },
 	bandage = { 0.85, 0.78, 0.6 },
+	drink = { 0.25, 0.65, 0.95 },
 }
 
 local CONSUMABLE = (Enum and Enum.ItemClass and Enum.ItemClass.Consumable) or 0
@@ -58,6 +41,30 @@ local function Opt(key, default)
 		return b[key]
 	end
 	return default
+end
+
+local LABELS = {
+	"Health potion",
+	"Healthstone",
+	THIRD == "rage" and "Rage potion" or THIRD == "energy" and "Thistle Tea" or "Mana / gem",
+	"Food",
+	"Bandage",
+	"Drink",
+}
+local PLACEHOLDER = {
+	health = "Interface\\Icons\\INV_Potion_54",
+	healthstone = "Interface\\Icons\\INV_Stone_04",
+	mana = "Interface\\Icons\\INV_Potion_76",
+	rage = "Interface\\Icons\\INV_Potion_24",
+	energy = "Interface\\Icons\\INV_Drink_Milk_05",
+	food = "Interface\\Icons\\INV_Misc_Food_14",
+	bandage = "Interface\\Icons\\INV_Misc_Bandage_12",
+	drink = "Interface\\Icons\\INV_Drink_07",
+}
+Belt.labels = LABELS
+
+local function Active(cat)
+	return cat ~= "drink" or Opt("showDrink", false)
 end
 
 local function ItemSpellName(itemID)
@@ -100,79 +107,102 @@ local function ClassifyBeltItem(name, classID, subclassID, spell)
 	return nil
 end
 
-local function Count(itemID)
-	local n = C_Item.GetItemCount(itemID, false, false)
-	return (Secrets and Secrets.Number(n)) or (type(n) == "number" and n) or 0
+local function Num(v)
+	if Secrets then
+		return Secrets.Number(v)
+	end
+	return type(v) == "number" and v or nil
 end
 
--- First carried item of a ranked list. With `levelGated`, items the client calls
--- unusable (too high a level requirement) are skipped; potions are not gated because
--- IsUsableItem also says "unusable" for reasons the lists already handle (power type).
-local function FirstCarried(list, levelGated)
-	for _, id in ipairs(list) do
-		if Count(id) > 0 then
-			if not levelGated or not C_Item.IsUsableItem then
+local function Count(itemID)
+	local n = C_Item.GetItemCount(itemID, false, false)
+	return Num(n) or 0
+end
+
+-- The client remains authoritative for food and bandage skill requirements.
+-- Potions use their known level requirement: IsUsableItem also rejects a potion
+-- when its resource is full, which must not remove it from the socket.
+local LEVEL_GATED = { food = true, bandage = true, drink = true }
+local AUTO_STAT = {
+	WARRIOR = "str",
+	ROGUE = "agi",
+	HUNTER = "agi",
+	MAGE = "int",
+	WARLOCK = "int",
+	PRIEST = "spi",
+	PALADIN = "sta",
+	DRUID = "sta",
+	SHAMAN = "sta",
+}
+Belt.powerType = THIRD
+
+local function BattlegroundContext()
+	local inside, kind = IsInInstance()
+	if not inside or kind ~= "pvp" then
+		return false
+	end
+	local map = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
+	-- A flag room or other interior can have its own map. Bound the parent walk.
+	for _ = 1, 12 do
+		if not map or map == 0 then
+			break
+		end
+		if Data.BG_CODES[map] then
+			return true, Data.BG_CODES[map]
+		end
+		local info = C_Map.GetMapInfo and C_Map.GetMapInfo(map)
+		local parent = info and info.parentMapID
+		if parent == map then
+			break
+		end
+		map = parent
+	end
+	return true
+end
+
+function Belt:RebuildOrder(only)
+	self.order = self.order or {}
+	local bg, code = BattlegroundContext()
+	local stat = Opt("foodStat", "auto")
+	if stat == "auto" then
+		stat = AUTO_STAT[playerClass]
+	end
+	local options = {
+		class = playerClass,
+		inBattleground = bg,
+		bgCode = code,
+		faction = UnitFactionGroup("player"),
+		includeRejuvenation = Opt("includeRejuvenation", true),
+		buffFoodFirst = Opt("buffFoodFirst", true),
+		preferredStat = stat,
+		wellFed = self.wellFed,
+	}
+	for _, cat in ipairs(SLOTS) do
+		if not only or only == cat then
+			self.order[cat] = Data.BuildOrder(cat, options)
+		end
+	end
+end
+
+function Belt:PolicyChanged()
+	self:RebuildOrder()
+	self:Refresh()
+end
+
+local function Resolve(cat)
+	local level = UnitLevel("player")
+	for _, id in ipairs(Belt.order[cat]) do
+		local row = Data.ITEMS[id]
+		if Count(id) > 0 and (not level or level <= 0 or (row.minLevel or 0) <= level) then
+			if not LEVEL_GATED[cat] or not C_Item.IsUsableItem then
 				return id
 			end
 			local ok, usable = pcall(C_Item.IsUsableItem, id)
-			if not ok or usable ~= false then
+			if ok and usable ~= false then
 				return id
 			end
 		end
 	end
-	return nil
-end
-
-local function InBattleground()
-	local inInstance, instanceType = IsInInstance()
-	return inInstance and instanceType == "pvp"
-end
-
-local function BattlegroundBandages()
-	local map = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
-	if map == Data.MAP_AV then
-		return Data.BANDAGE_AV
-	elseif map == Data.MAP_WSG then
-		return Data.BANDAGE_WSG
-	elseif map == Data.MAP_AB then
-		return UnitFactionGroup("player") == "Alliance" and Data.BANDAGE_AB_ALLIANCE or Data.BANDAGE_AB_HORDE
-	end
-	return nil
-end
-
--- category -> ranked lists to try, in order
-local function RankedLists(cat)
-	local bg = InBattleground()
-	if cat == "health" then
-		return { bg and Data.HEALTH_BG, Data.HEALTH }
-	elseif cat == "healthstone" then
-		return { Data.HEALTHSTONE }
-	elseif cat == "mana" then
-		if THIRD == "rage" then
-			return { Data.RAGE }
-		elseif THIRD == "energy" then
-			return { Data.ENERGY }
-		end
-		return { playerClass == "MAGE" and Data.MANA_GEM, bg and Data.MANA_BG, Data.MANA }
-	elseif cat == "food" then
-		return { Data.FOOD_BUFF, Data.FOOD }
-	elseif cat == "bandage" then
-		return { bg and BattlegroundBandages(), Data.BANDAGE }
-	end
-	return {}
-end
-
--- Food and bandages carry level requirements; potions are listed per class already
-local LEVEL_GATED = { food = true, bandage = true }
-
-local function Resolve(cat)
-	for _, list in ipairs(RankedLists(cat)) do
-		local id = list and FirstCarried(list, LEVEL_GATED[cat])
-		if id then
-			return id
-		end
-	end
-	return nil
 end
 
 -- Fallback scan for categories the ranked lists left empty
@@ -183,15 +213,19 @@ local function ScanUnlisted(want)
 		for slot = 1, (C_Container.GetContainerNumSlots(bag) or 0) do
 			local info = C_Container.GetContainerItemInfo(bag, slot)
 			local itemID = info and info.itemID
-			if itemID and not seen[itemID] then
+			if itemID and not Data.ITEMS[itemID] and not seen[itemID] then
 				seen[itemID] = true
 				local _, _, _, _, _, classID, subclassID = C_Item.GetItemInfoInstant(itemID)
-				local name, _, _, itemLevel = C_Item.GetItemInfo(itemID)
+				local name, _, _, itemLevel, minLevel = C_Item.GetItemInfo(itemID)
 				local cat = ClassifyBeltItem(name, classID, subclassID, ItemSpellName(itemID))
-				if cat and want[cat] then
-					local lvl = (Secrets and Secrets.Number(itemLevel))
-						or (type(itemLevel) == "number" and itemLevel)
-						or 0
+				local level = UnitLevel("player")
+				local usable = true
+				if cat and LEVEL_GATED[cat] and C_Item.IsUsableItem then
+					local ok, value = pcall(C_Item.IsUsableItem, itemID)
+					usable = ok and value ~= false
+				end
+				if cat and want[cat] and usable and (not minLevel or not level or minLevel <= level) then
+					local lvl = Num(itemLevel) or 0
 					if not best[cat] or lvl > best[cat].level then
 						best[cat] = { itemID = itemID, level = lvl }
 					end
@@ -203,10 +237,19 @@ local function ScanUnlisted(want)
 end
 
 function Belt:ScanBags()
+	if not self.order then
+		self:RebuildOrder()
+	end
 	local picked, missing = {}, {}
 	for _, cat in ipairs(SLOTS) do
-		picked[cat] = Resolve(cat)
-		if not picked[cat] and cat ~= "food" and not (cat == "mana" and THIRD ~= "mana") then
+		picked[cat] = Active(cat) and Resolve(cat) or nil
+		if
+			Active(cat)
+			and not picked[cat]
+			and cat ~= "food"
+			and cat ~= "drink"
+			and not (cat == "mana" and THIRD ~= "mana")
+		then
 			missing[cat] = true
 		end
 	end
@@ -218,10 +261,9 @@ function Belt:ScanBags()
 	return picked
 end
 
--- ── Well Fed ──────────────────────────────────────────────────────────────────
--- Classic's Well Fed buffs share the Spell_Misc_Food icon; the English name is a
--- fallback. Read only while auras are not secret (out of combat); the last known
--- state is kept otherwise. /diabolus food lists your buffs to check this in game.
+-- Well Fed
+-- Detect Well Fed by icon, with an English-name fallback. Read only unrestricted auras;
+-- retain the last state otherwise. /diabolus food prints a diagnostic list.
 local WELL_FED_ICONS = { [136000] = true, ["interface\\icons\\spell_misc_food"] = true }
 local WELL_FED_NAMES = { ["well fed"] = true }
 
@@ -269,13 +311,18 @@ function Belt:ScanWellFed()
 			return
 		end
 		if IsWellFed(aura) then
-			local duration = Secrets and Secrets.Number(aura.duration) or aura.duration
-			local expires = Secrets and Secrets.Number(aura.expirationTime) or aura.expirationTime
+			local duration = Num(aura.duration)
+			local expires = Num(aura.expirationTime)
 			found = { duration = duration or 0, expires = expires or 0 }
 			break
 		end
 	end
+	local changed = (self.wellFed == false) ~= (found == false) or self.wellFed == nil
 	self.wellFed = found
+	if changed and self.order then
+		self:RebuildOrder("food")
+	end
+	return changed
 end
 
 -- remaining fraction 0..1 of Well Fed, and whether to warn
@@ -325,12 +372,19 @@ function Belt.DebugFood()
 end
 
 local holder = CreateFrame("Frame", "Roth_UIBelt", UIParent)
-holder:SetSize(#SLOTS * SIZE + (#SLOTS - 1) * GAP, SIZE)
+holder:SetSize(5 * SIZE + 4 * GAP, SIZE)
 holder:SetFrameStrata("MEDIUM")
 holder:SetClampedToScreen(true)
 holder:SetClampRectInsets(-44, 44, 0, 0)
 Belt.holder = holder
 Belt.buttons = {}
+
+-- Max static art extent, including buckles and glow, relative to holder BOTTOMLEFT.
+function Belt:GetPaintBoundsLocal()
+    local width=holder:GetWidth()
+    return {l=-32.44375,r=width+32.44375,b=-8.1015625,t=42.1015625}
+end
+
 holder.defaultPosition = { a1 = "BOTTOMLEFT", af = "Roth_UIPlayerFrame", a2 = "BOTTOMRIGHT", x = -12, y = 26 }
 holder:SetScript("OnMouseDown", function(s)
 	if ns.EditMode and ns.EditMode.active and ns.EditMode.SelectFrame then
@@ -344,6 +398,10 @@ local function Place()
 		Belt.pending = true
 		return
 	end
+    if ns.StandardMode and ns.StandardMode:IsDockedBelt() then
+        ns.StandardMode:RequestLayout("belt placement")
+        return
+    end
 	holder:ClearAllPoints()
 	local prof = ns.LayoutProfile and ns.LayoutProfile()
 	if prof and prof.framePositions and prof.framePositions["Roth_UIBelt"] then
@@ -353,8 +411,7 @@ local function Place()
 		return
 	end
 
-	-- Standard/gamepad layout owns the default position (bag wing or beside the orb);
-	-- without this, every bag update put the belt back beside the orb, behind the action buttons
+	-- Let the active layout own default placement; bag updates must preserve it.
 	if ns.StandardMode and ns.StandardMode:AnchorBelt() then
 		return
 	end
@@ -387,9 +444,7 @@ do
 	end
 end
 
--- One socket per slot: dark stone socket, the item's icon masked round inside a metal
--- ring, a rim glowing in the slot's colour, round cooldown swipe, count and key binding.
--- An empty slot is a dim socket with no rim.
+-- Round item socket with count, binding, cooldown, and stock-coloured rim.
 local ART = SIZE * 2.25 -- socket art is 128 px with a 64 px ring: ring ~38 px across
 local ICON = SIZE - 6
 local MASK = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
@@ -462,12 +517,20 @@ for i, cat in ipairs(SLOTS) do
 	count:SetFont(cfg.font, 12, "THINOUTLINE")
 	count:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", 3, -3)
 	count:SetTextColor(1, 0.9, 0.7)
+	count:SetSize(64,16)
+	count:SetJustifyH("RIGHT")
+	count:SetWordWrap(false)
+	count:SetMaxLines(1)
 	b.count = count
 
 	local key = over:CreateFontString(nil, "OVERLAY")
 	key:SetFont(cfg.font, 10, "THINOUTLINE")
 	key:SetPoint("TOPLEFT", b, "TOPLEFT", -2, 2)
 	key:SetTextColor(0.7, 0.6, 0.5)
+	key:SetSize(64,14)
+	key:SetJustifyH("LEFT")
+	key:SetWordWrap(false)
+	key:SetMaxLines(1)
 	b.key = key
 
 	local hl = b:CreateTexture(nil, "HIGHLIGHT")
@@ -490,11 +553,20 @@ for i, cat in ipairs(SLOTS) do
 	end
 
 	b:SetScript("OnEnter", function(self)
+		GameTooltip:SetOwner(self, "ANCHOR_TOP")
 		if self.itemID then
-			GameTooltip:SetOwner(self, "ANCHOR_TOP")
 			GameTooltip:SetItemByID(self.itemID)
-			GameTooltip:Show()
+		else
+			GameTooltip:AddLine(LABELS[i])
+			GameTooltip:AddLine("No usable item in your bags", 0.7, 0.7, 0.7)
 		end
+		-- Socket labels are deliberately bounded. Hover retains complete, current
+		-- key names for both direct CLICK bindings, including modifier chords.
+		local first, second = GetBindingKey("CLICK " .. self:GetName() .. ":LeftButton")
+		for _, binding in ipairs({ first, second }) do
+			GameTooltip:AddLine("Binding: " .. (GetBindingText(binding) or binding), 1, 0.82, 0, true)
+		end
+		GameTooltip:Show()
 	end)
 	b:SetScript("OnLeave", function()
 		GameTooltip:Hide()
@@ -502,18 +574,11 @@ for i, cat in ipairs(SLOTS) do
 	Belt.buttons[i] = b
 end
 
-local function Num(v)
-	if Secrets then
-		return Secrets.Number(v)
-	end
-	return type(v) == "number" and v or nil
-end
-
--- empty slot: dim socket, no icon, no rim
+-- Empty sockets keep a dim, desaturated placeholder icon and no stock rim.
 local function ShowStock(b)
 	local have = (b.have or 0) > 0
 	b.icon:SetDesaturated(not have)
-	b.icon:SetAlpha(have and 1 or 0.35)
+	b.icon:SetAlpha(have and 1 or 0.22)
 	if not (b.warnPulse and b.warnPulse:IsPlaying()) then
 		b.rim:SetAlpha(have and 0.55 or 0)
 	end
@@ -547,8 +612,8 @@ function Belt:Update()
 	self:UpdateFoodWarning()
 end
 
--- Food socket: the swipe shows how much of Well Fed is left (lit part = time left), the
--- rim pulses when it is missing or low and buff food is in the bags. Out of combat only.
+-- Food swipe shows remaining Well Fed time; the rim warns when missing/low.
+-- Buff state is refreshed only out of combat.
 function Belt:UpdateFoodWarning()
 	for _, b in ipairs(self.buttons) do
 		if b.cat == "food" then
@@ -584,28 +649,152 @@ local function ItemIcon(id)
 	return icon
 end
 
+-- Exact single-socket macro format is the ownership boundary. Modified user macros
+-- and account macros are never rewritten. Creation happens only on an explicit click.
+local GetNumMacros = rawget(_G, "GetNumMacros")
+local MACRO_NAMES = { "DU Health", "DU Stone", "DU Power", "DU Food", "DU Bandage", "DU Drink" }
+local function MacroLimits()
+	local constants = rawget(_G, "Constants")
+	return constants and constants.MacroConsts
+end
+local function MacroText(index)
+	local b = Belt.buttons[index]
+	local tooltip = b.itemID and ("#showtooltip item:" .. b.itemID) or "#showtooltip"
+	local stop = Opt("macroStopCasting", false) and "/stopcasting\n" or ""
+	return tooltip .. "\n#DU:Belt:" .. index .. "\n" .. stop .. "/click " .. b:GetName() .. " LeftButton 1"
+end
+local function OwnedMacro(index, text)
+	if type(text) ~= "string" then
+		return false
+	end
+	local rest = text:match("^#showtooltip item:%d+\n(.*)$") or text:match("^#showtooltip\n(.*)$")
+	if not rest then
+		return false
+	end
+	local click = "/click " .. Belt.buttons[index]:GetName() .. " LeftButton 1"
+	return rest == "#DU:Belt:" .. index .. "\n" .. click or rest == "#DU:Belt:" .. index .. "\n/stopcasting\n" .. click
+end
+local function FindMacro(index)
+	local limits = MacroLimits()
+	if not (limits and GetNumMacros and GetMacroInfo) then
+		return nil
+	end
+	local _, count = GetNumMacros()
+	for offset = 1, count do
+		local id = limits.MAX_ACCOUNT_MACROS + offset
+		local name, icon, body = GetMacroInfo(id)
+		if name == MACRO_NAMES[index] then
+			return id, icon, body
+		end
+	end
+end
+function Belt:UpdateMacros()
+	if InCombatLockdown() then
+		return
+	end
+	for index, button in ipairs(self.buttons) do
+		local id, oldIcon, body = FindMacro(index)
+		if id and OwnedMacro(index, body) then
+			local text = MacroText(index)
+			local icon = button.itemID and ItemIcon(button.itemID) or PLACEHOLDER[button.liquidKey]
+			if body ~= text or oldIcon ~= icon then
+				EditMacro(id, nil, icon, text)
+			end
+		end
+	end
+end
+function Belt:PickupMacro(index)
+	if InCombatLockdown() then
+		return false, "Leave combat before creating or picking up a belt macro."
+	end
+	if not self.buttons[index] then
+		return false, "Unknown belt socket."
+	end
+	if not Active(self.buttons[index].cat) then
+		return false, "Enable the drink socket first."
+	end
+	if GetCursorInfo() then
+		return false, "Place or clear the item already on your cursor first."
+	end
+	local limits = MacroLimits()
+	if not (limits and CreateMacro and PickupMacro and GetNumMacros and GetMacroInfo and EditMacro) then
+		return false, "Macro controls are unavailable on this client."
+	end
+	local id, _, body = FindMacro(index)
+	if id and not OwnedMacro(index, body) then
+		return false,
+			"A character macro named '"
+				.. MACRO_NAMES[index]
+				.. "' already exists with custom text. Rename it to keep both."
+	end
+	if not id then
+		local _, count = GetNumMacros()
+		if count >= limits.MAX_CHARACTER_MACROS then
+			return false, "Your character macro slots are full."
+		end
+		local button = self.buttons[index]
+		local icon = button.itemID and ItemIcon(button.itemID) or PLACEHOLDER[button.liquidKey]
+		local ok, result = pcall(CreateMacro, MACRO_NAMES[index], icon, MacroText(index), true)
+		if not ok or type(result) ~= "number" or result <= limits.MAX_ACCOUNT_MACROS then
+			return false, "The client could not create this character macro."
+		end
+		id = result
+	end
+	self:UpdateMacros()
+	PickupMacro(id)
+	return true, "Place " .. MACRO_NAMES[index] .. " on an action bar, or find it under Character Macros."
+end
+
 function Belt:Refresh()
 	if InCombatLockdown() then
 		self.pending = true
 		return
 	end
 	self.pending = false
+	self:ScanWellFed()
+	local visible = Opt("showDrink", false) and 6 or 5
+	holder:SetSize(visible * SIZE + (visible - 1) * GAP, SIZE)
 	local picked = self:ScanBags()
 	for _, b in ipairs(self.buttons) do
+		b:SetShown(Active(b.cat))
 		local id = picked[b.cat]
 		b.itemID = id
 		b:SetAttribute("type", id and "item" or nil)
 		b:SetAttribute("item", id and ("item:" .. id) or nil)
 		-- bandages always on yourself, whatever you have targeted
 		b:SetAttribute("unit", (id and b.cat == "bandage") and "player" or nil)
-		b.icon:SetTexture(id and ItemIcon(id) or nil)
+		b.icon:SetTexture(id and ItemIcon(id) or PLACEHOLDER[b.liquidKey])
 	end
-	self:ScanWellFed()
+	self:UpdateMacros()
 	Place()
 	local prof = ns.LayoutProfile and ns.LayoutProfile()
 	local disabled = prof and prof.disabledElements and prof.disabledElements["Roth_UIBelt"]
 	holder:SetShown(not disabled and Opt("show", true))
 	self:Update()
+end
+
+function Belt.Debug()
+	local bg, code = BattlegroundContext()
+	print(
+		("DiabolusUnits belt: %s; BG %s; Well Fed %s; pending %s"):format(
+			playerClass,
+			bg and (code or "unknown") or "none",
+			Belt.wellFed == nil and "unknown" or (Belt.wellFed and "active" or "missing"),
+			tostring(Belt.pending or false)
+		)
+	)
+	for _, button in ipairs(Belt.buttons) do
+		local id = button.itemID
+		local row = id and Data.ITEMS[id]
+		print(
+			("  %s: %s (%s), carried %d"):format(
+				button.cat,
+				row and row.name or "empty/unlisted",
+				id or "-",
+				id and Count(id) or 0
+			)
+		)
+	end
 end
 
 Belt.Place = Place
@@ -653,6 +842,11 @@ end
 local events = CreateFrame("Frame")
 for _, e in ipairs({
 	"PLAYER_ENTERING_WORLD",
+	"ZONE_CHANGED_NEW_AREA",
+	"ZONE_CHANGED",
+	"ZONE_CHANGED_INDOORS",
+	"PLAYER_LEVEL_UP",
+	"SKILL_LINES_CHANGED",
 	"BAG_UPDATE_DELAYED",
 	"GET_ITEM_INFO_RECEIVED",
 	"PLAYER_REGEN_ENABLED",
@@ -668,17 +862,25 @@ events:SetScript("OnEvent", function(_, event)
 	if event == "BAG_UPDATE_COOLDOWN" or event == "UPDATE_BINDINGS" then
 		Belt:Update()
 	elseif event == "UNIT_AURA" then
-		Belt:ScanWellFed()
+		if Belt:ScanWellFed() then
+			Belt:Refresh()
+		end
 		Belt:UpdateFoodWarning()
 	elseif event == "PLAYER_REGEN_DISABLED" then
 		Belt:UpdateFoodWarning()
 	elseif event == "PLAYER_REGEN_ENABLED" then
-		if Belt.pending then
+		local changed = Belt:ScanWellFed()
+		if Belt.pending or changed then
 			Belt:Refresh()
 		end
-		Belt:ScanWellFed()
 		Belt:UpdateFoodWarning()
-	elseif not queued then
+	else
+		if event == "PLAYER_ENTERING_WORLD" or event:find("ZONE_CHANGED", 1, true) then
+			Belt.order = nil
+		end
+		if queued then
+			return
+		end
 		queued = true
 		C_Timer.After(0.3, function()
 			queued = false
@@ -690,17 +892,21 @@ end)
 
 _G["BINDING_HEADER_DIABOLUSUNITS"] = "DiabolusUnits"
 for i = 1, #SLOTS do
-	_G["BINDING_NAME_CLICK Roth_UIBelt" .. i .. ":LeftButton"] = "Belt " .. i
+	_G["BINDING_NAME_CLICK Roth_UIBelt" .. i .. ":LeftButton"] = "Belt " .. i .. " — " .. LABELS[i]
 end
 
 -- which item IDs give Well Fed (only those make the food socket pulse)
 Belt.isBuffFood = {}
-for _, id in ipairs(Data.FOOD_BUFF) do
-	Belt.isBuffFood[id] = true
+for id, item in pairs(Data.ITEMS) do
+	if item.type == "food" and (item.foodRank or 0) > 0 then
+		Belt.isBuffFood[id] = true
+	end
 end
 
 -- Well Fed runs out without an event; look again every 5 s
 C_Timer.NewTicker(5, function()
-	Belt:ScanWellFed()
+	if Belt:ScanWellFed() then
+		Belt:Refresh()
+	end
 	Belt:UpdateFoodWarning()
 end)

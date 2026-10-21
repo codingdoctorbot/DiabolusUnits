@@ -1,18 +1,6 @@
--- DiabolusUnits — settings/Popup.lua
---
--- Our own dropdown list and dialogs, replacing Blizzard's Menu system and StaticPopup
--- inside the settings window. Ported from PulseHaptics UI/Panel/Popup.lua.
---
--- WHY. Confirmed live in PulseHaptics (2026-09-22): opening a Blizzard Menu from an addon's
--- stack runs MenuProxyMixin:OnShow -> FrameControlsManager:FrameShown ->
--- GamepadMode.ActivateBindingGroup -> SetOverrideBindingClick(UIParent, ...), which is
--- protected, so the client refuses it ("blocked from an action only available to the
--- Blizzard UI"). StaticPopup reaches the same call (StaticPopupGamepad.lua:222). With the
--- gamepad UI active that refusal popup can loop into the 20-second client freeze. The old
--- orb panel (core/panel.lua) used both.
---
--- The dropdown ROW keeps Blizzard's SettingsDropdownWithButtonsTemplate artwork but never
--- calls SetupMenu, so clicking it creates no Menu; the list below opens instead.
+-- Local dropdowns and dialogs, ported from PulseHaptics UI/Panel/Popup.lua.
+-- Avoid Blizzard Menu/StaticPopup activation here: their protected gamepad binding
+-- calls have caused blocked-action popup loops on Forever. Use our own popup frames.
 
 local ADDON_NAME, ns = ...
 
@@ -22,10 +10,8 @@ local Theme = Panel.Theme
 local Popup = {}
 Panel.Popup = Popup
 
--- 22 rather than Blizzard's 20: at 20 with GameFontHighlight the rows read as a wall of
--- text with no air in them.
-local ENTRY_HEIGHT = 22
-local LIST_PADDING = 12
+local ENTRY_HEIGHT = 26
+local LIST_PADDING = 8
 local ENTRY_INSET = 5 -- entries stop short of the border on both sides
 local TEXT_INSET = 12
 local LIST_MAX_ROWS = 12 -- a whole number of rows, so nothing is ever half-cut
@@ -37,31 +23,10 @@ local DIALOG_WIDTH = 400
 -- settings window at HIGH, since the splash page can open ours while theirs is still up.
 local OVERLAY_STRATA = "FULLSCREEN_DIALOG"
 
--- An opaque panel with a real border. The fill is our own texture rather than the
--- template's: it guarantees opacity, which matters for a list opening over a page full of
--- text, and it leaves the border template doing the one job it is reliably good at.
---
--- DialogBorderOpaqueTemplate is the nine-slice Blizzard uses for solid floating panels. It
--- inherits DialogBorderNoCenterTemplate, a NineSlicePanelTemplate that does NOT anchor
--- itself (DialogTemplates.xml:63-67) — it must be told to fill its parent or it renders at
--- zero size and leaves a borderless box. TooltipBackdropTemplate is the fallback, being the
--- one every client has.
+-- Opaque themed surface for popup lists and dialogs.
 local function backdropFrame(parent, name)
 	local frame = CreateFrame("Frame", name, parent)
-
-	local fill = frame:CreateTexture(nil, "BACKGROUND")
-	fill:SetPoint("TOPLEFT", frame, "TOPLEFT", 6, -6)
-	fill:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -6, 6)
-	fill:SetColorTexture(Theme.COLOR_SURFACE.r, Theme.COLOR_SURFACE.g, Theme.COLOR_SURFACE.b, 1)
-
-	local ok, border = pcall(CreateFrame, "Frame", nil, frame, "DialogBorderOpaqueTemplate")
-	if not ok or not border then
-		ok, border = pcall(CreateFrame, "Frame", nil, frame, "TooltipBackdropTemplate")
-	end
-	if ok and border then
-		border:SetAllPoints(frame)
-		frame.Border = border
-	end
+	Theme.CreateSurface(frame, Theme.COLOR_BG)
 	return frame
 end
 
@@ -94,8 +59,7 @@ local function ensureList()
 		return
 	end
 
-	-- The catcher IS the parent, so anything outside the list closes it. A sibling frame
-	-- would leave gaps wherever the strata overlapped.
+	-- Parent the list to the full-screen catcher so outside clicks close it.
 	listCatcher = CreateFrame("Button", nil, UIParent)
 	listCatcher:SetAllPoints(UIParent)
 	listCatcher:SetFrameStrata(OVERLAY_STRATA)
@@ -282,6 +246,8 @@ function Popup.OpenList(owner, options, selectedValue, onSelect, previewScale)
 	listState.owner = owner
 	listState.onSelect = onSelect
 	listState.previewScale = previewScale
+	listState.selectedValue = selectedValue
+	listState.focus = nil
 
 	local hasCategories = false
 	for _, opt in ipairs(options) do
@@ -536,6 +502,8 @@ local function ensureDialog()
 	cancel:SetSize(110, 22)
 	cancel:SetText(CANCEL or "Cancel")
 	cancel:SetScript("OnClick", closeDialog)
+	Theme.StyleActionButton(accept, false)
+	Theme.StyleActionButton(cancel, false)
 	dialog.Cancel = cancel
 
 	local function accepted()
@@ -656,6 +624,68 @@ end
 
 -- Both overlays belong to the panel and should not outlive it on screen.
 function Popup.CloseAll()
+	if Panel.OrbGallery then Panel.OrbGallery.Close() end
 	closeList()
 	closeDialog()
+end
+
+-- Local lists/dialogs participate in the panel's existing controller dispatcher.
+function Popup.HandleGamepad(key)
+	if dialog and dialog:IsShown() then
+		if key == "PAD2" or key == "PADBACK" then
+			closeDialog()
+		elseif key == "PAD1" then
+			dialog.accepted()
+		end
+		return true
+	end
+	if not Popup.IsListOpen() then
+		return false
+	end
+	if key == "PAD2" or key == "PADBACK" then
+		closeList()
+		return true
+	end
+	local visible = {}
+	for _, entry in ipairs(entries) do
+		if entry:IsShown() then
+			visible[#visible + 1] = entry
+		end
+	end
+	if #visible == 0 then
+		return true
+	end
+	local index = listState.focus
+	if not index then
+		index = 1
+		for i, entry in ipairs(visible) do
+			if entry.value == listState.selectedValue then
+				index = i
+				break
+			end
+		end
+	end
+	if key == "PADDUP" or key == "PADDLEFT" then
+		index = math.max(1, index - 1)
+	elseif key == "PADDDOWN" or key == "PADDRIGHT" then
+		index = math.min(#visible, index + 1)
+	elseif key == "PAD1" then
+		visible[index]:Click()
+		return true
+	end
+	listState.focus = index
+	for i, entry in ipairs(visible) do
+		entry.Selected:SetShown(i == index)
+	end
+	local entry, scroll = visible[index], list.Scroll
+	local top, bottom = entry:GetTop(), entry:GetBottom()
+	if top and bottom and scroll:GetTop() and scroll:GetBottom() then
+		local offset = scroll:GetVerticalScroll()
+		if top > scroll:GetTop() then
+			scroll:SetVerticalScroll(math.max(0, offset - top + scroll:GetTop()))
+		elseif bottom < scroll:GetBottom() then
+			scroll:SetVerticalScroll(math.min(scroll:GetVerticalScrollRange(), offset + scroll:GetBottom() - bottom))
+		end
+	end
+	return true
 end

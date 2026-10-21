@@ -1,15 +1,6 @@
----------------------------------------------
---  Roth_UI - private aura slots on group frames
----------------------------------------------
--- Boss mechanics marked private (C_UnitAuras private auras) never reach
--- addon code: UnitAura does not list them and their fields cannot be read.
--- The client draws them itself into frames we offer as anchors
--- (C_UnitAuras.AddPrivateAuraAnchor), so the mechanic shows on Roth's frame
--- as on Blizzard's. Nothing about the aura is read here.
---
--- Anchors are per unit token: when a header frame changes unit they are
--- removed and added again. Grid2 (modules/IndicatorPrivateAuras.lua) waits
--- for the end of combat to do that; so does this.
+-- Private aura anchors: the client draws mechanics without exposing their data.
+-- Rebind anchors when a header changes unit, deferring changes until combat ends.
+-- Reference: Grid2 modules/IndicatorPrivateAuras.lua.
 
 local _, ns = ...
 

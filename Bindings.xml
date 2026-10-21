@@ -4,4 +4,5 @@
 	<Binding name="CLICK Roth_UIBelt3:LeftButton" category="ADDONS"/>
 	<Binding name="CLICK Roth_UIBelt4:LeftButton" category="ADDONS"/>
 	<Binding name="CLICK Roth_UIBelt5:LeftButton" category="ADDONS"/>
+	<Binding name="CLICK Roth_UIBelt6:LeftButton" category="ADDONS"/>
 </Bindings>

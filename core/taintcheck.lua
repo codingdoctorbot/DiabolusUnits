@@ -1,11 +1,6 @@
----------------------------------------------
---  Roth_UI - taint and aura diagnostics (/roth taint, /roth auras)
----------------------------------------------
--- Read-only. Nothing here writes into a Blizzard table: it reads keys with
--- pairs and asks the client which ones were last written by add-on code
--- (issecurevariable). The findings are printed and also kept in
--- Roth_UI_DB_GLOB (taintReport, auraProbe) so they survive a /reload and can
--- be read from WTF/Account/<account>/SavedVariables/Roth_UI.lua.
+-- Read-only Blizzard-state diagnostics: /roth taint and /roth auras.
+-- Reports use issecurevariable and are saved in Roth_UI_DB_GLOB.taintReport/auraProbe
+-- under the account's SavedVariables/DiabolusUnits.lua.
 
 local _, ns = ...
 
@@ -136,9 +131,7 @@ function Check:Run()
 	Store("taintReport", lines)
 end
 
----------------------------------------------
 -- /roth auras: what the aura API hands add-on code for the target right now
----------------------------------------------
 local FIELDS =
 	{ "name", "icon", "applications", "duration", "expirationTime", "auraInstanceID", "sourceUnit", "dispelName" }
 

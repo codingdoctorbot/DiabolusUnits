@@ -1,30 +1,7 @@
----------------------------------------------
---  Roth_UI - auras drawn by the client (in combat too)
----------------------------------------------
--- In combat WoW Forever hands add-on code the auras of most units as secret
--- values: C_UnitAuras.GetAuraDataByIndex returns a secret table (or secret
--- fields, a secret auraInstanceID among them), and the calls that would turn
--- an instance ID into a duration or a dispel colour refuse secret arguments
--- from add-on code (SecretArguments = "AllowedWhenUntainted"). A Lua aura
--- row can then show nothing: Moonfire on an enemy and Rejuvenation on a
--- friendly target vanished as soon as combat started (client test
--- 2026-10-16 22:51).
---
--- oUF 14's Auras element is the client's own aura container
--- (Blizzard_AuraContainer, CustomAuraContainerTemplate): it reads the auras
--- itself and fills buttons we style once, at creation: icon, swipe, stack
--- count and the debuff border coloured by dispel type all keep working while
--- the values are secret. oUF hands it the frame's unit on every full update
--- (target / focus change, header reassignment, the eventless units' timer).
--- Each unit frame's Buffs / Debuffs row is built here from the layout's
--- settings (size, spacing, holder, growth, number, "only mine", blacklist).
---
--- Limits of the container (not ours to change): its buttons refuse add-on
--- code while auras are secret, so they are styled only in initializeFrame;
--- other frames must not be anchored to the container (it resizes itself
--- with untrusted layout scripts forbidden). Each row therefore hangs from a
--- plain holder frame the layout places; the container sits in the holder's
--- initialAnchor corner.
+-- oUF 14 client aura containers keep icons and timers working with secret aura values.
+-- Style buttons only during initialization; later access can be forbidden.
+-- Anchor each container inside a plain holder, since its own layout resizes it.
+-- Buff/debuff rows use the unit frame's size, growth, filtering, and blacklist settings.
 
 local _, ns = ...
 
@@ -133,16 +110,9 @@ local function Find(frame, key)
 	end
 end
 
--- Builds frame[key] ("Buffs" / "Debuffs"), an oUF Auras element, from the
--- frame's style function (oUF enables it right after). holder: a plain frame
--- the layout placed and sized; the row fills it from its initialAnchor
--- corner and wraps at its width.
---   opts.filter          aura filter ("HELPFUL", "HARMFUL|RAID_IN_COMBAT", ...)
---   opts.onlyShowPlayer  add "|PLAYER" to the filter
---   opts.size, .spacing, .num
---   opts.initialAnchor, .growthX ("LEFT"/"RIGHT"), .growthY ("UP"/"DOWN")
---   opts.showType        dispel-type border; opts.stealable: stealable glow
---   opts.excludeSpellIDs set of spell IDs never shown (checked by the client)
+-- Build an oUF aura row in a plain holder before oUF enables it.
+-- opts: filter, onlyShowPlayer, size/spacing/num, initialAnchor/growthX/growthY,
+-- showType, stealable, and excludeSpellIDs (client-side filtering).
 function NativeAuras.Create(frame, key, holder, opts)
 	local size = opts.size or 16
 	local spacing = opts.spacing or 0
@@ -234,12 +204,8 @@ function NativeAuras.SetSize(frame, key, size)
 	return true
 end
 
----------------------------------------------
 -- AURA ICON SIZE (Edit layout's per-frame option)
----------------------------------------------
--- One size per frame, saved in the layout profile's resizeOptions (the keys
--- the old settings page used, so earlier choices carry over). Applied again
--- at every login.
+-- Per-frame icon sizes live in layout-profile resizeOptions and are restored at login.
 local AuraSize = {}
 ns.AuraSize = AuraSize
 

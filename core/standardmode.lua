@@ -1,17 +1,6 @@
----------------------------------------------
---  DiabolusUnits - Seamless Gamepad <-> Standard Mode
----------------------------------------------
--- Automatically adapts the Diablo HUD between:
---   1. Gamepad Mode (WoW Forever's native Crossbar):
---      - Orbs wide (±325), Statues at (-355 / +350), Bottom Stone Ledge (670px),
---        Potion Belt beside Health Orb, Crossbar unobstructed.
---   2. Standard (Keyboard/Mouse) Mode:
---      - Orbs hug the scaled 12-slot stone bar (±300, Statues at -330 / +325),
---        zork's bar1/bar2/bar3 crossed-sword slot grid (512x256 @ 1.18x) shown at bottom,
---        Blizzard's ActionButton1..12, MultiBars & Paging +/- buttons aligned out of combat
---        directly into the stone slots via ns.Blizz (C base methods, zero taint),
---        Potion Belt anchored to the top-left of the uppermost active action bar row,
---        and Game Menu (Micro Menu) + Bag buttons docked on sculpted outer wings.
+-- Keyboard/gamepad HUD layout, action-bar fitting, and wing docks.
+-- Defaults live in cfg.standardMode and cfg.gamepadLayout; saved layout overrides win.
+-- Protected placement is deferred until combat ends.
 
 local _, ns = ...
 
@@ -28,7 +17,31 @@ local pendingApply = false
 local microDock = nil
 local bagDock = nil
 
--- Weak-key tables to track hooks on Blizzard frames without writing fields onto Blizzard tables (zero taint)
+local applyQueued, fittingDock = false, false
+local applyingLayout = false
+local function QueueApply()
+	if fittingDock or applyQueued then return end
+	if InCombatLockdown() then
+		pendingApply = true
+		return
+	end
+	applyQueued = true
+	C_Timer.After(0, function()
+		applyQueued = false
+		StandardMode:Apply()
+	end)
+end
+
+function StandardMode:RequestLayout(reason)
+	if reason ~= "initial geometry" then self.geometryRetries = 0 end
+	QueueApply()
+end
+
+local function QueueDockApply()
+	if not StandardMode:IsGamepad() then QueueApply() end
+end
+
+-- Track hooks in addon-owned weak tables, avoiding fields on Blizzard frames.
 local artHooked = setmetatable({}, { __mode = "k" })
 local layoutHooked = setmetatable({}, { __mode = "k" })
 local hoverHooked = setmetatable({}, { __mode = "k" })
@@ -36,6 +49,8 @@ local anchorHooked = setmetatable({}, { __mode = "k" })
 local mouseDisabledHooked = setmetatable({}, { __mode = "k" })
 local krbHooked = setmetatable({}, { __mode = "k" })
 local krbTextureHooked = setmetatable({}, { __mode = "k" })
+local dockControlHooked = setmetatable({}, { __mode = "k" })
+local dockLayoutHooked = setmetatable({}, { __mode = "k" })
 
 local BAG_LIST = {
 	"MainMenuBarBackpackButton",
@@ -156,7 +171,7 @@ local function SetupKeyRingButton(krb)
 	if not InCombatLockdown() then
 		krb:Show()
 		krb:SetAlpha(1)
-		krb:SetSize(33, 45)
+		krb:SetSize(45, 45)
 	end
 	EnsureKeyRingTexture(krb)
 
@@ -250,6 +265,7 @@ end
 function StandardMode:DefaultScales(isPad)
 	local sm = cfg.standardMode or {}
 	if isPad then
+		if ns.GamepadLayout then return ns.GamepadLayout:DefaultScales() end
 		return {
 			Roth_UIActionBarBackground = 1,
 			Roth_UIPlayerFrame = 1,
@@ -260,6 +276,7 @@ function StandardMode:DefaultScales(isPad)
 		}
 	end
 	return {
+		Roth_UIMicroDock = 1, Roth_UIBagDock = 1, Roth_UIBelt = 1,
 		Roth_UIActionBarBackground = sm.standardBarScale or 1.18,
 		Roth_UIPlayerFrame = sm.standardOrbScale or 1, -- both orbs: the power orb is its child
 		Roth_UIDemonFrame = sm.standardStatueScale or 1,
@@ -267,6 +284,7 @@ function StandardMode:DefaultScales(isPad)
 		-- the cast bar is a child of the player frame: undo the orb scale so it keeps its size
 		Roth_UIPlayerFrameCastBarDragFrame = 1 / (sm.standardOrbScale or 1),
 		Roth_UITargetFrame = sm.targetScale or 1,
+		Roth_UITargetFrameCastBarDragFrame = 1.4,
 	}
 end
 
@@ -282,7 +300,7 @@ end
 local function PlaceAtBottom(f, x, y)
 	local k = f:GetEffectiveScale() / UIParent:GetEffectiveScale()
 	f:ClearAllPoints()
-	f:SetPoint("BOTTOM", UIParent, "BOTTOM", x / k, y / k)
+	f:SetPoint("BOTTOM", ns.LayoutShift and ns.LayoutShift.anchor or UIParent, "BOTTOM", x / k, y / k)
 end
 
 local function HideDividerPools(frame)
@@ -555,40 +573,45 @@ local function HookActionBarForStandardMode(bar)
 	end
 end
 
--- Create a sculpted Diablo stone wing dock (using d3_wing_dock.tga) that tucks behind the Demon/Angel statue
-local function CreateDock(name, labelText, defaultX, defaultY, artWidth, artHeight, mirrorUV)
-	local dock = CreateFrame("Frame", name, UIParent)
-	dock:SetSize(artWidth, 56)
-	dock:SetFrameStrata("LOW")
-	dock:SetFrameLevel(0)
-	dock:SetPoint("BOTTOM", UIParent, "BOTTOM", defaultX, defaultY)
-	dock.defaultPosition = { a1 = "BOTTOM", af = "UIParent", a2 = "BOTTOM", x = defaultX, y = defaultY }
+-- The dock origin is the opening center; sculpted art may extend asymmetrically.
+local function CreateDock(name, labelText, defaultX)
+    local dock = CreateFrame("Frame", name, UIParent)
+    dock:SetSize(330, 56)
+    dock:SetFrameStrata("LOW")
+    dock:SetFrameLevel(0)
+    dock:SetPoint("BOTTOM", UIParent, "BOTTOM", defaultX, 0)
+    dock.defaultPosition = { a1="BOTTOM", af="UIParent", a2="BOTTOM", x=defaultX, y=0 }
+    dock:Hide()
+    hooksecurefunc(dock, "SetScale", QueueDockApply)
+    if func and func.applyDragFunctionality then
+        func.applyDragFunctionality(dock)
+        dock:SetClampedToScreen(false)
+        if dock.dragframe then
+            local label = dock.dragframe:CreateFontString(nil, "OVERLAY")
+            label:SetFont(cfg.font or "Fonts\\FRIZQT__.TTF", 10, "THINOUTLINE")
+            label:SetPoint("CENTER")
+            label:SetText(labelText)
+        end
+    end
+    return dock
+end
 
-	-- Sculpted Diablo stone wing pedestal (matches bar1.tga & d3_bottom.tga moldings and recessed bay)
-	local art = dock:CreateTexture(nil, "BACKGROUND", nil, -6)
-	art:SetPoint("BOTTOM", dock, "BOTTOM", 0, 0)
-	art:SetSize(artWidth, artHeight)
-	art:SetTexture(MEDIA .. "d3_wing_dock")
-	if mirrorUV then
-		art:SetTexCoord(1, 0, 0, 1)
-	end
-	dock.art = art
+function StandardMode:EnsureDockRoots()
+    local sm = cfg.standardMode
+    if not (sm and sm.enabled) then return end
+    if not microDock then microDock = CreateDock("Roth_UIMicroDock", "Micro Menu Wing", -590) end
+    if not bagDock then bagDock = CreateDock("Roth_UIBagDock", "Bag Bar Wing", 590) end
+end
 
-	if func and func.applyDragFunctionality then
-		func.applyDragFunctionality(dock)
-		-- applyDragFunctionality clamps to the screen, but a wing is wider than the room
-		-- beside its statue and is meant to run off the edge: clamped, the game pinned it
-		-- there, so outward / downward offsets (and the edit layout's X slider) did nothing
-		dock:SetClampedToScreen(false)
-		if dock.dragframe then
-			local lbl = dock.dragframe:CreateFontString(nil, "OVERLAY")
-			lbl:SetFont(cfg.font or "Fonts\\FRIZQT__.TTF", 10, "THINOUTLINE")
-			lbl:SetPoint("CENTER", 0, 0)
-			lbl:SetText(labelText)
-		end
-	end
+function StandardMode:OwnsFrameScale(name)
+    if not (cfg.standardMode and cfg.standardMode.enabled) then return false end
+    return name == "Roth_UIMicroDock" or name == "Roth_UIBagDock" or name == "Roth_UIBelt"
+        or name == "Roth_UIPowerOrb" or self:DefaultScale(name) ~= nil
+end
 
-	return dock
+function StandardMode:GetWingFit(frame)
+    local data = frame and frame.wingFit
+    if data then return data.requested, data.effective end
 end
 
 local function WireDockHover(dock, targetFrame, buttons)
@@ -625,278 +648,314 @@ local function WireDockHover(dock, targetFrame, buttons)
 	end
 end
 
--- Measure visible button bounds (in screen coordinates) relative to container's center so we can center visible buttons in the stone bay
-local function MeasureVisibleButtonsBounds(container, buttons, fallbackWidth)
-	local cScale = container:GetEffectiveScale() or 1
-	local uScale = UIParent:GetEffectiveScale() or 1
-	local cLeft = container:GetLeft()
-	local cRight = container:GetRight()
-	local cCenter = (cLeft and cRight) and ((cLeft + cRight) * 0.5 * cScale / uScale) or nil
-
-	local minL, maxR = nil, nil
-	for _, btn in ipairs(buttons) do
-		if btn and btn:IsShown() and (btn:GetAlpha() or 1) > 0.05 then
-			local bScale = btn:GetEffectiveScale() or cScale
-			local l = btn:GetLeft()
-			local r = btn:GetRight()
-			if l and r and r > l then
-				local ls = l * bScale / uScale
-				local rs = r * bScale / uScale
-				if not minL or ls < minL then
-					minL = ls
-				end
-				if not maxR or rs > maxR then
-					maxR = rs
-				end
-			end
-		end
-	end
-
-	if minL and maxR and maxR > minL and cCenter then
-		local visWidth = maxR - minL
-		local visCenter = (minL + maxR) * 0.5
-		local shiftX = cCenter - visCenter
-		return visWidth, shiftX
-	end
-	return fallbackWidth, 0
+-- Visible border bounds from the 2x MicroMenu atlas (alpha >= 8):
+-- Up background 64x82, painted half-open box (8,8)-(58,77). The native
+-- 32x41 quad is centered on the 32x40 button; notifications are excluded.
+local nativeMetrics = setmetatable({}, { __mode = "k" })
+local function BodyMetric(button, side)
+    local w,h=button:GetWidth(),button:GetHeight()
+    if not w or not h or w<=0 or h<=0 then return end
+    local bg=side=="micro" and button.Background
+    local bw,bh,atlas,point,relative,relativePoint,dx,dy
+    if bg then
+        bw,bh=bg:GetSize()
+        atlas=bg.GetAtlas and bg:GetAtlas()
+        point,relative,relativePoint,dx,dy=bg:GetPoint()
+    end
+    local m=nativeMetrics[button]
+    if m and m.nativeW==w and m.nativeH==h and m.bgW==bw and m.bgH==bh
+        and m.atlas==atlas and m.dx==dx and m.dy==dy and m.point==point
+        and m.relative==relative and m.relativePoint==relativePoint then return m end
+    m={l=0,r=w,b=0,t=h,nativeW=w,nativeH=h,bgW=bw,bgH=bh,atlas=atlas,
+        point=point,relative=relative,relativePoint=relativePoint,dx=dx,dy=dy,
+        source=side=="micro" and "unmapped native frame" or "Roth normal border",calibrated=side~="micro"}
+    if atlas=="UI-HUD-MicroMenu-ButtonBG-Up" and bw and bh and bw>0 and bh>0
+        and point=="CENTER" and relative==button and relativePoint=="CENTER" then
+        m.l=w*.5+(dx or 0)-bw*.5+bw*8/64
+        m.r=w*.5+(dx or 0)-bw*.5+bw*58/64
+        m.b=h*.5+(dy or 0)-bh*.5+bh*5/82
+        m.t=h*.5+(dy or 0)-bh*.5+bh*74/82
+        m.source,m.calibrated="MicroMenu Up border (2x alpha bounds)",true
+    end
+    nativeMetrics[button]=m
+    return m
 end
 
-local function SetupMicroDock(isPad, demonX, statueScale)
-	local sm = cfg.standardMode
-	if not (sm and sm.integrateMicroMenu) then
-		return
-	end
-	-- wing centre from the demon statue. Measured in game (2026-10-17): the dock used to be
-	-- clamped to the screen, which held it ~125 px further in than the old formula said;
-	-- these offsets reproduce that spot plus a little more room outward.
-	local defaultX = (demonX or -330) - (sm.microDockOffset or 215) * (statueScale or 1) / 0.85
-	if not microDock then
-		microDock = CreateDock("Roth_UIMicroDock", "Micro Menu Wing", defaultX, 0, 330, 114, false)
-	end
-	local dockY = sm.dockY or 0
-	microDock.defaultPosition.x = defaultX
-	microDock.defaultPosition.y = dockY
-	if isPad then
-		microDock:Hide()
-		return
-	end
-	microDock:Show()
-	if not IsUserMoved("Roth_UIMicroDock") then
-		microDock:ClearAllPoints()
-		microDock:SetPoint("BOTTOM", UIParent, "BOTTOM", defaultX, dockY)
-	end
-
-	local mm = _G.MicroMenu
-	local mmc = _G.MicroMenuContainer
-	local activeBtns = {}
-	if mm and mm.GetChildren then
-		for _, child in ipairs({ mm:GetChildren() }) do
-			if child and child.layoutIndex and child:IsShown() then
-				Blizz.SetScale(child, 1.0)
-				activeBtns[#activeBtns + 1] = child
-			end
-		end
-	end
-
-	if mm then
-		if mm.BorderArt then
-			mm.BorderArt:SetAlpha(0)
-		end
-		if mm.BackgroundArt then
-			mm.BackgroundArt:SetAlpha(0)
-		end
-		if mm.Layout then
-			pcall(mm.Layout, mm)
-		end
-	end
-
-	local container = mmc or mm
-	if container then
-		local scale = 0.72
-		Blizz.SetScale(container, scale)
-		if mm and mm ~= container then
-			Blizz.SetScale(mm, 1.0)
-			Blizz.ClearAllPoints(mm)
-			Blizz.SetPoint(mm, "CENTER", container, "CENTER", 0, 0)
-		end
-		Blizz.ClearAllPoints(container)
-		Blizz.SetPoint(container, "CENTER", microDock, "BOTTOM", 0, 35 / scale)
-
-		local visW, shiftX = MeasureVisibleButtonsBounds(
-			container,
-			activeBtns,
-			((mm and mm:GetWidth()) or container:GetWidth() or 275) * scale
-		)
-		Blizz.ClearAllPoints(container)
-		Blizz.SetPoint(container, "CENTER", microDock, "BOTTOM", (shiftX + (sm.microButtonsX or 0)) / scale, 35 / scale)
-
-		-- Recessed bay is 68.75% of d3_wing_dock.tga width; add 24px breathing margin inside the stone bay
-		local wingW = math.max(330, (visW + 24) / 0.6875)
-		microDock:SetSize(wingW, 56)
-		if microDock.art then
-			microDock.art:SetSize(wingW, 114)
-		end
-		WireDockHover(microDock, container, activeBtns)
-
-		if mm and not anchorHooked[mm] and mm.ResetMicroMenuPosition then
-			anchorHooked[mm] = true
-			hooksecurefunc(mm, "ResetMicroMenuPosition", function()
-				if not StandardMode:IsGamepad() and not InCombatLockdown() then
-					SetupMicroDock(false, demonX, statueScale)
-				end
-			end)
-		end
-		if container.ApplySystemAnchor and not anchorHooked[container] then
-			anchorHooked[container] = true
-			hooksecurefunc(container, "ApplySystemAnchor", function()
-				if not StandardMode:IsGamepad() and not InCombatLockdown() then
-					SetupMicroDock(false, demonX, statueScale)
-				end
-			end)
-		end
-	end
+local function SetControlScale(frame, value)
+    local previous = fittingDock
+    fittingDock = true
+    Blizz.SetScale(frame, value)
+    fittingDock = previous
 end
 
-local function SetupBagDock(isPad, angelX, statueScale)
-	local sm = cfg.standardMode
-	if not (sm and sm.integrateBags) then
-		return
-	end
-	local defaultX = (angelX or 325) + (sm.bagDockOffset or 220) * (statueScale or 1) / 0.85
-	if not bagDock then
-		bagDock = CreateDock("Roth_UIBagDock", "Bag Bar Wing", defaultX, 0, 330, 114, true)
-	end
-	local dockY = sm.dockY or 0
-	bagDock.defaultPosition.x = defaultX
-	bagDock.defaultPosition.y = dockY
-	if isPad then
-		bagDock:Hide()
-		return
-	end
-	bagDock:Show()
-	if not IsUserMoved("Roth_UIBagDock") then
-		bagDock:ClearAllPoints()
-		bagDock:SetPoint("BOTTOM", UIParent, "BOTTOM", defaultX, dockY)
-	end
+local function WatchControls(container, layoutFrame, buttons)
+    if not dockControlHooked[container] then
+        dockControlHooked[container] = true
+        container:HookScript("OnSizeChanged", QueueDockApply)
+        hooksecurefunc(container, "SetScale", QueueDockApply)
+        if container.ApplySystemAnchor then hooksecurefunc(container, "ApplySystemAnchor", QueueDockApply) end
+    end
+    if layoutFrame and not dockLayoutHooked[layoutFrame] then
+        dockLayoutHooked[layoutFrame] = true
+        if layoutFrame.Layout then hooksecurefunc(layoutFrame, "Layout", QueueDockApply) end
+        if layoutFrame.ResetMicroMenuPosition then hooksecurefunc(layoutFrame, "ResetMicroMenuPosition", QueueDockApply) end
+    end
+    for _, button in ipairs(buttons) do
+        if not dockControlHooked[button] then
+            dockControlHooked[button] = true
+            button:HookScript("OnShow", QueueDockApply)
+            button:HookScript("OnHide", QueueDockApply)
+            button:HookScript("OnSizeChanged", QueueDockApply)
+        end
+    end
+end
 
-	-- Keyholder (KeyRingButton) setup & styling
-	local krb = _G.KeyRingButton
-	if krb then
-		SetupKeyRingButton(krb)
-		StyleBagItemButton(krb)
-	end
+local function LayoutRoot()
+    return ns.LayoutShift and ns.LayoutShift.anchor or UIParent
+end
 
-	-- Restore CharacterReagentBag0Slot
-	local reagentBag = _G.CharacterReagentBag0Slot
-	if reagentBag then
-		reagentBag.includeInLayout = false
-		reagentBag:SetAlpha(1)
-		reagentBag:SetSize(45, 45)
-		reagentBag:Show()
-		StyleBagItemButton(reagentBag)
-	end
+local function RootCenterUI()
+    local root = LayoutRoot()
+    local q = root:GetEffectiveScale() / UIParent:GetEffectiveScale()
+    local x = root:GetCenter()
+    return x and x*q or UIParent:GetWidth()*0.5
+end
 
-	if _G.BagBarExpandToggle then
-		_G.BagBarExpandToggle.includeInLayout = false
-		_G.BagBarExpandToggle:SetAlpha(0)
-		_G.BagBarExpandToggle:SetSize(0.001, 0.001)
-		_G.BagBarExpandToggle:Hide()
-	end
+local function PlaceDock(dock, solution)
+    SetControlScale(dock, solution.q)
+    dock:ClearAllPoints()
+    dock:SetPoint("BOTTOM", LayoutRoot(), "BOTTOM", (solution.cx-RootCenterUI())/solution.q, solution.bottom/solution.q)
+end
 
-	local bb = _G.BagsBar
-	if bb then
-		HideDividerPools(bb)
-		if bb.BorderArt then
-			bb.BorderArt:SetAlpha(0)
-		end
-		if bb.Layout then
-			pcall(bb.Layout, bb)
-		end
-		HideDividerPools(bb)
+local function CopyPoint(p)
+    if not p then return end
+    local out = {}
+    for k,v in pairs(p) do out[k]=v end
+    return out
+end
 
-		-- Anchor CharacterReagentBag0Slot directly to the left of CharacterBag3Slot
-		local bag3 = _G.CharacterBag3Slot
-		if reagentBag and bag3 then
-			reagentBag:ClearAllPoints()
-			reagentBag:SetPoint("RIGHT", bag3, "LEFT", -2, 0)
-			reagentBag:SetSize(45, 45)
-			reagentBag:SetAlpha(1)
-			reagentBag:Show()
-		end
+local function BackupLayout(prof)
+    if prof.wingLayoutV1Backup then return prof.wingLayoutV1Backup end
+    local b = { positions={}, scales={}, beltAnchor=cfg.standardMode.beltAnchor }
+    for _, name in ipairs({"Roth_UIMicroDock", "Roth_UIBagDock", "Roth_UIBelt"}) do
+        b.positions[name] = CopyPoint(prof.framePositions and prof.framePositions[name])
+        b.scales[name] = prof.frameScales and prof.frameScales[name]
+    end
+    prof.wingLayoutV1Backup = b
+    return b
+end
 
-		-- Anchor KeyRingButton directly to the left of CharacterReagentBag0Slot (or bag3 fallback)
-		if krb then
-			local anchorTarget = (reagentBag and reagentBag:IsShown()) and reagentBag or bag3
-			if anchorTarget then
-				krb:ClearAllPoints()
-				krb:SetPoint("RIGHT", anchorTarget, "LEFT", -2, 0)
-				krb:SetSize(33, 45)
-				krb:SetAlpha(1)
-				krb:Show()
-			end
-		end
+local function CaptureFrame(frame)
+    local saved={frame=frame,w=frame:GetWidth(),h=frame:GetHeight(),scale=frame:GetScale(),points={}}
+    for i=1,frame:GetNumPoints() do saved.points[i]={frame:GetPoint(i)} end
+    return saved
+end
 
-		local scale = 0.72
-		Blizz.SetScale(bb, scale)
-		Blizz.ClearAllPoints(bb)
-		Blizz.SetPoint(bb, "CENTER", bagDock, "BOTTOM", 0, 39 / scale)
+local function RestoreFrame(saved)
+    local f=saved.frame
+    SetControlScale(f,saved.scale)
+    f:SetSize(saved.w,saved.h)
+    f:ClearAllPoints()
+    for _,p in ipairs(saved.points) do f:SetPoint(unpack(p)) end
+end
 
-		local activeBtns = {}
-		for _, name in ipairs(BAG_LIST) do
-			local btn = _G[name]
-			if btn and btn:IsShown() and (btn:GetAlpha() or 1) > 0.05 then
-				Blizz.SetScale(btn, 1.0)
-				activeBtns[#activeBtns + 1] = btn
-			end
-		end
+local function ApplyStoredPoint(frame,pos)
+    if not pos then return false end
+    local relative=UIParent
+    if pos.relativeTo then
+        relative=_G[pos.relativeTo]
+        if not relative then return false end
+    end
+    if relative==UIParent then relative=LayoutRoot() end
+    frame:ClearAllPoints()
+    frame:SetPoint(pos.point or "BOTTOM",relative,pos.relativePoint or "BOTTOM",pos.x or 0,pos.y or 0)
+    return true
+end
 
-		local visW, shiftX = MeasureVisibleButtonsBounds(bb, activeBtns, 185 * scale)
-		Blizz.ClearAllPoints(bb)
-		Blizz.SetPoint(bb, "CENTER", bagDock, "BOTTOM", (shiftX + (sm.bagButtonsX or 0)) / scale, 39 / scale)
+local function PreferredDock(dock,buttons,side,requested)
+    local prof=ns.LayoutProfile and ns.LayoutProfile()
+    local pos=prof and prof.framePositions and prof.framePositions[dock:GetName()]
+    if not pos then return nil,cfg.standardMode.dockY or 0,true end
+    local saved=CaptureFrame(dock)
+    local legacy
+    SetControlScale(dock,requested)
+    if not pos.wingV2 then
+        local width,height,count=0,0,0
+        for _,button in ipairs(buttons) do
+            if button:IsShown() then
+                local m=BodyMetric(button,side)
+                if m then width=width+m.nativeW;height=math.max(height,m.nativeH);count=count+1 end
+            end
+        end
+        width=width+math.max(0,count-1)*(side=="micro" and -5 or 2)
+        dock:SetSize((width*.72+4)*512/356,height*.72+13)
+    end
+    local valid=ApplyStoredPoint(dock,pos)
+    local rect=valid and ns.WingLayout.FrameRectUI(dock)
+    if rect and not pos.wingV2 then
+        BackupLayout(prof)
+        legacy=CaptureFrame(dock)
+        pos={point="BOTTOM",relativeTo="UIParent",relativePoint="BOTTOM",wingV2=true,
+            x=((rect.l+rect.r)*.5-RootCenterUI())/requested,y=rect.b/requested}
+        prof.framePositions[dock:GetName()]=pos
+    end
+    RestoreFrame(saved)
+    if rect then return (rect.l+rect.r)*.5,rect.b,true,legacy end
+    return nil,nil,false
+end
 
-		local wingW = math.max(330, (visW + 24) / 0.6875)
-		bagDock:SetSize(wingW, 56)
-		if bagDock.art then
-			bagDock.art:SetSize(wingW, 114)
-		end
-		WireDockHover(bagDock, bb, activeBtns)
+local pendingBag,nativeBagBounds
+local CommitControls
 
-		if bb.ApplySystemAnchor and not anchorHooked[bb] then
-			anchorHooked[bb] = true
-			hooksecurefunc(bb, "ApplySystemAnchor", function()
-				if not StandardMode:IsGamepad() and not InCombatLockdown() then
-					SetupBagDock(false, angelX, statueScale)
-				end
-			end)
-		end
-		if bb.Layout and not layoutHooked[bb] then
-			layoutHooked[bb] = true
-			hooksecurefunc(bb, "Layout", function()
-				if not StandardMode:IsGamepad() and not InCombatLockdown() then
-					local b3 = _G.CharacterBag3Slot
-					local rb = _G.CharacterReagentBag0Slot
-					if rb and b3 then
-						rb:ClearAllPoints()
-						rb:SetPoint("RIGHT", b3, "LEFT", -2, 0)
-						rb:SetSize(45, 45)
-						rb:SetAlpha(1)
-						rb:Show()
-					end
-					local kr = _G.KeyRingButton
-					if kr then
-						local target = (rb and rb:IsShown()) and rb or b3
-						if target then
-							kr:ClearAllPoints()
-							kr:SetPoint("RIGHT", target, "LEFT", -2, 0)
-							kr:SetSize(33, 45)
-							kr:SetAlpha(1)
-							kr:Show()
-						end
-					end
-				end
-			end)
-		end
-	end
+local function StatueRects(frame,kind)
+    local art=cfg.units and cfg.units.player and cfg.units.player.art
+    if not frame and art and art[kind] and art[kind].show==false then return {} end
+    return ns.WingLayout.StatueRectsUI(frame,kind)
+end
+
+local function FitControls(dock, container, buttons, side, statue, deferred)
+    local W = ns.WingLayout
+    if not W then return false end
+    local sm = cfg.standardMode
+    local height = side=="micro" and (sm.microBodyHeight or 28) or (sm.bagBodyHeight or 30)
+    local gap = side=="micro" and (sm.microButtonGap or 1) or (sm.bagButtonGap or 2)
+    local shown, width = {}, 0
+    for _,button in ipairs(buttons) do
+        if button:IsShown() and (button:GetAlpha() or 1)>0.05 then
+            local m=BodyMetric(button,side)
+            if m then
+                local scale=height/(m.t-m.b)
+                shown[#shown+1]={button=button,metric=m,scale=scale,width=(m.r-m.l)*scale}
+                width=width+(m.r-m.l)*scale
+            end
+        end
+    end
+    if #shown==0 then dock:Hide(); return true end
+    width=width+gap*(#shown-1)
+    local requested=(ns.EditMode and ns.EditMode:GetScale(dock) or 1)*(ns.EditMode and ns.EditMode:GetGlobalScale() or 1)
+    local cx,bottom,resolved,legacy=PreferredDock(dock,buttons,side,requested)
+    if not resolved then dock.layoutStatus="pending-anchor";return false end
+    local offset=side=="micro" and (sm.microJoinOffset or 0) or (sm.bagJoinOffset or 0)
+    do -- legacy distance differences become an offset, not a scale ratio
+        local legacy=side=="micro" and (sm.microDockOffset or 235)-235 or (sm.bagDockOffset or 240)-240
+        if legacy~=0 then offset=offset+legacy*(sm.standardStatueScale or .78)/.85 end
+    end
+    local statueRects=StatueRects(statue,side=="micro" and "demon" or "angel")
+    if not statueRects then dock.layoutStatus="pending-statue";return false end
+    local solution,reason=W.SolveWing({side=side,bodyWidth=width,bodyHeight=height,padding=2,
+        requestedScale=requested,preferredCenterX=cx,bottom=bottom,
+        joinOffsetUI=offset,screen={l=0,r=UIParent:GetWidth(),b=0,t=UIParent:GetHeight()},
+        statueRects=statueRects})
+    if not solution then dock.layoutStatus=reason; return false end
+    local ready,renderReason=W.CanRender(solution,side)
+    if not ready then dock.layoutStatus=renderReason;return false end
+    local plan={dock=dock,container=container,buttons=buttons,shown=shown,width=width,height=height,
+        gap=gap,solution=solution,requested=requested,side=side,legacy=legacy}
+    if deferred then pendingBag=plan;return true end
+    return CommitControls(plan)
+end
+
+CommitControls=function(plan)
+    local dock,container,solution=plan.dock,plan.container,plan.solution
+    PlaceDock(dock,solution)
+    local rendered,reason=ns.WingLayout.Render(dock,solution,plan.side)
+    if not rendered then dock.layoutStatus=reason;return false end
+    dock.wingFit={requested=plan.requested,effective=solution.q}
+    dock.defaultPosition={a1="BOTTOM",af="UIParent",a2="BOTTOM",
+        x=(solution.cx-RootCenterUI())/plan.requested,y=solution.bottom/plan.requested}
+    dock.layoutStatus=solution.status
+    SetControlScale(container,1)
+    Blizz.ClearAllPoints(container)
+    Blizz.SetPoint(container,"CENTER",dock,"CENTER",0,0)
+    local x=-plan.width*.5
+    for _,item in ipairs(plan.shown) do
+        local button,m=item.button,item.metric
+        local parent=button:GetParent()
+        SetControlScale(button,item.scale*dock:GetEffectiveScale()/parent:GetEffectiveScale())
+        local targetX=x+item.width*.5
+        local targetY=solution.baseHeight+2+plan.height*.5
+        local opticalX=(m.l+m.r-m.nativeW)*.5
+        local opticalY=(m.b+m.t-m.nativeH)*.5
+        Blizz.ClearAllPoints(button)
+        Blizz.SetPoint(button,"CENTER",dock,"BOTTOM",targetX/item.scale-opticalX,targetY/item.scale-opticalY)
+        x=x+item.width+plan.gap
+    end
+    dock.controls=plan.shown
+    local prof=ns.LayoutProfile and ns.LayoutProfile()
+    dock:SetShown(not(prof and prof.disabledElements and prof.disabledElements[dock:GetName()]))
+    WireDockHover(dock,container,plan.buttons)
+    WatchControls(container,container,plan.buttons)
+    if ns.EditMode and ns.EditMode.RefreshWingBounds then ns.EditMode:RefreshWingBounds(dock) end
+    return true
+end
+
+local function SetupMicroDock(isPad)
+    local sm=cfg.standardMode
+    if not microDock then return end
+    if isPad or not sm.integrateMicroMenu then microDock:Hide(); return end
+    local mm,container=_G.MicroMenu,_G.MicroMenuContainer or _G.MicroMenu
+    if not (mm and container and mm.GetChildren) then return false end
+    if mm.BorderArt then mm.BorderArt:SetAlpha(0) end
+    if mm.BackgroundArt then mm.BackgroundArt:SetAlpha(0) end
+    local buttons={}
+    for _,button in ipairs({mm:GetChildren()}) do
+        if button.layoutIndex then buttons[#buttons+1]=button end
+    end
+    table.sort(buttons,function(a,b)return a.layoutIndex<b.layoutIndex end)
+    -- Read native dimensions before calculating each painted border.
+    for _,button in ipairs(buttons)do BodyMetric(button,"micro")end
+    if mm~=container then
+        Blizz.ClearAllPoints(mm);Blizz.SetPoint(mm,"CENTER",container,"CENTER",0,0)
+    end
+    local ok=FitControls(microDock,container,buttons,"micro",_G.Roth_UIDemonFrame)
+    WatchControls(container,mm,buttons)
+    return ok
+end
+
+local function SetupBagDock(isPad)
+    if not bagDock then return end
+    if isPad then bagDock:Hide();return end
+    local bb=_G.BagsBar
+    if not bb then return false end
+    if not cfg.standardMode.integrateBags then
+        bagDock:Hide()
+        local buttons,bounds={},nil
+        for _,name in ipairs(BAG_LIST)do
+            local button=_G[name]
+            if button then
+                buttons[#buttons+1]=button
+                if button:IsShown() and (button:GetAlpha()or 1)>.05 then
+                    local R=ns.WingLayout.FrameRectUI(button)
+                    local m=BodyMetric(button,"bags")
+                    if R and m then
+                        local q=button:GetEffectiveScale()/UIParent:GetEffectiveScale()
+                        local p={l=R.l+m.l*q,r=R.l+m.r*q,b=R.b+m.b*q,t=R.b+m.t*q}
+                        if not bounds then bounds=p else
+                            bounds.l=math.min(bounds.l,p.l);bounds.r=math.max(bounds.r,p.r)
+                            bounds.b=math.min(bounds.b,p.b);bounds.t=math.max(bounds.t,p.t)
+                        end
+                    end
+                end
+            end
+        end
+        nativeBagBounds=bounds
+        WatchControls(bb,bb,buttons)
+        return bounds~=nil
+    end
+    local krb=_G.KeyRingButton
+    if krb then SetupKeyRingButton(krb);StyleBagItemButton(krb)end
+    local reagent=_G.CharacterReagentBag0Slot
+    if reagent then reagent.includeInLayout=false;reagent:SetSize(45,45);reagent:SetAlpha(1);reagent:Show()end
+    local toggle=_G.BagBarExpandToggle
+    if toggle then toggle.includeInLayout=false;toggle:SetAlpha(0);toggle:Hide()end
+    if bb.BorderArt then bb.BorderArt:SetAlpha(0)end
+    HideDividerPools(bb)
+    local buttons={}
+    for i=#BAG_LIST,1,-1 do
+        local button=_G[BAG_LIST[i]]
+        if button then StyleBagItemButton(button);BodyMetric(button,"bags");buttons[#buttons+1]=button end
+    end
+    return FitControls(bagDock,bb,buttons,"bags",_G.Roth_UIAngelFrame,true)
 end
 
 -- First button of the uppermost action bar row that is fitted into the stone grid
@@ -968,12 +1027,8 @@ function StandardMode:AnchorPetBar()
 	inPetAnchor = false
 end
 
--- Blizzard moves the pet bar back into its default bottom stack from
--- EditModeManagerFrame:UpdateBottomActionBarPositions(), which calls
--- bar:ClearAllPoints()/SetPoint() directly (not ApplySystemAnchor). It runs when
--- action bars are toggled, the pet bar shows, the override bar changes and
--- whenever the XP/rep tracking bars change shown state
--- (StatusTrackingBarContainerMixin:UpdateShownState). Re-anchor after each pass.
+-- Reanchor after Blizzard repositions the pet bar through ClearAllPoints/SetPoint.
+-- ApplySystemAnchor alone misses action-bar, override-bar, and status-bar changes.
 local function HookPetBarMovers()
 	local petBar = _G.PetActionBar or _G.PetActionBarFrame
 	local function reanchor()
@@ -995,58 +1050,138 @@ local function HookPetBarMovers()
 	end
 end
 
--- Position the Potion Belt (skipped while the user has a saved position for it):
---   - Gamepad mode: beside the Health Orb
---   - Standard mode, beltAnchor = "bags" (default): on top of the bag wing (Roth_UIBagDock)
---   - Standard mode, beltAnchor = "actionbar": top-left of the uppermost active action bar row
--- The belt holds secure buttons, so it can only be moved out of combat.
--- Returns true when it placed the belt.
+function StandardMode:IsDockedBelt()
+    return cfg.standardMode and cfg.standardMode.enabled and not self:IsGamepad()
+end
+
+function StandardMode:GetBeltDockOffsets()
+    local prof=ns.LayoutProfile and ns.LayoutProfile()
+    local b=prof and prof.beltDock
+    return b and b.xUI or 0,b and b.gapUI or 6
+end
+
+function StandardMode:SetBeltDockOffsets(x,gap)
+    local prof=ns.LayoutProfile and ns.LayoutProfile()
+    if not prof then return end
+    BackupLayout(prof)
+    local old=prof.beltDock or {}
+    prof.beltDock={xUI=x~=nil and x or old.xUI or 0,gapUI=math.max(4,math.min(150,gap~=nil and gap or old.gapUI or 6))}
+    prof.wingLayoutVersion=1
+    self:RequestLayout("belt offset")
+end
+
+function StandardMode:SaveBeltDockPosition(frame)
+    if not (bagDock and ns.Belt and ns.Belt.GetPaintBoundsLocal)then return end
+    if ns.LayoutShift then ns.LayoutShift:AfterMove(frame)end
+    local R=ns.WingLayout.FrameRectUI(frame)
+    if not R then return end
+    local B=ns.Belt:GetPaintBoundsLocal()
+    local q=frame:GetEffectiveScale()/UIParent:GetEffectiveScale()
+    local native=not cfg.standardMode.integrateBags
+    local body=native and nativeBagBounds or bagDock.bodyBounds
+    local shelf=native and nativeBagBounds or bagDock.paintBounds
+    if not(body and shelf)then return end
+    self:SetBeltDockOffsets(R.l+(B.l+B.r)*q*.5-(body.l+body.r)*.5,R.b+B.b*q-shelf.t)
+end
+
+-- Resolve old free anchors only once valid geometry exists. Read without
+-- committing preferences or changing the currently painted bag/belt pair.
+local function BeltOffsets(prof,belt,requested,row,shelf,legacyBag)
+    if prof.beltDock then return prof.beltDock.xUI or 0,prof.beltDock.gapUI or 6,true end
+    local pos=prof.framePositions and prof.framePositions.Roth_UIBelt
+    if not pos then return 0,6,true end
+    local saved,bagSaved=CaptureFrame(belt),legacyBag and CaptureFrame(bagDock)
+    if legacyBag then RestoreFrame(legacyBag) end
+    SetControlScale(belt,requested)
+    local valid=ApplyStoredPoint(belt,pos)
+    local R=valid and ns.WingLayout.FrameRectUI(belt)
+    if bagSaved then RestoreFrame(bagSaved) end
+    RestoreFrame(saved)
+    if not R then return nil,nil,false end
+    local B=ns.Belt:GetPaintBoundsLocal()
+    return R.l+(B.l+B.r)*requested*.5-(row.l+row.r)*.5,
+        math.max(4,math.min(150,R.b+B.b*requested-shelf.t)),true
+end
+
 function StandardMode:AnchorBelt()
-	local sm = cfg.standardMode
-	local belt = _G.Roth_UIBelt
-	local pframe = _G.Roth_UIPlayerFrame
-	if not (sm and sm.enabled) or not belt or not pframe or IsUserMoved("Roth_UIBelt") then
-		return false
-	end
-	if InCombatLockdown() then
-		pendingApply = true
-		return true
-	end
-	belt:ClearAllPoints()
-	if self:IsGamepad() then
-		belt:SetPoint("BOTTOMLEFT", pframe, "BOTTOMRIGHT", cfg.belt.x or 6, cfg.belt.y or 24)
-	elseif sm.beltAnchor ~= "actionbar" and bagDock and bagDock:IsShown() then
-		local offsetX = sm.beltDockX or 18
-		local offsetY = sm.beltDockY or 8 -- 8px elevation ensures potion sockets do not clip into bag buttons below
+    local belt=_G.Roth_UIBelt
+    if not(cfg.standardMode and cfg.standardMode.enabled)then return false end
+    if InCombatLockdown()then pendingApply=true;return true end
+    if self:IsGamepad()then
+        if not belt or IsUserMoved("Roth_UIBelt")then return false end
+        local y=cfg.gamepadLayout.beltY
+        for _,name in ipairs({"Roth_UIExpBar","Roth_UIRepBar"})do
+            local f=_G[name];local top=f and f:IsShown()and f:GetTop()
+            if top then y=math.max(y,top*f:GetEffectiveScale()/UIParent:GetEffectiveScale()+16)end
+        end
+        belt:ClearAllPoints();belt:SetClampedToScreen(true)
+        PlaceAtBottom(belt,ns.GamepadLayout:OrbCenter(),y)
+        return true
+    end
+    local plan=pendingBag
+    local native=not cfg.standardMode.integrateBags
+    local row=native and nativeBagBounds or plan and plan.solution.bodyUI or bagDock and bagDock.bodyBounds
+    local shelf=native and nativeBagBounds or plan and plan.solution.paintUI or bagDock and bagDock.paintBounds
+    if not(row and shelf)then return false end
+    if not(belt and ns.Belt and ns.WingLayout)then
+        if plan then return CommitControls(plan)end
+        return true
+    end
+    local prof=ns.LayoutProfile and ns.LayoutProfile()
+    if cfg.belt and cfg.belt.show==false or prof and prof.disabledElements and prof.disabledElements.Roth_UIBelt then
+        if plan then return CommitControls(plan)end
+        return true
+    end
+    -- Existing bag geometry must resolve before committing either component.
+    if not native and not ns.WingLayout.FrameRectUI(bagDock) then belt.layoutStatus="pending-bag";return false end
+    if not prof then return false end
+    local requested=(ns.EditMode and ns.EditMode:GetScale(belt)or 1)*(ns.EditMode and ns.EditMode:GetGlobalScale()or 1)
+    local x,gap,valid=BeltOffsets(prof,belt,requested,row,shelf,plan and plan.legacy)
+    if not valid then belt.layoutStatus="pending-belt-anchor";return false end
+    local obstacles={}
+    for _,kind in ipairs({"angel","demon"})do
+        local f=kind=="angel" and _G.Roth_UIAngelFrame or _G.Roth_UIDemonFrame
+        local rects=StatueRects(f,kind)
+        if not rects then belt.layoutStatus="pending-statue";return false end
+        for _,r in ipairs(rects)do obstacles[#obstacles+1]=r end
+    end
+    local solved,reason=ns.WingLayout.SolveBelt({localPaint=ns.Belt:GetPaintBoundsLocal(),requestedScale=requested,
+        bagRow=row,bagShelf=shelf,statueRects=obstacles,
+        screen={l=0,r=UIParent:GetWidth(),b=0,t=UIParent:GetHeight()},userOffsetX=x,userGap=gap,maxRaise=24})
+    if not solved then belt.layoutStatus=reason;return false end
+    if plan and not CommitControls(plan)then return false end
+    local R=ns.WingLayout.FrameRectUI(native and LayoutRoot() or bagDock)
+    if not R then belt.layoutStatus="pending-bag";return false end
+    if not prof.beltDock then
+        BackupLayout(prof)
+        prof.beltDock={xUI=x,gapUI=gap}
+        prof.wingLayoutVersion=1
+    end
+    SetControlScale(belt,solved.q)
+    belt:SetClampedToScreen(false)
+    belt:ClearAllPoints()
+    belt:SetPoint("BOTTOMLEFT",native and LayoutRoot() or bagDock,"BOTTOMLEFT",(solved.x-R.l)/solved.q,(solved.y-R.b)/solved.q)
+    belt.wingFit={requested=requested,effective=solved.q}
+    belt.paintBounds=solved.paintUI
+    belt.layoutStatus=solved.status
+    return true
+end
 
-		-- Backup screen-edge protection:
-		-- If the belt's right gothic bracket would clear/exceed the screen edge,
-		-- calculate the inward offset so it automatically corrects and stays on screen.
-		local uiWidth = UIParent:GetWidth() or 1440
-		local dockRelX = (bagDock.defaultPosition and bagDock.defaultPosition.x) or 540
-		local bScale = belt:GetEffectiveScale() or 1
-		local uScale = UIParent:GetEffectiveScale() or 1
-		local scaleRatio = (uScale > 0) and (bScale / uScale) or 1
-
-		-- Belt visual half-width: 101px holder half-width + 44px right gothic bracket = 145px
-		local beltVisualHalfW = 145 * scaleRatio
-		local screenRightLimit = (uiWidth * 0.5) - 6 -- 6px margin from the screen edge
-		local desiredRight = (dockRelX + offsetX) * scaleRatio + beltVisualHalfW
-
-		if desiredRight > screenRightLimit then
-			local overflow = desiredRight - screenRightLimit
-			offsetX = offsetX - (overflow / scaleRatio)
-		end
-
-		belt:SetPoint("BOTTOM", bagDock, "TOP", offsetX, offsetY)
-	else
-		belt:SetPoint("BOTTOMLEFT", self:GetTopRowFirstButton() or pframe, "TOPLEFT", -4, 8)
-	end
-	return true
+function StandardMode:DebugWings()
+    for _,f in ipairs({microDock,bagDock,_G.Roth_UIBelt})do
+        local fit=f.wingFit
+        local p=f.paintBounds
+        print(string.format("%s: %s; requested %.3f, effective %.3f",f:GetName(),f.layoutStatus or "pending",
+            fit and fit.requested or 0,fit and fit.effective or 0))
+        if p then print(string.format("paint L%.1f R%.1f B%.1f T%.1f",p.l,p.r,p.b,p.t))end
+        local item=f.controls and f.controls[1]
+        local m=item and item.metric
+        if m then print(string.format("border %.1fx%.1f; %s",m.r-m.l,m.t-m.b,m.source))end
+    end
 end
 
 -- Apply mode-appropriate layout (always runs out of combat)
-function StandardMode:Apply()
+local function ApplyLayout(self)
 	if not (cfg.standardMode and cfg.standardMode.enabled) then
 		return
 	end
@@ -1054,16 +1189,22 @@ function StandardMode:Apply()
 		pendingApply = true
 		return
 	end
-	pendingApply = false
+	pendingBag,nativeBagBounds=nil,nil
+	self:EnsureDockRoots()
 
 	local isPad = self:IsGamepad()
+	if ns.GamepadLayout then ns.GamepadLayout:PrepareMode(isPad) end
+	if ns.GamepadLayout then ns.GamepadLayout:WatchCrossbar() end
+	if ns.GamepadLayout then ns.GamepadLayout:ArrangePanels(isPad) end
+ if ns.Tooltips and ns.EditMode and ns.EditMode.active then ns.Tooltips.Refresh() end
+	local centerX = isPad and ns.GamepadLayout:OrbCenter() or 0
 	local sm = cfg.standardMode
-	local orbX = isPad and (sm.padOrbX or 325) or (sm.standardOrbX or 325)
-	local statueScale = isPad and 1 or (sm.standardStatueScale or 1)
+	local orbX = isPad and ns.GamepadLayout:OrbSpacing() or (sm.standardOrbX or 325)
+	local statueScale = isPad and cfg.gamepadLayout.artScale or (sm.standardStatueScale or 1)
 	-- statue offsets from the orb centre shrink with the statue art
-	local demonX = -(orbX + 30 * statueScale)
-	local angelX = orbX + 25 * statueScale
-	local bottomW = isPad and 670 or (2 * orbX + 180)
+	local demonX = centerX - (orbX + 30 * statueScale)
+	local angelX = centerX + orbX + 25 * statueScale
+	local bottomW = isPad and (2 * orbX + 100) or (2 * orbX + 180)
 
 	local pframe = _G.Roth_UIPlayerFrame
 	local powerOrb = _G.Roth_UIPowerOrb
@@ -1076,27 +1217,30 @@ function StandardMode:Apply()
 	local gs = (ns.EditMode and ns.EditMode.GetGlobalScale and ns.EditMode:GetGlobalScale()) or 1
 	for name in pairs(self:DefaultScales(isPad)) do
 		local f = _G[name]
-		if f then
+		if f and (isPad or (name~="Roth_UIMicroDock" and name~="Roth_UIBagDock" and name~="Roth_UIBelt")) then
 			local s = (ns.EditMode and ns.EditMode.GetScale and ns.EditMode:GetScale(f)) or self:DefaultScale(name)
 			f:SetScale(s * gs)
 		end
 	end
 
-	local orbY = cfg.units.player.pos.y or 10
+	local orbY = isPad and cfg.gamepadLayout.orbY or (cfg.units.player.pos.y or 10)
 	if pframe and not IsUserMoved("Roth_UIPlayerFrame") then
-		PlaceAtBottom(pframe, -orbX, orbY)
+		PlaceAtBottom(pframe, centerX - orbX, orbY)
 	end
 	if powerOrb and not IsUserMoved("Roth_UIPowerOrb") then
-		PlaceAtBottom(powerOrb, orbX, orbY)
+		PlaceAtBottom(powerOrb, centerX + orbX, orbY)
 	end
 	if demon and not IsUserMoved("Roth_UIDemonFrame") then
-		PlaceAtBottom(demon, demonX, cfg.units.player.art.demon.pos.y or 6)
+		PlaceAtBottom(demon, demonX, isPad and cfg.gamepadLayout.artY or (cfg.units.player.art.demon.pos.y or -2))
 	end
 	if angel and not IsUserMoved("Roth_UIAngelFrame") then
-		PlaceAtBottom(angel, angelX, cfg.units.player.art.angel.pos.y or 6)
+		PlaceAtBottom(angel, angelX, isPad and cfg.gamepadLayout.artY or (cfg.units.player.art.angel.pos.y or -2))
 	end
 	if bottomLine and not IsUserMoved("Roth_UIBottomLine") then
 		bottomLine:SetSize(bottomW, 112)
+		if isPad then
+			PlaceAtBottom(bottomLine, centerX, cfg.units.player.art.bottomline.pos.y or 0)
+		end
 	end
 
 	-- Refresh bar1/bar2/bar3 stone grid & XP/Rep bar layout
@@ -1129,15 +1273,35 @@ function StandardMode:Apply()
 		end
 	end
 
-	SetupMicroDock(isPad, demonX, statueScale)
-	SetupBagDock(isPad, angelX, statueScale)
+	if ns.LayoutShift then ns.LayoutShift:Sync(true) end
+	local microOK=SetupMicroDock(isPad)
+	local bagOK=SetupBagDock(isPad)
 	HookPetBarMovers()
 	self:AnchorPetBar()
-	self:AnchorBelt()
+	local beltOK=self:AnchorBelt()
+    if ns.EditMode and ns.EditMode.UpdateDialog then ns.EditMode:UpdateDialog() end
+    if (microOK==false or bagOK==false or beltOK==false) and (self.geometryRetries or 0)<1 then
+        self.geometryRetries=(self.geometryRetries or 0)+1
+        C_Timer.After(0,function() StandardMode:RequestLayout("initial geometry") end)
+    end
 	-- frame edges are only known once the anchors above have resolved
 	C_Timer.After(0, function()
 		StandardMode:PlaceStack()
 	end)
+end
+
+function StandardMode:Apply()
+    if applyingLayout then return end
+    if not(cfg.standardMode and cfg.standardMode.enabled)then return end
+    if InCombatLockdown()then pendingApply=true;return end
+    pendingApply=false
+    applyingLayout,fittingDock=true,true
+    local ok,why=xpcall(function() ApplyLayout(self) end,function(err)return err end)
+    applyingLayout,fittingDock=false,false
+    pendingBag=nil
+    if not ok then
+        if geterrorhandler then geterrorhandler()(why) else error(why,0) end
+    end
 end
 
 -- Top of a frame in UIParent units (nil until it has a position)
@@ -1149,22 +1313,20 @@ local function TopInUI(f)
 	return top * f:GetEffectiveScale() / UIParent:GetEffectiveScale()
 end
 
--- The bottom stack above the stone bar, keyboard layout only:
---   top action row -> pet bar (space kept even without a pet, so nothing jumps when one
---   is summoned) -> player cast bar -> swing timer (core/swingtimer.lua anchors it to
---   the cast bar's top).
--- The pet frame sits above the power orb: the right side is empty, while the chat box
--- covers the area above the health orb and the quest tracker the right edge higher up.
--- Frames moved in the edit layout keep their place.
+-- Keyboard stack: action rows, reserved pet-bar space, player cast bar, swing timer.
+-- Saved element positions take precedence; pet-frame placement is configured separately.
 function StandardMode:PlaceStack()
 	local sm = cfg.standardMode
-	if not (sm and sm.enabled) or self:IsGamepad() then
-		return
-	end
+	if not (sm and sm.enabled) then return end
 	if InCombatLockdown() then
 		pendingApply = true
 		return
 	end
+	if self:IsGamepad() then
+		ns.GamepadLayout:PlaceHUD()
+		return
+	end
+	if ns.SwingTimer then ns.SwingTimer.Place() end
 
 	local rowTop = TopInUI(self:GetTopRowFirstButton())
 	if rowTop then
@@ -1182,6 +1344,7 @@ function StandardMode:PlaceStack()
 	end
 	self:PlaceTargetFrame()
 	self:PlaceTargetTargetFrame()
+	if ns.GamepadLayout then ns.GamepadLayout:PlaceTargetCastbar() end
 end
 
 -- Choices shared by the settings window and the edit layout's pet and target dialogs
@@ -1250,14 +1413,7 @@ StandardMode.RAID_LAYOUT_OPTIONS = {
 }
 ns.RAID_LAYOUT_OPTIONS = StandardMode.RAID_LAYOUT_OPTIONS
 
--- Pet frame, choices (cfg.standardMode.petFrameAnchor):
---   "orb"    above the power orb. The right side is empty: the chat box covers the
---            area above the health orb and the quest tracker the right edge higher up.
---   "healthOrb" above the health orb, by the player's own orb; under a chat box that
---            sits at the bottom left.
---   "petbarLeft" / "petbarRight"  up and to the left / right of the pet bar, next to
---            the pet's own buttons. On the left it can reach under a chat box at the
---            bottom left; on the right it can meet the cast bar when the bar is centred.
+-- Pet-frame anchors: healthOrb, orb (power), petbarLeft, or petbarRight.
 function StandardMode:PlacePetFrame(rowTop, petH)
 	local sm = cfg.standardMode
 	local pet = _G.Roth_UIPetFrame
@@ -1286,7 +1442,9 @@ function StandardMode:PlacePetFrame(rowTop, petH)
 		end
 		local refX = ref and ((edge == "left") and ref:GetLeft() or ref:GetRight())
 		if refX and petBar then
+			-- measured on screen, so take out the "Move all" offset the pet frame gets anyway
 			local x = refX * ref:GetEffectiveScale() / uiEff - UIParent:GetWidth() / 2
+				- (ns.LayoutShift and ns.LayoutShift:Get() or 0)
 			local barW = petBar:GetWidth() * petBar:GetEffectiveScale() / uiEff
 			local barLeft = (edge == "left" and x) or (edge == "right" and x - barW) or (x - barW / 2)
 			local petW = pet:GetWidth() * pet:GetEffectiveScale() / uiEff
@@ -1318,10 +1476,7 @@ function StandardMode:PlacePetFrame(rowTop, petH)
 	end
 end
 
--- Target frame, choices (cfg.standardMode.targetFrameAnchor):
---   "powerOrb"  above the power orb (default: symmetrical to pet frame above health orb)
---   "healthOrb" above the health orb
---   "top"       top of the screen (classic Roth UI layout)
+-- Target-frame anchors: powerOrb (default), healthOrb, or top.
 function StandardMode:PlaceTargetFrame()
 	local sm = cfg.standardMode
 	local target = _G.Roth_UITargetFrame
@@ -1355,11 +1510,7 @@ function StandardMode:PlaceTargetFrame()
 	end
 end
 
--- Target of Target frame, choices (cfg.standardMode.targetTargetFrameAnchor):
---   "topright"  top-right above target frame (BOTTOMRIGHT -> TOPRIGHT, 0, 6)
---   "topleft"   top-left above target frame (BOTTOMLEFT -> TOPLEFT, 0, 6)
---   "left"      left of target frame (TOPRIGHT -> TOPLEFT, -6, -10)
---   "right"     right of target frame (TOPLEFT -> TOPRIGHT, 6, -10)
+-- Target-of-target anchors: topright, topleft, left, or right of the target frame.
 function StandardMode:PlaceTargetTargetFrame()
 	local sm = cfg.standardMode
 	local tot = _G.Roth_UITargetTargetFrame
@@ -1385,11 +1536,16 @@ function StandardMode:PlaceTargetTargetFrame()
 	end
 end
 
+UIParent:HookScript("OnSizeChanged",QueueApply)
+hooksecurefunc(UIParent,"SetScale",QueueApply)
+
 local ev = CreateFrame("Frame")
 ev:RegisterEvent("PLAYER_LOGIN")
 ev:RegisterEvent("PLAYER_ENTERING_WORLD")
 ev:RegisterEvent("INPUT_DEVICE_INTERFACE_TRANSITION")
 ev:RegisterEvent("PLAYER_REGEN_ENABLED")
+ev:RegisterEvent("DISPLAY_SIZE_CHANGED")
+ev:RegisterEvent("UI_SCALE_CHANGED")
 ev:SetScript("OnEvent", function(_, event)
 	if event == "PLAYER_REGEN_ENABLED" then
 		if pendingApply then
@@ -1419,17 +1575,6 @@ end
 
 -- Toggling Bar 2 / Bar 3 changes which row is on top. Apply once on the next
 -- frame, after Blizzard's own layout pass for the toggle has finished.
-local applyQueued = false
-local function QueueApply()
-	if applyQueued then
-		return
-	end
-	applyQueued = true
-	C_Timer.After(0, function()
-		applyQueued = false
-		StandardMode:Apply()
-	end)
-end
 for _, bar in ipairs({ _G.MultiBarBottomLeft, _G.MultiBarBottomRight }) do
 	bar:HookScript("OnShow", QueueApply)
 	bar:HookScript("OnHide", QueueApply)
