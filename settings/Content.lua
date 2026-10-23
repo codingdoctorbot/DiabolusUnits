@@ -1,24 +1,6 @@
--- DiabolusUnits — settings/Content.lua
---
--- The right-hand side: a page title, a horizontal rule, and a scrolling column of rows.
---
--- This is where the crash class gets designed out, so the two decisions are stated plainly
--- rather than left as style.
---
--- LAZY, ONCE, FOREVER. A page's rows are built the first time it is opened and then kept.
--- Switching pages hides one set and shows another; nothing is destroyed or reused. The cost
--- is memory for frames the player has actually looked at — twenty to a hundred rows per
--- page, not 764 — and the benefit is that no frame here is ever bound to a second setting,
--- so no reference can go stale.
---
--- A PLAIN ScrollFrame, not WowScrollBoxList. The scroll child is one tall frame holding
--- every row for the current page, and scrolling moves it. SmartNavigation handles that
--- shape through the branch at SmartNavigation.lua:879 that calls SetVerticalScroll; the
--- pooled branch below it, re-finding a button by element data because "the ScrollBox frames
--- are in a pool and can change when scrolling", is never entered.
---
--- Layout numbers come from SettingsListMixin:OnLoad (Blizzard_SettingsList.lua:53-82):
--- 10px top and bottom padding, 25px left inset, 9px between rows.
+-- Lazy settings pages with permanent rows inside a plain ScrollFrame.
+-- Page changes hide/show cached rows; search and section folding update their layout.
+-- Geometry comes from Theme. Framework ported from PulseHaptics UI/Panel.
 
 local _, ns = ...
 
@@ -31,7 +13,7 @@ Panel.Content = Content
 
 local ContentMixin = {}
 
--- ── Construction ──────────────────────────────────────────────────────────────
+-- Construction
 
 function Content.Create(parent)
 	local frame = CreateFrame("Frame", nil, parent)
@@ -49,10 +31,15 @@ function Content.Create(parent)
 	header.Title:SetPoint("TOPLEFT", header, "TOPLEFT", Theme.HEADER_TITLE_X, Theme.HEADER_TITLE_Y)
 
 	local divider = header:CreateTexture(nil, "ARTWORK")
-	divider:SetAtlas("Options_HorizontalDivider", true)
+	divider:SetColorTexture(Theme.COLOR_BORDER.r, Theme.COLOR_BORDER.g, Theme.COLOR_BORDER.b, 1)
+	divider:SetSize(1, 1)
+	divider:SetPoint("LEFT", header, "LEFT", 8, 0)
+	divider:SetPoint("RIGHT", header, "RIGHT", -8, 0)
 	divider:SetPoint("TOP", header, "TOP", 0, -Theme.HEADER_HEIGHT)
 	header.Divider = divider
 
+	header.Scope = header:CreateFontString(nil, "ARTWORK", Theme.FONT_CHILD)
+	header.Scope:SetPoint("TOPRIGHT", header, "TOPRIGHT", -8, -12)
 	frame.Header = header
 
 	-- Subtab bar: for pages that declare `tabs`
@@ -62,6 +49,10 @@ function Content.Create(parent)
 	tabBar:SetPoint("TOPRIGHT", header, "BOTTOMRIGHT", -Theme.HEADER_TITLE_X, 2)
 	tabBar:Hide()
 	frame.TabBar = tabBar
+	local tabHint = frame:CreateFontString(nil, "ARTWORK", Theme.FONT_CHILD)
+	tabHint:SetPoint("TOPLEFT", tabBar, "BOTTOMLEFT", 0, -5)
+	tabHint:Hide()
+	frame.TabHint = tabHint
 	frame.tabButtons = {}
 
 	-- Scroll region.
@@ -79,9 +70,7 @@ function Content.Create(parent)
 	scroll:SetScrollChild(child)
 	frame.Child = child
 
-	-- MinimalScrollBar is the thin modern bar the real panel uses, and
-	-- ScrollUtil.InitScrollFrameWithScrollBar (ScrollUtil.lua:215) is the supported way to
-	-- drive one from a plain ScrollFrame rather than a ScrollBox.
+	-- Attach a MinimalScrollBar to the plain ScrollFrame when supported.
 	local ok, bar = pcall(CreateFrame, "EventFrame", nil, frame, "MinimalScrollBar")
 	if ok and bar then
 		bar:SetPoint("TOPLEFT", scroll, "TOPRIGHT", 0, -4)
@@ -89,9 +78,7 @@ function Content.Create(parent)
 		if ScrollUtil and type(ScrollUtil.InitScrollFrameWithScrollBar) == "function" then
 			pcall(ScrollUtil.InitScrollFrameWithScrollBar, scroll, bar)
 		end
-		-- A page shorter than the window should not show a dead scroll bar. Blizzard gets
-		-- this from AddManagedScrollBarVisibilityBehavior, which is ScrollBox-only; the
-		-- bar's own flag does the same job for a plain ScrollFrame.
+		-- Hide the scrollbar when the page fits.
 		if bar.SetHideIfUnscrollable then
 			bar:SetHideIfUnscrollable(true)
 		end
@@ -122,7 +109,7 @@ function Content.Create(parent)
 	return frame
 end
 
--- ── Unit Frame Highlight ─────────────────────────────────────────────────────
+-- Unit Frame Highlight
 
 local highlightFrame = nil
 local highlightTimer = nil
@@ -165,7 +152,7 @@ local function flashUnitFrame(targetFrame)
 	end, steps)
 end
 
--- ── Page & Tab building ───────────────────────────────────────────────────────
+-- Page & Tab building
 
 -- Builds one page's rows, once. `page.build` (UI/Panel/Spec.lua) returns a flat array of
 -- row specs in render order, headers included.
@@ -229,12 +216,13 @@ function ContentMixin:UpdateTabButtons()
 			btn = CreateFrame("Button", nil, self.TabBar)
 			btn:SetHeight(24)
 
-			local bg = btn:CreateTexture(nil, "BACKGROUND")
-			bg:SetAllPoints(btn)
+			local bg = btn:CreateTexture(nil, "BACKGROUND", nil, -6)
+			bg:SetPoint("TOPLEFT", btn, "TOPLEFT", 1, -1)
+			bg:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -1, 1)
 			bg:SetColorTexture(Theme.COLOR_SURFACE.r, Theme.COLOR_SURFACE.g, Theme.COLOR_SURFACE.b, 0.95)
 			btn.Bg = bg
 
-			local border = btn:CreateTexture(nil, "BORDER")
+			local border = btn:CreateTexture(nil, "BACKGROUND", nil, -7)
 			border:SetPoint("TOPLEFT", btn, "TOPLEFT", 0, 0)
 			border:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", 0, 0)
 			border:SetColorTexture(Theme.COLOR_BORDER.r, Theme.COLOR_BORDER.g, Theme.COLOR_BORDER.b, 0.8)
@@ -247,7 +235,7 @@ function ContentMixin:UpdateTabButtons()
 			line:SetColorTexture(Theme.COLOR_ACCENT.r, Theme.COLOR_ACCENT.g, Theme.COLOR_ACCENT.b, 1)
 			btn.ActiveLine = line
 
-			local text = btn:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+			local text = btn:CreateFontString(nil, "ARTWORK", Theme.FONT_NORMAL)
 			text:SetPoint("CENTER", btn, "CENTER", 0, 1)
 			btn.Text = text
 
@@ -322,7 +310,7 @@ function ContentMixin:UpdateTabButtonStates()
 			btn.selected = isSelected
 			if isSelected then
 				btn.Text:SetTextColor(Theme.COLOR_ACCENT.r, Theme.COLOR_ACCENT.g, Theme.COLOR_ACCENT.b)
-				btn.Text:SetFontObject("GameFontHighlight")
+				btn.Text:SetFontObject(Theme.FONT_NORMAL)
 				btn.Border:SetColorTexture(Theme.COLOR_ACCENT.r, Theme.COLOR_ACCENT.g, Theme.COLOR_ACCENT.b, 0.95)
 				btn.Bg:SetColorTexture(
 					Theme.COLOR_SURFACE.r + 0.04,
@@ -333,7 +321,7 @@ function ContentMixin:UpdateTabButtonStates()
 				btn.ActiveLine:Show()
 			else
 				btn.Text:SetTextColor(Theme.COLOR_TEXT_MUTED.r, Theme.COLOR_TEXT_MUTED.g, Theme.COLOR_TEXT_MUTED.b)
-				btn.Text:SetFontObject("GameFontNormal")
+				btn.Text:SetFontObject(Theme.FONT_NORMAL)
 				btn.Border:SetColorTexture(Theme.COLOR_BORDER.r, Theme.COLOR_BORDER.g, Theme.COLOR_BORDER.b, 0.8)
 				btn.Bg:SetColorTexture(Theme.COLOR_SURFACE.r, Theme.COLOR_SURFACE.g, Theme.COLOR_SURFACE.b, 0.85)
 				btn.ActiveLine:Hide()
@@ -385,7 +373,7 @@ function ContentMixin:GetActiveRows()
 	return {}
 end
 
--- ── Showing a page ────────────────────────────────────────────────────────────
+-- Showing a page
 
 function ContentMixin:SetPage(page)
 	if self.page == page then
@@ -412,7 +400,7 @@ function ContentMixin:SetPage(page)
 		self.Header.Divider:ClearAllPoints()
 		self.Header.Divider:SetPoint("TOP", self.TabBar, "BOTTOM", 0, -2)
 		self.Scroll:ClearAllPoints()
-		self.Scroll:SetPoint("TOPLEFT", self.TabBar, "BOTTOMLEFT", Theme.LIST_TOP_X, -8)
+		self.Scroll:SetPoint("TOPLEFT", self.TabBar, "BOTTOMLEFT", Theme.LIST_TOP_X, -27)
 		self.Scroll:SetPoint("BOTTOMRIGHT", self, "BOTTOMRIGHT", Theme.LIST_BOTTOM_X, Theme.LIST_BOTTOM_Y)
 
 		self:UpdateTabButtons()
@@ -429,6 +417,7 @@ function ContentMixin:SetPage(page)
 		self:SetTab(targetTab)
 	else
 		self.TabBar:Hide()
+		self.TabHint:Hide()
 		self.Header.Divider:ClearAllPoints()
 		self.Header.Divider:SetPoint("TOP", self.Header, "TOP", 0, -Theme.HEADER_HEIGHT)
 		self.Scroll:ClearAllPoints()
@@ -446,12 +435,9 @@ function ContentMixin:SetPage(page)
 	end
 end
 
--- ── Filtering ─────────────────────────────────────────────────────────────────
+-- Filtering
 
--- Search is scoped to the page in view, not the whole addon. A real difference from
--- Blizzard's panel and a deliberate one: searching everything means building all 764
--- controls at once, the "build the world at login" cost this rewrite exists to stop paying.
--- The box says so in its placeholder text.
+-- Search only the active page; unopened pages remain unbuilt.
 function ContentMixin:SetFilter(text)
 	text = text and string.lower(strtrim(text)) or ""
 	if text == "" then
@@ -465,14 +451,8 @@ function ContentMixin:SetFilter(text)
 	Panel.Gamepad.RefreshNavigation()
 end
 
--- A row can be hidden for two unrelated reasons and they compose. `visibleWhen` is the
--- player's own display choice — "Show per-cue detail controls", "Show a Play button on
--- every cue" — which needed a /reload when the old panel decided at registration time
--- whether a control existed. Here the row is always built and simply left out of the
--- layout, so both toggles are instant.
---
--- Phase 2 adds a third reason, a folded section, and it yields to search: a match inside a
--- folded section is shown, or the search box would find things it then hides.
+-- Combine visibleWhen, search, and section folding. Search reveals matches in folded
+-- sections, while visibleWhen remains authoritative.
 local function sectionFolded(key)
 	return key ~= nil and Panel.IsSectionCollapsed ~= nil and Panel.IsSectionCollapsed(key)
 end
@@ -491,9 +471,21 @@ local function rowVisible(row, filter)
 	return row.searchText and string.find(row.searchText, filter, 1, true) ~= nil
 end
 
--- ── Layout ────────────────────────────────────────────────────────────────────
+-- Layout
 
 function ContentMixin:LayoutRows()
+	local scope = ""
+	if self.page then
+		if self.page.id == "layout" then
+			scope = "Keyboard defaults"
+		elseif self.page.id == "gamepad" then
+			scope = "Gamepad defaults"
+		elseif self.page.id == "unitframes" then
+			scope = ns.StandardMode and ns.StandardMode:IsGamepad() and "Sizes: gamepad layout"
+				or "Sizes: keyboard layout"
+		end
+	end
+	self.Header.Scope:SetText(scope)
 	local rows = self:GetActiveRows()
 	if not self.page or #rows == 0 then
 		return
@@ -573,7 +565,7 @@ function ContentMixin:LayoutRows()
 	end
 end
 
--- ── Refresh ───────────────────────────────────────────────────────────────────
+-- Refresh
 
 -- Re-reads every row on the page in view and re-evaluates its dependency. Driven by a dirty
 -- flag rather than per change, so a profile switch — which notifies every cue and every

@@ -1,19 +1,7 @@
----------------------------------------------
---  Roth_UI - cast bar extras
----------------------------------------------
--- Channel ticks (player): a thin gold line wherever a channel ticks, so a
--- Drain Life or Arcane Missiles can be clipped after the last tick worth
--- having. Counts are MSUF's table for WoW Forever / Classic Era spell data
--- (MSUF_CastbarChannelTicks.lua: SpellDuration / EffectAuraPeriod per rank,
--- build 1.60.1). Fixed counts keep their ticks under haste, so the lines sit
--- at even fractions of the bar and no (possibly secret) time is read.
---
--- Interrupt ready (target, focus): while an enemy casts something you can
--- interrupt and your interrupt is off cooldown, the cast bar burns
--- orange. Interrupts are MSUF's Vanilla table, which Forever uses (Paladins
--- and Hunters have none there). Neither "cannot be interrupted" nor "ready"
--- is tested in Lua: a holder frame takes its alpha from the first, the glow
--- inside it from the second (SetAlphaFromBoolean takes secret booleans).
+-- Cast-bar extras: fixed channel tick marks and an interrupt-ready glow.
+-- Channel counts and Vanilla interrupt IDs reference MSUF_CastbarChannelTicks.lua
+-- and MSUF_InterruptReady.lua for Forever/Classic.
+-- Tick positions use fractions; secret interrupt/readiness flags go to C alpha setters.
 
 local _, ns = ...
 
@@ -25,9 +13,7 @@ ns.CastBars = CastBars
 
 local MEDIA = "Interface\\AddOns\\DiabolusUnits\\media\\"
 
----------------------------------------------
 -- CHANNEL TICKS
----------------------------------------------
 
 local TICKS = {}
 do
@@ -125,7 +111,9 @@ function CastBars.AddChannelTicks(bar)
 	bar.RothTicks = {}
 	-- oUF 14 starts casts and channels alike through PostCastStart
 	Chain(bar, "PostCastStart", function(self, unit, spellID)
-		if type(UnitChannelInfo(unit)) ~= "nil" then
+		-- A non-channel cast can return zero values; assignment normalizes that to nil.
+		local channelName = UnitChannelInfo(unit)
+		if type(channelName) ~= "nil" then
 			CastBars.ShowTicks(self, spellID)
 		else
 			HideTicks(self)
@@ -136,9 +124,7 @@ function CastBars.AddChannelTicks(bar)
 	end
 end
 
----------------------------------------------
 -- INTERRUPT READY
----------------------------------------------
 
 -- { spellID, spell book bank } per class; Spell Lock is the Felhunter's.
 local INTERRUPTS = {

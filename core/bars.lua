@@ -1,19 +1,14 @@
---get the addon namespace
 local addon, ns = ...
 
---object container
 local bars = CreateFrame("Frame")
 ns.bars = bars
 
---get the functions
 local func = ns.func
 local cfg = ns.cfg
 local barposition = ns.player
 local mediapath = "Interface\\AddOns\\DiabolusUnits\\media\\"
 
----------------------------------------------
 -- FUNCTIONS
----------------------------------------------
 
 -- Add dark stone trough border and 10-segment Diablo tick marks (10%..90%)
 local function decorateDiabloBar(bar)
@@ -65,9 +60,37 @@ local function decorateDiabloBar(bar)
 	layoutTicks(bar)
 end
 
+-- Paired XP themes: the rested extension remains distinct from earned XP.
+local PURPLE_XP = { r = 0.58, g = 0.12, b = 0.68 }
+local BLUE_RESTED = { r = 0, g = 0.45, b = 0.9 }
+
+function bars.GetExperienceColors()
+	local xp = cfg.units.player.expbar
+	if xp.colorStyle == "purple" then
+		return PURPLE_XP, BLUE_RESTED
+	end
+	return xp.color, xp.rested.color
+end
+
+function bars.RefreshExperienceAppearance()
+	local bar = _G.Roth_UIExpBar
+	if not bar then
+		return
+	end
+	local earned, rested = bars.GetExperienceColors()
+	bar:SetStatusBarColor(earned.r, earned.g, earned.b)
+	if bar.Rested then
+		bar.Rested:SetStatusBarColor(rested.r, rested.g, rested.b)
+	end
+	if bar.bg then
+		bar.bg:SetVertexColor(earned.r, earned.g, earned.b, 0.25)
+	end
+end
+
 --create the exp bar
 bars.createExpBar = function(self)
 	local cfg = self.cfg.expbar
+	local xpColor, restedColor = bars.GetExperienceColors()
 	if not cfg.show then
 		return
 	end
@@ -85,24 +108,27 @@ bars.createExpBar = function(self)
 	f.defaultPosition = { a1 = "BOTTOMLEFT", af = "Roth_UIPlayerFrame", a2 = "BOTTOMRIGHT", x = -8, y = 4 }
 	f:SetScale(cfg.scale or 1)
 	f:SetStatusBarTexture(cfg.texture)
-	f:SetStatusBarColor(cfg.color.r, cfg.color.g, cfg.color.b)
+	f:SetStatusBarColor(xpColor.r, xpColor.g, xpColor.b)
 
 	local r = CreateFrame("StatusBar", nil, f)
 	r:SetAllPoints(f)
 	r:SetStatusBarTexture(cfg.texture)
-	r:SetStatusBarColor(cfg.rested.color.r, cfg.rested.color.g, cfg.rested.color.b)
+	r:SetStatusBarColor(restedColor.r, restedColor.g, restedColor.b)
 
 	func.applyDragFunctionality(f)
 
 	local t = r:CreateTexture(nil, "BACKGROUND", nil, -6)
 	t:SetAllPoints(r)
 	t:SetTexture(cfg.texture)
-	t:SetVertexColor(cfg.color.r, cfg.color.g, cfg.color.b, 0.25)
+	t:SetVertexColor(xpColor.r, xpColor.g, xpColor.b, 0.25)
 	f.bg = t
 
 	decorateDiabloBar(f)
+	-- The opaque trough must be below the rested fill, not on the earned-XP frame above it.
+	f.trough:SetParent(r)
 
 	f:SetScript("OnEnter", function(s)
+		xpColor, restedColor = bars.GetExperienceColors()
 		local Secrets = ns.Secrets
 		local mxp = Secrets and Secrets.Number(UnitXPMax("player")) or UnitXPMax("player")
 		local xp = Secrets and Secrets.Number(UnitXP("player")) or UnitXP("player")
@@ -116,25 +142,28 @@ bars.createExpBar = function(self)
 			GameTooltip:AddDoubleLine(
 				COMBAT_XP_GAIN or "XP",
 				xp .. "/" .. mxp .. " (" .. pct .. "%)",
-				cfg.color.r,
-				cfg.color.g,
-				cfg.color.b,
+				xpColor.r,
+				xpColor.g,
+				xpColor.b,
 				1,
 				1,
 				1
 			)
-			if rxp then
+			if rxp and rxp > 0 then
 				local rpct = math.floor((rxp / mxp) * 1000) / 10
 				GameTooltip:AddDoubleLine(
-					TUTORIAL_TITLE26 or "Rested",
-					rxp .. " (" .. rpct .. "%)",
-					cfg.rested.color.r,
-					cfg.rested.color.g,
-					cfg.rested.color.b,
+					"Rested bonus",
+					string.format("%.1f%% of level (%s XP)", rpct, rxp),
+					restedColor.r,
+					restedColor.g,
+					restedColor.b,
 					1,
 					1,
 					1
 				)
+				GameTooltip:AddLine("Total banked bonus; the bar shows only this level.", 0.7, 0.7, 0.7, true)
+			else
+				GameTooltip:AddDoubleLine("Rested bonus", "0% of level (none)", 0.7, 0.7, 0.7, 1, 1, 1)
 			end
 		end
 		GameTooltip:Show()
@@ -145,6 +174,7 @@ bars.createExpBar = function(self)
 
 	self.Experience = f
 	self.Experience.Rested = r
+	bars.RefreshExperienceAppearance()
 end
 
 --create the reputation bar
@@ -360,7 +390,6 @@ bars.createHarmonyPowerBar = function(self)
 	bar.maxOrbs = 6
 	local w = 64 * (bar.maxOrbs + 2) --create the bar for
 	local h = 64
-	--bar:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
 	bar:SetPoint(
 		self.cfg.harmony.pos.a1,
 		self.cfg.harmony.pos.af,
@@ -415,7 +444,6 @@ bars.createHarmonyPowerBar = function(self)
 		orb.fill:SetPoint("CENTER")
 		orb.fill:SetTexture(mediapath .. "combo_orb_fill1")
 		orb.fill:SetVertexColor(self.cfg.harmony.color.r, self.cfg.harmony.color.g, self.cfg.harmony.color.b)
-		--orb.fill:SetBlendMode("ADD")
 
 		--orb border
 		orb.border = orb:CreateTexture(nil, "BACKGROUND", nil, -5)
@@ -457,7 +485,6 @@ bars.createHolyPowerBar = function(self)
 	bar.maxOrbs = 5
 	local w = 64 * (bar.maxOrbs + 2) --create the bar for
 	local h = 64
-	--bar:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
 	bar:SetPoint(
 		self.cfg.holypower.pos.a1,
 		self.cfg.holypower.pos.af,
@@ -512,7 +539,6 @@ bars.createHolyPowerBar = function(self)
 		orb.fill:SetPoint("CENTER")
 		orb.fill:SetTexture(mediapath .. "combo_orb_fill1")
 		orb.fill:SetVertexColor(self.cfg.holypower.color.r, self.cfg.holypower.color.g, self.cfg.holypower.color.b)
-		--orb.fill:SetBlendMode("ADD")
 
 		--orb border
 		orb.border = orb:CreateTexture(nil, "BACKGROUND", nil, -5)
@@ -554,7 +580,6 @@ bars.createSoulShardPowerBar = function(self)
 	bar.maxOrbs = 5
 	local w = 64 * (bar.maxOrbs + 2) --create the bar for
 	local h = 64
-	--bar:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
 	bar:SetPoint(
 		self.cfg.soulshards.pos.a1,
 		self.cfg.soulshards.pos.af,
@@ -609,7 +634,6 @@ bars.createSoulShardPowerBar = function(self)
 		orb.fill:SetPoint("CENTER")
 		orb.fill:SetTexture(mediapath .. "combo_gem_fill1")
 		orb.fill:SetVertexColor(self.cfg.soulshards.color.r, self.cfg.soulshards.color.g, self.cfg.soulshards.color.b)
-		--orb.fill:SetBlendMode("ADD")
 
 		--orb border
 		orb.border = orb:CreateTexture(nil, "BACKGROUND", nil, -5)
@@ -765,7 +789,6 @@ bars.createComboBar = function(self)
 	else
 		max = maxPoints
 	end
-	--bar:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
 	bar:SetPoint(
 		self.cfg.combobar.pos.a1,
 		self.cfg.combobar.pos.af,
@@ -821,7 +844,6 @@ bars.createComboBar = function(self)
 		orb.fill:SetPoint("CENTER")
 		orb.fill:SetTexture(mediapath .. "combo_orb_fill1")
 		orb.fill:SetVertexColor(self.cfg.combobar.color.r, self.cfg.combobar.color.g, self.cfg.combobar.color.b)
-		--orb.fill:SetBlendMode("ADD")
 
 		--orb border
 		orb.border = orb:CreateTexture(nil, "BACKGROUND", nil, -5)
@@ -861,7 +883,6 @@ bars.createArcBar = function(self)
 	bar.maxOrbs = 4
 	local w = 64 * (bar.maxOrbs + 2) --create the bar for
 	local h = 64
-	--bar:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
 	bar:SetPoint(
 		self.cfg.arcbar.pos.a1,
 		self.cfg.arcbar.pos.af,
@@ -917,7 +938,6 @@ bars.createArcBar = function(self)
 		orb.fill:SetPoint("CENTER")
 		orb.fill:SetTexture([[Interface\PLAYERFRAME\MageArcaneCharges]])
 		orb.fill:SetTexCoord(0.25, 0.375, 0.5, 0.75)
-		--orb.fill:SetBlendMode("ADD")
 
 		--orb border
 		orb.border = orb:CreateTexture(nil, "BACKGROUND", nil, -5)

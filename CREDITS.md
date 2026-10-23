@@ -66,14 +66,18 @@ chat keyboard's word prediction and dictionaries, and without the parts it
 took from ConsolePort (Artistic License 2.0). Roth's changes are in
 `embeds/EasyController/_roth_pre.lua` and `_roth_post.lua`.
 
-## Potion belt item rankings
+## Potion belt item facts and ranking
 
-The ranked item lists in `core/beltdata.lua` (health and mana potions,
-healthstones, bandages, food, battleground items) follow **AutoPotion** by
-**ollidiemaus** (version 3.17.2, its `Core/*/Forever.lua` lists). AutoPotion
-is "all rights reserved"; only item IDs and their order (game data) were
-taken, the belt code is DiabolusUnits' own. Licensing to be settled before
-any public release.
+The addon author independently assembled the current consumable item list by
+scraping **Wowhead**. Item facts are sourced from **Wowhead Classic** tooltip
+snapshots, with source URLs, a retrieval date and per-item snapshot hashes.
+Class consumables are included in the same facts table. DiabolusUnits computes
+its own ordering from restoration values, food policy and an item-ID tie-breaker.
+
+The current database and ranking logic replace the previous manually ordered
+database. References to that older database in historical proposals and session
+notes do not describe the provenance of the current implementation. Exclude
+historical proposals, raw snapshots and development fixtures from release packages.
 
 The settings window framework (`settings/`) is ported from **PulseHaptics**
 (same author as DiabolusUnits).

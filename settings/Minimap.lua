@@ -1,16 +1,7 @@
--- DiabolusUnits — settings/Minimap.lua
---
--- Minimap button: left-click toggles the settings window, right-click toggles the edit
--- layout, drag moves it around the minimap rim. Position and visibility are account-wide,
--- in Roth_UI_DB_GLOB.minimap = { hide = bool, minimapPos = degrees }.
---
--- Ported from PulseHaptics UI/Minimap.lua. Taint notes kept from there:
---   * Parented to Minimap like every Classic addon button; it never touches Minimap's own
---     scripts, only HookScript for OnShow/OnHide.
---   * Clicks and motion do not propagate to the Minimap (no accidental pings).
---   * Marked ignored for SmartNavigation, so the gamepad stick never lands on it.
---   * Nothing is written while dragging; the angle is saved once on drop.
--- Also publishes a LibDataBroker launcher when some other addon has loaded LDB.
+-- Minimap launcher: left-click settings, right-click edit layout, drag to reposition.
+-- Account-wide state: Roth_UI_DB_GLOB.minimap = { hide, minimapPos }.
+-- Save the angle on drop, suppress minimap input propagation, and ignore SmartNavigation.
+-- Ported from PulseHaptics UI/Minimap.lua; also exposes a launcher when LDB is available.
 
 local ADDON_NAME, ns = ...
 

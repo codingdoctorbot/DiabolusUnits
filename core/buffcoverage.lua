@@ -1,28 +1,7 @@
----------------------------------------------
---  Roth_UI - missing buffs on group frames
----------------------------------------------
--- Out of combat, what your group is missing:
---
---   on each member's frame  a small icon per buff they lack (bright) or
---                           that is running out (dim), top left
---   above the group frames  one icon per buff with how many lack it, and
---                           in grey how many have it running out
---
--- Which buffs: the long class buffs someone in the group can cast
--- (MSUF Game/Forever/GroupFrames/MSUF_GroupFrames_BuffCoverage.lua does the
--- same): Power Word / Prayer of Fortitude, Arcane Intellect / Brilliance
--- (mana users only), Mark / Gift of the Wild. Your own extras when you know
--- them: Divine Spirit (mana users), Shadow Protection (off by default:
--- cfg.buffCoverage.shadowProtection), and for a paladin "no blessing from
--- you". Every rank and group form counts (IDs: ForeverUnitFrames
--- Raid/BuffData.lua). "Running out": under a third of its duration left
--- (ForeverUnitFrames' buff watch).
---
--- Nothing is guessed: while the client keeps auras secret
--- (C_Secrets.ShouldAurasBeSecret) or an aura answers secret, a member is
--- unknown and shows nothing. In combat everything hides. Scanned at most
--- twice a second after a change and every 10 s in a group (a buff runs low
--- without an event).
+-- Missing/expiring group buffs: per-member icons and summary counts, out of combat only.
+-- Secret aura results are treated as unknown. Events are throttled; a timer catches expiry.
+-- References: MSUF GroupFrames/MSUF_GroupFrames_BuffCoverage.lua (coverage model);
+-- ForeverUnitFrames Raid/BuffData.lua (rank IDs) and buff watch (one-third expiry threshold).
 
 local _, ns = ...
 
@@ -214,9 +193,7 @@ function Coverage.Scan(units, watched)
 	return states
 end
 
----------------------------------------------
 -- DISPLAY
----------------------------------------------
 
 local frames = {}
 local states = {}

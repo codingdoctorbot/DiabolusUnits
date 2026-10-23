@@ -1,15 +1,6 @@
----------------------------------------------
---  Roth_UI - shield on the health orb
----------------------------------------------
--- Your absorb shields as a pale gold crescent up the right rim of the health
--- orb (media/orb_absorb_glow, Roth's own art): the bigger the shields
--- against your maximum health, the higher it climbs; no shield, no
--- crescent.
---
--- Your health and absorbs are secret on WoW Forever, so nothing is compared
--- in Lua: the crescent is the fill of a vertical StatusBar on the scale
--- 0 .. max health, and both values go to it as they come
--- (ForeverUnitFrames' Absorb.lua does the same on its bars).
+-- Player absorb shields as a gold crescent using Roth's media/orb_absorb_glow.
+-- A vertical status bar accepts secret absorb/max-health values without Lua arithmetic.
+-- Reference: ForeverUnitFrames Absorb.lua.
 
 local _, ns = ...
 

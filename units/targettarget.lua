@@ -1,21 +1,14 @@
---get the addon namespace
 local _, ns = ...
 
---get oUF namespace (just in case needed)
 local oUF = ns.oUF or oUF
 
---get the config
 local cfg = ns.cfg
 
---get the functions
 local func = ns.func
 
---get the unit container
 local unit = ns.unit
 
----------------------------------------------
 -- UNIT SPECIFIC FUNCTIONS
----------------------------------------------
 
 --init parameters
 local initUnitParameters = function(self)
@@ -157,9 +150,7 @@ local createHealthPowerStrings = function(self)
 	func.updateTargetTargetText(self)
 end
 
----------------------------------------------
 -- TARGETTARGET STYLE FUNC
----------------------------------------------
 
 local function createStyle(self)
 	--apply config to self
@@ -199,9 +190,7 @@ local function createStyle(self)
 	unit.targettarget = self
 end
 
----------------------------------------------
 -- SPAWN TARGETTARGET UNIT
----------------------------------------------
 
 if cfg.units.targettarget.show then
 	oUF:RegisterStyle("diablo:targettarget", createStyle)

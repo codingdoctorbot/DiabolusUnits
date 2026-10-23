@@ -1,30 +1,7 @@
------------------------------------------
--- DiabolusUnits - Edit Layout (Mouse)
------------------------------------------
--- Integrated Edit Mode for all DiabolusUnits frames:
---   * Each unit frame, orb, statue, bar, and swing timer shows a green
---     outline box and drags directly with LeftButton.
---   * Clicking ANY element opens its dedicated settings popup dialog
---     (Roth_UISettingsDialog) right beside it.
---   * Dialog features:
---       - Element name header with [X] close button (movable by title).
---       - Visible / Enabled checkbox to turn elements on / off live.
---       - Size (scale) slider with [-] [+] nudge buttons (50% to 200%).
---       - Horizontal (X) & Vertical (Y) offset sliders with [-] [+] buttons.
---       - Context-specific Spacing / Size slider:
---           * Orbs: orb spacing / gap (moves orbs apart / together).
---           * Angel / Demon: horizontal spacing and offset from orbs.
---           * Bottom Bar: vertical Y spacing / position.
---           * XP / Rep Bar: vertical Y spacing / position.
---           * Stone Bar: width / scale.
---           * Target / ToT / Focus: Aura Icon Size (12px to 40px).
---       - [ Reset to Default ] button to revert scale, spacing & position.
---   * Top toolbar (DoneBar) provides frame cycling (< / >), element dropdown,
---     global UI Size slider, [ Reset UI ], and [ Done ].
---   * Mouse Wheel over any frame changes its size live (+/- 5%).
---   * Shift + Mouse Wheel over any frame adjusts spacing / aura size live.
---   * All scales, spacings, positions, and disabled states persist in Roth_UI_DB.
---   * Combat ends editing immediately (unit frames are protected).
+-- Edit layout: drag, scale, position, visibility, and per-element options.
+-- Mouse wheel scales; Shift + wheel changes spacing. The toolbar shifts the layout.
+-- Saves through ns.LayoutProfile() for the active keyboard/gamepad layout.
+-- Follows Blizzard Edit Mode callbacks and closes when combat starts.
 
 local _, ns = ...
 
@@ -83,7 +60,7 @@ local function Say(msg)
 end
 
 -- Database helpers
-function ns.LayoutProfile()
+function ns.BaseLayoutProfile()
 	local adb = ns.configDB
 	if adb and adb.profile then
 		return adb.profile
@@ -96,8 +73,27 @@ function ns.LayoutProfile()
 	return nil
 end
 
+-- Keep the existing profile as the keyboard layout; gamepad has its own bucket.
+function ns.LayoutProfile()
+ local base = ns.BaseLayoutProfile()
+ if not base then return end
+ local mode = ns.activeLayoutMode
+ if not mode then
+  mode = ns.StandardMode and ns.StandardMode:IsGamepad() and "gamepad" or "keyboard"
+ end
+ if mode == "gamepad" then
+  base.gamepadLayout = base.gamepadLayout or {
+   layoutScaleDefaults = true, layoutScaleDefaults2 = true, layoutScaleDefaults3 = true,
+   layoutDocksUnclamped = true, layoutTargetAnchorInit = true,
+  }
+  base.gamepadLayout.autoScale = base.autoScale
+  return base.gamepadLayout
+ end
+ return base
+end
+
 local function GetDB()
-	return ns.LayoutProfile()
+ return ns.LayoutProfile()
 end
 
 -- Apply party / raid header scales directly
@@ -261,9 +257,16 @@ function EditMode:SaveFramePosition(frame)
 		return
 	end
 	db.framePositions = db.framePositions or {}
+	if ns.LayoutShift then
+		ns.LayoutShift:AfterMove(frame)
+	end
 	local pt, relTo, relPt, x, y = frame:GetPoint(1)
 	if pt then
 		local relName = (relTo and relTo.GetName and relTo:GetName()) or "UIParent"
+		-- the "Move all" anchor stands in for UIParent (core/layoutshift.lua)
+		if ns.LayoutShift and relTo == ns.LayoutShift.anchor then
+			relName = "UIParent"
+		end
 		db.framePositions[name] = {
 			point = pt,
 			relativeTo = relName,
@@ -931,6 +934,11 @@ function EditMode:ResetAllToDefault()
 		return
 	end
 
+	if ns.GamepadLayout then
+		ns.GamepadLayout:ResetCurrent()
+		return
+	end
+
 	-- 1. Standard Roth_UIReset
 	local resetFunc = rawget(_G, "Roth_UIReset")
 	if resetFunc then
@@ -1054,9 +1062,7 @@ function EditMode:ResetAllToDefault()
 	end
 end
 
-------------------------------------------------------------------------
 -- THE PER-FRAME SETTINGS DIALOG (like normal Edit Mode)
-------------------------------------------------------------------------
 local function SetSliderLabel(slider, childKey, text)
 	if not slider then
 		return
@@ -1520,9 +1526,7 @@ end
 
 local doneBar
 
-------------------------------------------------------------------------
 -- THE DROPDOWN LIST (shows all options)
-------------------------------------------------------------------------
 local dropdownFrame
 local function CreateDropdownFrame()
 	if dropdownFrame then
@@ -1615,9 +1619,7 @@ function EditMode:ToggleDropdown()
 	end
 end
 
-------------------------------------------------------------------------
 -- THE TOP TOOLBAR (DoneBar)
-------------------------------------------------------------------------
 local function DoneBar()
 	if doneBar then
 		return doneBar
@@ -1744,6 +1746,90 @@ local function DoneBar()
 	doneBar.scaleSlider = scaleSlider
 	doneBar.scaleVal = scaleVal
 
+	-- "Move all" strip: one sideways offset for the whole layout (core/layoutshift.lua)
+	local LayoutShift = ns.LayoutShift
+	local shiftBar = CreateFrame("Frame", nil, doneBar, "BackdropTemplate")
+	shiftBar:SetSize(440, 44)
+	shiftBar:SetPoint("TOP", doneBar, "BOTTOM", 0, 2)
+	shiftBar:EnableMouse(true)
+	shiftBar:SetBackdrop({
+		bgFile = "Interface\\AddOns\\DiabolusUnits\\media\\Tooltip_Background",
+		edgeFile = "Interface\\AddOns\\DiabolusUnits\\media\\Tooltip_Border",
+		edgeSize = 12,
+		insets = { left = 6, right = 6, top = 6, bottom = 6 },
+	})
+	shiftBar:SetBackdropColor(0.5, 0.45, 0.45, 0.95)
+	shiftBar:SetScript("OnEnter", function(s)
+		GameTooltip:SetOwner(s, "ANCHOR_BOTTOM")
+		GameTooltip:SetText("Move all")
+		GameTooltip:AddLine(
+			"Moves the orbs, statues, stone bar, XP bar, wings, belt, cast bars and unit frames sideways together. Each frame keeps its own position on top of this. Keyboard and gamepad layouts have their own setting.",
+			1, 1, 1, true
+		)
+		GameTooltip:Show()
+	end)
+	shiftBar:SetScript("OnLeave", function()
+		GameTooltip:Hide()
+	end)
+
+	local shiftLabel = shiftBar:CreateFontString(nil, "OVERLAY")
+	shiftLabel:SetFont(ns.cfg.font, 11, "THINOUTLINE")
+	shiftLabel:SetPoint("LEFT", 12, 2)
+	shiftLabel:SetTextColor(1, 0.82, 0)
+	shiftLabel:SetText("Move all:")
+
+	local shiftMinus = CreateFrame("Button", nil, shiftBar, "UIPanelButtonTemplate")
+	shiftMinus:SetSize(20, 20)
+	shiftMinus:SetPoint("LEFT", shiftLabel, "RIGHT", 6, 0)
+	shiftMinus:SetText("-")
+	shiftMinus:SetScript("OnClick", function()
+		LayoutShift:Nudge(IsShiftKeyDown() and -1 or -10)
+	end)
+
+	local shiftSlider = CreateFrame("Slider", "Roth_UILayoutShiftSlider", shiftBar, "OptionsSliderTemplate")
+	shiftSlider:SetPoint("LEFT", shiftMinus, "RIGHT", 4, 0)
+	shiftSlider:SetWidth(170)
+	shiftSlider:SetHeight(16)
+	shiftSlider:SetMinMaxValues(-LayoutShift.LIMIT, LayoutShift.LIMIT)
+	shiftSlider:SetValueStep(1)
+	shiftSlider:SetObeyStepOnDrag(true)
+	SetSliderLabel(shiftSlider, "Text", "")
+	SetSliderLabel(shiftSlider, "Low", "Left")
+	SetSliderLabel(shiftSlider, "High", "Right")
+	shiftSlider:SetScript("OnValueChanged", function(s, value)
+		if s.settingValue then
+			return
+		end
+		LayoutShift:Set(value)
+	end)
+
+	local shiftPlus = CreateFrame("Button", nil, shiftBar, "UIPanelButtonTemplate")
+	shiftPlus:SetSize(20, 20)
+	shiftPlus:SetPoint("LEFT", shiftSlider, "RIGHT", 4, 0)
+	shiftPlus:SetText("+")
+	shiftPlus:SetScript("OnClick", function()
+		LayoutShift:Nudge(IsShiftKeyDown() and 1 or 10)
+	end)
+
+	local shiftVal = shiftBar:CreateFontString(nil, "OVERLAY")
+	shiftVal:SetFont(ns.cfg.font, 11, "THINOUTLINE")
+	shiftVal:SetPoint("LEFT", shiftPlus, "RIGHT", 5, 0)
+	shiftVal:SetWidth(36)
+	shiftVal:SetJustifyH("LEFT")
+	shiftVal:SetTextColor(1, 1, 1)
+	shiftVal:SetText("0")
+
+	local shiftCentre = CreateFrame("Button", nil, shiftBar, "UIPanelButtonTemplate")
+	shiftCentre:SetSize(60, 22)
+	shiftCentre:SetPoint("LEFT", shiftVal, "RIGHT", 4, 0)
+	shiftCentre:SetText("Centre")
+	shiftCentre:SetScript("OnClick", function()
+		LayoutShift:Set(0)
+	end)
+
+	doneBar.shiftSlider = shiftSlider
+	doneBar.shiftVal = shiftVal
+
 	function EditMode:UpdateTopBar()
 		if not doneBar or not doneBar:IsShown() then
 			return
@@ -1760,6 +1846,15 @@ local function DoneBar()
 		end
 		if doneBar.scaleVal then
 			doneBar.scaleVal:SetText(string.format("%d%%", math.floor(gs * 100 + 0.5)))
+		end
+		local shift = ns.LayoutShift:Get()
+		if doneBar.shiftSlider then
+			doneBar.shiftSlider.settingValue = true
+			doneBar.shiftSlider:SetValue(shift)
+			doneBar.shiftSlider.settingValue = nil
+		end
+		if doneBar.shiftVal then
+			doneBar.shiftVal:SetText(shift > 0 and ("+" .. shift) or tostring(shift))
 		end
 	end
 
@@ -1851,7 +1946,8 @@ function EditMode:Toggle()
 end
 
 -- Restore saved scales, positions, and disabled states at login
-local function RestoreSavedLayout()
+local function RestoreSavedLayout(skipApply)
+	if ns.GamepadLayout then ns.GamepadLayout:CaptureDefaults() end
 	local db = GetDB()
 	if not db then
 		return
@@ -1993,10 +2089,12 @@ local function RestoreSavedLayout()
 	end
 
 	-- Re-apply Standard/Gamepad mode layout after restoring saved overrides
-	if ns.StandardMode and ns.StandardMode.Apply then
+	if not skipApply and ns.StandardMode and ns.StandardMode.Apply then
 		ns.StandardMode:Apply()
 	end
 end
+
+EditMode.RestoreSavedLayout = RestoreSavedLayout
 
 -- Blizzard's Edit Mode callback
 if EventRegistry and EventRegistry.RegisterCallback then

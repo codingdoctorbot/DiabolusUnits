@@ -1,23 +1,8 @@
----------------------------------------------
---  Roth_UI - incoming heals, absorbs, heal absorbs
----------------------------------------------
--- oUF 14's Health element fills these from the client's heal prediction
--- calculator (CreateUnitHealPredictionCalculator): on WoW Forever the values
--- are secret, so nothing is added, compared or clamped in Lua. Status bars
--- as long as the health bar (oUF keeps them sized) and on its scale
--- (0 .. max health) hang from the end of the health fill; a clipping frame
--- over the health bar cuts them at full health.
---
---   HealingPlayer  your own incoming heals, bright emerald
---   HealingAll     everyone's incoming heals, darker green (what shows past
---                  your own is other healers')
---   DamageAbsorb   shields, gold stripes after the incoming heals
---   HealAbsorb     necrotic-style "absorb healing" effects, dark red, drawn
---                  back over the end of the health
---
--- HealBars.Attach(frame, healthBar) from a style function, before oUF
--- enables the Health element; a vertical health bar (the raid tiles) gets
--- bars that stack upwards from the top of its fill.
+-- Incoming heals and absorbs, populated by oUF 14's Health prediction calculator.
+-- Secret values go directly to status bars on the health scale; clipping limits overflow.
+-- HealingAll/HealingPlayer extend from health; DamageAbsorb follows heals;
+-- HealAbsorb fills back over health. Vertical bars use the same geometry rotated upward.
+-- Attach before oUF enables the Health element.
 
 local _, ns = ...
 

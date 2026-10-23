@@ -1,17 +1,10 @@
-
-  --get the addon namespace
   local addon, ns = ...
 
-
-  --get oUF namespace (just in case needed)
   local oUF = ns.oUF or oUF
   local Secrets = ns.Secrets
 
-  --get the config
   local cfg = ns.cfg
-  --get the database
   local db = ns.db
-  --get the functions
   local func = ns.func
 
   local format, floor = format, floor
@@ -24,9 +17,7 @@
   local IsAddOnLoadedCompat = IsAddOnLoaded or (C_AddOns and C_AddOns.IsAddOnLoaded) or function() return false end
   local hasTRP3 = nil
 
-  ---------------------------------------------
   -- TAGS
-  ---------------------------------------------
 
   local function RGBPercToHex(r, g, b)
     r = r <= 1 and r >= 0 and r or 1
@@ -34,8 +25,6 @@
     b = b <= 1 and b >= 0 and b or 1
     return format("%02x%02x%02x", r*255, g*255, b*255)
   end
-
-  ---------------------------------------------
 
   oUF.Tags.Methods["diablo:color"] = function(unit)
     local color = TAG_COLOR_WHITE
@@ -59,16 +48,12 @@
     end
   end
 
-  ---------------------------------------------
-
   oUF.Tags.Methods["diablo:colorsimple"] = function(unit)
     if Secrets.Bool(UnitIsDeadOrGhost, unit) or not Secrets.Bool(UnitIsConnected, unit) then
       return RGBPercToHex(TAG_COLOR_GREY.r, TAG_COLOR_GREY.g, TAG_COLOR_GREY.b)
     end
     return RGBPercToHex(TAG_COLOR_WHITE.r, TAG_COLOR_WHITE.g, TAG_COLOR_WHITE.b)
   end
-
-  ---------------------------------------------
 
   oUF.Tags.Methods["diablo:name"] = function(unit)
     if unit == "target" and cfg and cfg.units and cfg.units.target and cfg.units.target.details and cfg.units.target.details.showName == false then
@@ -88,8 +73,6 @@
   end
   oUF.Tags.Events["diablo:name"] = "UNIT_NAME_UPDATE UNIT_HEALTH UNIT_MAXHEALTH UNIT_CONNECTION"
 
-  ---------------------------------------------
-  
   --status tag
   oUF.Tags.Methods["diablo:status"] = function(unit, rolf)
     local color = oUF.Tags.Methods["diablo:colorsimple"](unit)
@@ -102,8 +85,6 @@
     return "|cff"..color..(status or "").."|r"
   end
   oUF.Tags.Events["diablo:status"] = "UNIT_HEALTH UNIT_MAXHEALTH UNIT_CONNECTION"
-
-  ---------------------------------------------
 
   --hp value
   oUF.Tags.Methods["diablo:hpval"] = function(unit)
@@ -121,8 +102,6 @@
   end
   oUF.Tags.Events["diablo:hpval"] = "UNIT_HEALTH UNIT_MAXHEALTH UNIT_CONNECTION"
 
-  ---------------------------------------------
-
   --power value
   oUF.Tags.Methods["diablo:ppval"] = function(unit)
     local cur = func.numFormat(UnitPower(unit) or 0)
@@ -130,8 +109,6 @@
     return Secrets.Join(" / ", cur, max)
   end
   oUF.Tags.Events["diablo:ppval"] = "UNIT_POWER_UPDATE UNIT_MAXPOWER"
-
-  ---------------------------------------------
 
   oUF.Tags.Methods["diablo:misshp"] = function(unit)
     local color = oUF.Tags.Methods["diablo:colorsimple"](unit)
@@ -162,8 +139,6 @@
   end
   oUF.Tags.Events["diablo:misshp"] = "UNIT_HEALTH UNIT_MAXHEALTH UNIT_CONNECTION"
 
-  ---------------------------------------------
-
   oUF.Tags.Methods["diablo:raidhp"] = function(unit, rolf)
     local color = oUF.Tags.Methods["diablo:color"](unit)
     if Secrets.Bool(UnitIsDeadOrGhost, unit) or not Secrets.Bool(UnitIsConnected, unit) then
@@ -182,8 +157,6 @@
   end
   oUF.Tags.Events["diablo:raidhp"] = "UNIT_NAME_UPDATE UNIT_HEALTH UNIT_MAXHEALTH UNIT_CONNECTION"
 
-  ---------------------------------------------
-
   oUF.Tags.Methods["diablo:altbosspower"] = function(unit)
     local altIndex = ALTERNATE_POWER_INDEX or (Enum and Enum.PowerType and Enum.PowerType.Alternate) or 10
     local cur = Secrets.Number(UnitPower(unit, altIndex))
@@ -195,8 +168,6 @@
   end
   oUF.Tags.Events["diablo:altbosspower"] = "UNIT_POWER_UPDATE"
 
-  ---------------------------------------------
-
   oUF.Tags.Methods["diablo:altpower"] = function(unit)
     local altIndex = ALTERNATE_POWER_INDEX or (Enum and Enum.PowerType and Enum.PowerType.Alternate) or 10
     local cur = Secrets.Number(UnitPower(unit, altIndex))
@@ -206,8 +177,6 @@
     end
   end
   oUF.Tags.Events["diablo:altpower"] = "UNIT_POWER_UPDATE"
-
-  ---------------------------------------------
 
   --boss health value
   oUF.Tags.Methods["diablo:bosshp"] = function(unit)
@@ -249,17 +218,12 @@
   end
   oUF.Tags.Events["diablo:bosspp"] = "UNIT_POWER_UPDATE UNIT_MAXPOWER UNIT_TARGETABLE_CHANGED"
 
-  ---------------------------------------------
-
   --topdefhp - the top healthorb value
   oUF.Tags.Methods["topdefhp"] = function(unit)
     local val = oUF.Tags.Methods["perhp"](unit)
     return val or ""
   end
   oUF.Tags.Events["topdefhp"] = "UNIT_HEALTH UNIT_MAXHEALTH UNIT_CONNECTION"
-
-
-  ---------------------------------------------
 
   --botdefhp - the bottom healthorb value
   oUF.Tags.Methods["botdefhp"] = function(unit)
@@ -273,8 +237,6 @@
     return val or ""
   end
   oUF.Tags.Events["botdefhp"] = "UNIT_HEALTH UNIT_MAXHEALTH UNIT_CONNECTION"
-
-  ---------------------------------------------
 
   --topdefpp - the top powerorb value
   oUF.Tags.Methods["topdefpp"] = function(unit)
@@ -290,8 +252,6 @@
   end
   oUF.Tags.Events["topdefpp"] = "UNIT_DISPLAYPOWER UNIT_POWER_UPDATE UNIT_MAXPOWER UNIT_CONNECTION"
 
-  ---------------------------------------------
-
   --botdefpp - the bottom powerorb value
   oUF.Tags.Methods["botdefpp"] = function(unit)
     local powertype = Secrets.String(select(2, UnitPowerType(unit)))
@@ -306,8 +266,6 @@
   end
   oUF.Tags.Events["botdefpp"] = "UNIT_DISPLAYPOWER UNIT_POWER_UPDATE UNIT_MAXPOWER UNIT_CONNECTION"
 
-  ---------------------------------------------
-
   --curshp - curhp short
   oUF.Tags.Methods["curshp"] = function(unit)
     local val = oUF.Tags.Methods["curhp"](unit)
@@ -315,8 +273,6 @@
     return val or ""
   end
   oUF.Tags.Events["curshp"] = "UNIT_HEALTH UNIT_MAXHEALTH UNIT_CONNECTION"
-
-  ---------------------------------------------
 
   --maxshp - maxhp short
   oUF.Tags.Methods["maxshp"] = function(unit)
@@ -326,8 +282,6 @@
   end
   oUF.Tags.Events["maxshp"] = "UNIT_HEALTH UNIT_MAXHEALTH UNIT_CONNECTION"
 
-  ---------------------------------------------
-
   --cmaxhp - curhp / maxhp
   oUF.Tags.Methods["cmaxhp"] = function(unit)
     local cur = oUF.Tags.Methods["curhp"](unit)
@@ -335,8 +289,6 @@
     return Secrets.Join("/", cur, max)
   end
   oUF.Tags.Events["cmaxhp"] = "UNIT_HEALTH UNIT_MAXHEALTH UNIT_CONNECTION"
-
-  ---------------------------------------------
 
   --cmaxshp - curhp / maxhp short
   oUF.Tags.Methods["cmaxshp"] = function(unit)
@@ -346,8 +298,6 @@
   end
   oUF.Tags.Events["cmaxshp"] = "UNIT_HEALTH UNIT_MAXHEALTH UNIT_CONNECTION"
 
-  ---------------------------------------------
-
   --curspp - curpp short
   oUF.Tags.Methods["curspp"] = function(unit)
     local val = oUF.Tags.Methods["curpp"](unit)
@@ -355,8 +305,6 @@
     return val or ""
   end
   oUF.Tags.Events["curspp"] = "UNIT_DISPLAYPOWER UNIT_POWER_UPDATE UNIT_MAXPOWER UNIT_CONNECTION"
-
-  ---------------------------------------------
 
   --maxspp - maxpp short
   oUF.Tags.Methods["maxspp"] = function(unit)
@@ -366,8 +314,6 @@
   end
   oUF.Tags.Events["maxspp"] = "UNIT_DISPLAYPOWER UNIT_POWER_UPDATE UNIT_MAXPOWER UNIT_CONNECTION"
 
-  ---------------------------------------------
-
   --cmaxpp - curpp / maxpp
   oUF.Tags.Methods["cmaxpp"] = function(unit)
     local cur = oUF.Tags.Methods["curpp"](unit)
@@ -376,8 +322,6 @@
   end
   oUF.Tags.Events["cmaxpp"] = "UNIT_DISPLAYPOWER UNIT_POWER_UPDATE UNIT_MAXPOWER UNIT_CONNECTION"
 
-  ---------------------------------------------
-
   --cmaxspp - curpp / maxpp short
   oUF.Tags.Methods["cmaxspp"] = function(unit)
     local cur = oUF.Tags.Methods["curpp"](unit)
@@ -385,8 +329,6 @@
     return Secrets.Join("/", func.numFormat(cur), func.numFormat(max))
   end
   oUF.Tags.Events["cmaxspp"] = "UNIT_DISPLAYPOWER UNIT_POWER_UPDATE UNIT_MAXPOWER UNIT_CONNECTION"
-
-  ---------------------------------------------
 
   --perphp - hp percent with %
   oUF.Tags.Methods["perphp"] = function(unit)
@@ -401,16 +343,12 @@
   end
   oUF.Tags.Events["perphp"] = "UNIT_HEALTH UNIT_MAXHEALTH UNIT_CONNECTION"
 
-  ---------------------------------------------
-
   --perppp - pp percent with %
   oUF.Tags.Methods["perppp"] = function(unit)
     local perpp = oUF.Tags.Methods["perpp"](unit)
     return Secrets.Wrap(perpp, "", "%")
   end
   oUF.Tags.Events["perppp"] = "UNIT_DISPLAYPOWER UNIT_POWER_UPDATE UNIT_MAXPOWER UNIT_CONNECTION"
-
-  ---------------------------------------------
 
   --HealthOrbTop
   oUF.Tags.Methods["diablo:HealthOrbTop"] = function(unit)
@@ -419,16 +357,12 @@
     return oUF.Tags.Methods[methodName] and oUF.Tags.Methods[methodName](unit) or ""
   end
 
-  ---------------------------------------------
-
   --HealthOrbBottom
   oUF.Tags.Methods["diablo:HealthOrbBottom"] = function(unit)
     if db.char["HEALTH"].value.bottom.tag == "null" then return "" end
     local methodName = db.char["HEALTH"].value.bottom.tag.."hp"
     return oUF.Tags.Methods[methodName] and oUF.Tags.Methods[methodName](unit) or ""
   end
-
-  ---------------------------------------------
 
   --PowerOrbTop
   oUF.Tags.Methods["diablo:PowerOrbTop"] = function(unit)
@@ -437,9 +371,6 @@
     return oUF.Tags.Methods[methodName] and oUF.Tags.Methods[methodName](unit) or ""
   end
 
-
-  ---------------------------------------------
-
   --PowerOrbBottom
   oUF.Tags.Methods["diablo:PowerOrbBottom"] = function(unit)
     if db.char["POWER"].value.bottom.tag == "null" then return "" end
@@ -447,4 +378,3 @@
     return oUF.Tags.Methods[methodName] and oUF.Tags.Methods[methodName](unit) or ""
   end
 
-  ---------------------------------------------

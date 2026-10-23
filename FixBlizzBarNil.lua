@@ -1,16 +1,10 @@
--- Roth UI Blizz Bar Nil Fix - Minimal Version
--- Prevents nil comparison errors in Blizzard's MultiActionBars.lua
--- Bar positioning is handled by Edit Mode - this file only prevents errors.
+-- Ensure legacy MainMenuBarArtFrame geometry exists for Blizzard's action-bar code.
+-- Retry briefly after world entry; layout placement belongs to the layout modules.
 
 local f = CreateFrame("Frame")
 local isLoggingOut = false
 
--- Track logout to stop any frame modifications.
---
--- PLAYER_LEAVING_WORLD fires on every zone/instance/BG transition, not
--- only on real logout, so we have to clear the flag on PLAYER_ENTERING_WORLD
--- or it stays true forever after the first zone change and the ArtFrame
--- retry sequence below silently bails for the rest of the session.
+-- Pause changes during logout/world transitions; clear the flag on world entry.
 local logoutFrame = CreateFrame("Frame")
 logoutFrame:RegisterEvent("PLAYER_LOGOUT")
 logoutFrame:RegisterEvent("PLAYER_LEAVING_WORLD")
@@ -90,14 +84,7 @@ f:SetScript("OnEvent", function(self, event)
   end
 end)
 
--- Do NOT install a permanent OnUpdate here. The previous version attached
--- ArtFrameOnUpdate at file load, and even though the handler early-exits
--- when needsArtFrameCheck is false, it still ran every single frame for the
--- entire session. The PLAYER_ENTERING_WORLD branch above attaches it on
--- demand, and the handler self-detaches after the retry intervals exhaust.
+-- Attach retry polling only on world entry; detach after the final attempt.
 
--- NOTE: Do NOT set oldActionBarSettings/oldGridSettings on Blizzard bar frames
--- from addon code. Writing to Blizzard frames taints them, which propagates
--- through EditMode → CompactUnitFrame_UpdateAll → CompactPartyFrame SetSize(),
--- causing ADDON_ACTION_BLOCKED errors. Any nil field errors from Blizzard's
--- EditMode code are cosmetic and far less harmful than taint.
+-- Do not write oldActionBarSettings/oldGridSettings on Blizzard frames;
+-- tainted layout state can block later compact-frame updates.

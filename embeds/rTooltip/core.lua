@@ -156,9 +156,12 @@ local TOOLTIP_POINTS = {
 }
 
 hooksecurefunc("GameTooltip_SetDefaultAnchor", function(tooltip, parent)
-	local pad = ns.Pad and ns.Pad:IsActive()
+	local pad = ns.StandardMode and ns.StandardMode:IsGamepad()
 	local anchor = cfg.rtooltip.anchor
-	if (anchor == "cursor" or cfg.rtooltip.cursorfocus) and not pad then
+	if pad then
+		tooltip:ClearAllPoints()
+		tooltip:SetPoint("TOP", UIParent, "TOP", 0, -100)
+	elseif (anchor == "cursor" or cfg.rtooltip.cursorfocus) and not pad then
 		tooltip:SetOwner(parent, "ANCHOR_CURSOR")
 	else
 		tooltip:ClearAllPoints()

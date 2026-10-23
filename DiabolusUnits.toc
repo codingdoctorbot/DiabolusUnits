@@ -33,6 +33,7 @@ FixBlizzBarNil.lua
 UITweaks.lua
 init.lua
 core\editmode.lua
+core\layoutshift.lua
 core\init_coordinator.lua
 config.lua
 charspecific.lua
@@ -82,8 +83,10 @@ units\party.lua
 units\raid.lua
 units\nameplates.lua
 units\player.lua
+data\ConsumableDB.lua
 core\beltdata.lua
 core\belt.lua
+core\gamepadlayout.lua
 core\standardmode.lua
 
 # Settings window (framework ported from PulseHaptics UI/Panel) and minimap button
@@ -96,4 +99,5 @@ settings\Gamepad.lua
 settings\Content.lua
 settings\Spec.lua
 settings\Panel.lua
+settings\GameMenu.lua
 settings\Minimap.lua

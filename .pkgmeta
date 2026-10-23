@@ -1,0 +1,11 @@
+# Development material is not part of the playable addon.
+ignore:
+  - .DS_Store
+  - .vscode
+  - .luarc.json
+  - .luacheckrc
+  - AGENTS.md
+  - CLAUDE.md
+  - GEMINI.md
+  - docs
+  - mockups

@@ -1,19 +1,5 @@
--- DiabolusUnits — settings/Sidebar.lua
---
--- The left-hand category list: one button per page, the parent row unindented and its
--- pages indented under it, exactly like the real settings sidebar.
---
--- Styling is SettingsCategoryListButtonTemplate to the pixel (Blizzard_CategoryList.xml:
--- 47-90) and its selection behaviour is SettingsCategoryListButtonMixin:UpdateStateInternal
--- (Blizzard_CategoryList.lua:44-67): Options_List_Active under the selected row,
--- Options_List_Hover under the cursor, GameFontHighlight for a child row and for the
--- selection, GameFontNormal otherwise.
---
--- Not a ScrollBox, and not even a ScrollFrame: the page list is short and fixed, so it fits
--- the sidebar without a second scrollable group for gamepad navigation to reason about.
---
--- Ported from PulseHaptics UI/Panel/Sidebar.lua. Each page may name an `icon` (texture path
--- or file ID) shown left of its label.
+-- Settings categories with custom icons, hover colours, and selection markers.
+-- The fixed list needs no scrolling. Framework ported from PulseHaptics UI/Panel/Sidebar.lua.
 
 local ADDON_NAME, ns = ...
 
@@ -25,62 +11,26 @@ Panel.Sidebar = Sidebar
 
 local SidebarMixin = {}
 
-local function setHorizontalGradient(texture, r1, g1, b1, a1, r2, g2, b2, a2)
-	local ok = false
-	if type(CreateColor) == "function" then
-		ok = pcall(texture.SetGradient, texture, "HORIZONTAL", CreateColor(r1, g1, b1, a1), CreateColor(r2, g2, b2, a2))
-	end
-	if not ok then
-		ok = pcall(texture.SetGradient, texture, "HORIZONTAL", r1, g1, b1, a1, r2, g2, b2, a2)
-	end
-	if not ok then
-		pcall(texture.SetColorTexture, texture, r1, g1, b1, a1 * 0.5)
-	end
-end
-
 local function updateButtonState(button)
 	local selected = button.selected
-	if selected then
-		button.Label:SetFontObject("GameFontHighlight")
-		if button.Label.SetTextColor then
-			button.Label:SetTextColor(1, 1, 1)
-		end
-		button.Texture:SetAtlas("Options_List_Active", true)
-		button.Texture:Show()
-		if button.Indicator then
-			button.Indicator:Show()
-		end
-		if button.ActiveWash then
-			button.ActiveWash:Show()
-		end
-		if button.Icon then
-			button.Icon:SetVertexColor(1, 1, 1, 1)
-		end
-	else
-		button.Label:SetFontObject(button.isChild and "GameFontHighlight" or "GameFontNormal")
-		if button.Indicator then
-			button.Indicator:Hide()
-		end
-		if button.ActiveWash then
-			button.ActiveWash:Hide()
-		end
-		if button.over then
-			button.Texture:SetAtlas("Options_List_Hover", true)
-			button.Texture:Show()
-			if button.Label.SetTextColor then
-				button.Label:SetTextColor(Theme.COLOR_ACCENT.r, Theme.COLOR_ACCENT.g, Theme.COLOR_ACCENT.b)
-			end
-			if button.Icon then
-				button.Icon:SetVertexColor(Theme.COLOR_ACCENT.r, Theme.COLOR_ACCENT.g, Theme.COLOR_ACCENT.b, 1)
-			end
+	button.Texture:SetShown(selected or button.over)
+	button.Texture:SetColorTexture(
+		selected and 0.155 or 0.115,
+		selected and 0.135 or 0.105,
+		selected and 0.11 or 0.09,
+		1
+	)
+	button.Indicator:SetShown(selected)
+	local c = selected and Theme.COLOR_TEXT_PRIMARY or Theme.COLOR_TEXT_MUTED
+	button.Label:SetTextColor(c.r, c.g, c.b)
+	if button.Icon then
+		if button.Icon.SetIconColor then
+			button.Icon:SetIconColor(
+				selected and Theme.COLOR_ACCENT or (button.over and Theme.COLOR_TEXT_PRIMARY or Theme.COLOR_TEXT_MUTED)
+			)
 		else
-			button.Texture:Hide()
-			if button.Label.SetTextColor then
-				button.Label:SetTextColor(Theme.COLOR_TEXT_MUTED.r, Theme.COLOR_TEXT_MUTED.g, Theme.COLOR_TEXT_MUTED.b)
-			end
-			if button.Icon then
-				button.Icon:SetVertexColor(0.70, 0.78, 0.85, 0.75)
-			end
+			button.Icon:SetDesaturated(true)
+			button.Icon:SetAlpha(selected and 0.85 or 0.5)
 		end
 	end
 end
@@ -107,29 +57,12 @@ function SidebarMixin:CreateButtons(pages)
 		end
 
 		button.Texture = button:CreateTexture(nil, "BACKGROUND")
-		button.Texture:SetPoint("CENTER")
+		button.Texture:SetAllPoints(button)
 		button.Texture:Hide()
-
-		-- Horizontal luminous wash on active category button
-		button.ActiveWash = button:CreateTexture(nil, "BACKGROUND", nil, 1)
-		button.ActiveWash:SetPoint("TOPLEFT", button, "TOPLEFT", 1, 0)
-		button.ActiveWash:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", 0, 0)
-		setHorizontalGradient(
-			button.ActiveWash,
-			Theme.COLOR_ACCENT.r,
-			Theme.COLOR_ACCENT.g,
-			Theme.COLOR_ACCENT.b,
-			0.18,
-			Theme.COLOR_ACCENT.r,
-			Theme.COLOR_ACCENT.g,
-			Theme.COLOR_ACCENT.b,
-			0.0
-		)
-		button.ActiveWash:Hide()
 
 		-- Left-edge active indicator pill
 		button.Indicator = button:CreateTexture(nil, "OVERLAY")
-		button.Indicator:SetWidth(3)
+		button.Indicator:SetWidth(2)
 		button.Indicator:SetPoint("TOPLEFT", button, "TOPLEFT", 1, -2)
 		button.Indicator:SetPoint("BOTTOMLEFT", button, "BOTTOMLEFT", 1, 2)
 		button.Indicator:SetColorTexture(Theme.COLOR_ACCENT.r, Theme.COLOR_ACCENT.g, Theme.COLOR_ACCENT.b, 1)
@@ -139,15 +72,18 @@ function SidebarMixin:CreateButtons(pages)
 		local iconTexture = page.icon
 		local iconX = (Theme.CATEGORY_LABEL_X - 18) + (page.indent or 0) * Theme.CATEGORY_INDENT
 		if iconTexture then
-			local icon = button:CreateTexture(nil, "ARTWORK")
-			icon:SetSize(14, 14)
-			icon:SetPoint("LEFT", button, "LEFT", iconX, 0)
-			icon:SetTexture(iconTexture)
-			icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+			local icon = Theme.CreateIcon(button, iconTexture, 16)
+			if not icon then
+				icon = button:CreateTexture(nil, "ARTWORK")
+				icon:SetSize(16, 16)
+				icon:SetTexture(iconTexture)
+				icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+			end
+			icon:SetPoint("LEFT", button, "LEFT", iconX - 2, 0)
 			button.Icon = icon
 		end
 
-		button.Label = button:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+		button.Label = button:CreateFontString(nil, "ARTWORK", Theme.FONT_NORMAL)
 		button.Label:SetJustifyH("LEFT")
 		button.Label:SetPoint(
 			"TOPLEFT",
@@ -171,6 +107,9 @@ function SidebarMixin:CreateButtons(pages)
 			updateButtonState(btn)
 		end)
 		button:SetScript("OnClick", function(btn)
+			if Panel.Gamepad.OnPointer then
+				Panel.Gamepad.OnPointer()
+			end
 			if SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION then
 				PlaySound(SOUNDKIT.IG_MAINMENU_OPTION)
 			end
@@ -184,8 +123,7 @@ function SidebarMixin:CreateButtons(pages)
 	end
 end
 
--- Simple view (Phase 2): hide some buttons and close the gaps. Re-anchors the buttons
--- built once by CreateButtons; creates nothing. `keep(page)` nil shows every page.
+-- Filter existing category buttons and close gaps; nil shows every page.
 function SidebarMixin:ApplyFilter(keep)
 	local previous = nil
 	for _, button in ipairs(self.buttons) do
@@ -211,6 +149,9 @@ function SidebarMixin:Select(page)
 		updateButtonState(button)
 	end
 	self.selectedPage = page
+	if Panel.Gamepad.SyncPage then
+		Panel.Gamepad.SyncPage(page)
+	end
 	if self.onSelect then
 		self.onSelect(page)
 	end

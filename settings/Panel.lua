@@ -1,20 +1,7 @@
--- DiabolusUnits — settings/Panel.lua
---
--- The settings window: one place for every DiabolusUnits setting (orbs, layout, belt,
--- fonts, profiles). The edit layout (moving and sizing frames) stays separate and is opened
--- from here. Assembled from Theme, Popup, Rows, Sidebar, Gamepad, Content and Spec, which
--- are ported from PulseHaptics UI/Panel.
---
--- Built lazily the first time it is opened. Taint rules, all carried over from PulseHaptics:
---   * Shown with a plain Show() plus UISpecialFrames for Escape, never ShowUIPanel: the panel
---     manager hands the frame to FrameControlsManager, whose protected binding call is
---     refused from an addon's stack (ADDON_ACTION_FORBIDDEN, and in gamepad mode the 20 s
---     freeze loop).
---   * No Blizzard Menu or StaticPopup inside it (settings/Popup.lua says why).
---   * Closes when combat starts; nothing in it is needed in a fight.
--- The entry in Esc > Options > AddOns is a canvas page with one button. It does not close
--- Blizzard's settings window (HideUIPanel from addon code is the same forbidden route); ours
--- opens above it at DIALOG strata.
+-- Lazy settings window, ported from PulseHaptics UI/Panel.
+-- Use plain Show()/Hide() with UISpecialFrames; the panel manager can invoke protected
+-- gamepad binding calls. Use our local popups and close the window on combat start.
+-- The Blizzard AddOns canvas opens this window above the existing settings panel.
 
 local ADDON_NAME, ns = ...
 
@@ -31,7 +18,7 @@ local MEDIA = "Interface\\AddOns\\DiabolusUnits\\media\\"
 local frame
 local dirty, dirtyScheduled = false, false
 
--- ── Refresh ───────────────────────────────────────────────────────────────────
+-- Refresh
 
 local function processDirty()
 	dirtyScheduled = false
@@ -66,7 +53,7 @@ function Panel.SetSectionCollapsed(key, collapsed)
 	Panel.MarkDirty()
 end
 
--- ── Orb preview ───────────────────────────────────────────────────────────────
+-- Orb preview
 -- While the window is open both orbs show full, so liquid, effects and numbers can be
 -- judged on an empty mana or rage bar (the old orb panel did the same).
 
@@ -94,7 +81,7 @@ local function stopPreview()
 	end
 end
 
--- ── Window ────────────────────────────────────────────────────────────────────
+-- Window
 
 local function addonVersion()
 	local get = (C_AddOns and C_AddOns.GetAddOnMetadata) or GetAddOnMetadata
@@ -103,12 +90,6 @@ local function addonVersion()
 end
 
 local function createWindow()
-	for _, template in ipairs({ "SettingsFrameTemplate", "ButtonFrameTemplate" }) do
-		local ok, result = pcall(CreateFrame, "Frame", FRAME_NAME, UIParent, template)
-		if ok and result then
-			return result
-		end
-	end
 	return CreateFrame("Frame", FRAME_NAME, UIParent)
 end
 
@@ -127,62 +108,35 @@ local function buildWindow()
 	f:SetScript("OnDragStop", f.StopMovingOrSizing)
 	f:Hide()
 
-	local titleText = f.NineSlice and f.NineSlice.Text
-	if not titleText then
-		titleText = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-		titleText:SetPoint("TOP", f, "TOP", 0, -5)
-	end
+	Theme.CreateSurface(f, Theme.COLOR_BG)
+	local top = f:CreateTexture(nil, "BACKGROUND", nil, -5)
+	top:SetPoint("TOPLEFT", 1, -1)
+	top:SetPoint("TOPRIGHT", -1, -1)
+	top:SetHeight(46)
+	top:SetColorTexture(0.085, 0.076, 0.065, 1)
+	local side = f:CreateTexture(nil, "BACKGROUND", nil, -5)
+	side:SetPoint("TOPLEFT", 1, -47)
+	side:SetPoint("BOTTOMLEFT", 1, 40)
+	side:SetWidth(Theme.SIDEBAR_WIDTH + 25)
+	side:SetColorTexture(0.072, 0.065, 0.057, 1)
+	local titleText = f:CreateFontString(nil, "OVERLAY", Theme.FONT_NORMAL)
+	titleText:SetPoint("TOPLEFT", f, "TOPLEFT", 38, -17)
 	titleText:SetText("DIABOLUS UNITS")
-	titleText:SetTextColor(Theme.COLOR_ACCENT.r, Theme.COLOR_ACCENT.g, Theme.COLOR_ACCENT.b)
-
-	local titleIcon = f:CreateTexture(nil, "OVERLAY")
-	titleIcon:SetSize(18, 18)
-	titleIcon:SetTexture(MEDIA .. "d2_skull")
-	titleIcon:SetPoint("RIGHT", titleText, "LEFT", -6, 0)
-
-	-- SettingsFrameTemplate's Bg has an absolute frameLevel 0 and renders below other
-	-- windows in the strata; an opaque fill of our own keeps the window solid.
-	if f.Bg and f.Bg.SetFrameLevel then
-		f.Bg:SetFrameLevel(f:GetFrameLevel())
-	end
-	local fill = f:CreateTexture(nil, "BACKGROUND")
-	fill:SetPoint("TOPLEFT", f, "TOPLEFT", 8, -20)
-	fill:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -5, 4)
-	fill:SetColorTexture(Theme.COLOR_BG.r, Theme.COLOR_BG.g, Theme.COLOR_BG.b, 1)
-
-	-- Faint stone bar art behind the content
-	local watermark = f:CreateTexture(nil, "BACKGROUND", nil, 1)
-	watermark:SetTexture(MEDIA .. "d3_bottom")
-	watermark:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 8, 4)
-	watermark:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -5, 4)
-	watermark:SetHeight(160)
-	watermark:SetAlpha(0.12)
-
-	local inner = f:CreateTexture(nil, "OVERLAY", nil, 2)
-	if pcall(inner.SetAtlas, inner, "Options_InnerFrame", true) then
-		inner:SetPoint("TOPLEFT", f, "TOPLEFT", 17, -64)
-	else
-		inner:Hide()
-	end
-
-	if not f.ClosePanelButton then
-		local ok, close = pcall(CreateFrame, "Button", nil, f, "UIPanelCloseButtonDefaultAnchors")
-		if ok and close then
-			f.ClosePanelButton = close
-		end
-	end
-	if f.ClosePanelButton then
-		f.ClosePanelButton:SetScript("OnClick", Panel.Close)
-	end
+	titleText:SetTextColor(Theme.COLOR_TEXT_PRIMARY.r, Theme.COLOR_TEXT_PRIMARY.g, Theme.COLOR_TEXT_PRIMARY.b)
+	local titleIcon = Theme.CreateIcon(f, "brand", 16)
+	titleIcon:SetIconColor(Theme.COLOR_ACCENT)
+	titleIcon:SetPoint("TOPLEFT", f, "TOPLEFT", 16, -15)
+	local close = CreateFrame("Button", nil, f)
+	close:SetSize(28, 26)
+	close:SetPoint("TOPRIGHT", f, "TOPRIGHT", -12, -10)
+	Theme.StylePlainButton(close, "x")
+	close:SetScript("OnClick", Panel.Close)
+	f.ClosePanelButton = close
 
 	-- Window transparency toggle (Ghost Mode) for live visual feedback
 	local opacityBtn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-	opacityBtn:SetSize(110, 20)
-	if f.ClosePanelButton then
-		opacityBtn:SetPoint("RIGHT", f.ClosePanelButton, "LEFT", -4, 0)
-	else
-		opacityBtn:SetPoint("TOPRIGHT", f, "TOPRIGHT", -28, -4)
-	end
+	opacityBtn:SetSize(104, 24)
+	opacityBtn:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -126, 12)
 	opacityBtn:SetText("Opacity: 100%")
 	Theme.StyleActionButton(opacityBtn, false)
 	local opacityLevels = { 1.0, 0.60, 0.35 }
@@ -193,7 +147,7 @@ local function buildWindow()
 		f:SetAlpha(alpha)
 		local label = ("Opacity: %d%%"):format(math.floor(alpha * 100))
 		if alpha < 1.0 then
-			label = ("|cffdfaa46👁 %d%% Ghost|r"):format(math.floor(alpha * 100))
+			label = ("Opacity: %d%%"):format(math.floor(alpha * 100))
 		end
 		opacityBtn:SetText(label)
 		if SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON then
@@ -213,8 +167,8 @@ local function buildWindow()
 	f.OpacityButton = opacityBtn
 
 	local closeButton = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-	closeButton:SetSize(96, 22)
-	closeButton:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -16, 16)
+	closeButton:SetSize(96, 24)
+	closeButton:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -16, 12)
 	closeButton:SetText(CLOSE or "Close")
 	Theme.StyleActionButton(closeButton, false)
 	closeButton:SetScript("OnClick", Panel.Close)
@@ -222,7 +176,8 @@ local function buildWindow()
 	local status = f:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
 	status:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 18, 18)
 	status:SetJustifyH("LEFT")
-	status:SetText(("|cff94806aDiabolusUnits %s   •   /diabolus|r"):format(addonVersion()))
+	status:SetText(("DiabolusUnits %s  /diabolus"):format(addonVersion()))
+	status:SetFontObject(Theme.FONT_CHILD)
 
 	local sidebar = Sidebar.Create(f, function(page)
 		if f.SearchBox and f.SearchBox:GetText() ~= "" then
@@ -243,16 +198,26 @@ local function buildWindow()
 	f.Content = Content.Create(container)
 
 	-- Search within the page in view
-	local ok, search = pcall(CreateFrame, "EditBox", nil, f, "SearchBoxTemplate")
+	local ok, search = pcall(CreateFrame, "EditBox", nil, f)
 	if ok and search then
-		search:SetSize(260, 22)
-		search:SetPoint("BOTTOMRIGHT", container, "TOPRIGHT", 4, 20)
+		search:SetSize(230, 24)
+		search:SetPoint("TOPRIGHT", f, "TOPRIGHT", -54, -11)
 		search:SetAutoFocus(false)
 		search:SetMaxBytes(64)
+		search:SetFontObject(Theme.FONT_NORMAL)
+		search:SetTextInsets(10, 8, 0, 0)
+		Theme.CreateSurface(search, Theme.COLOR_BG)
+		search.Instructions = search:CreateFontString(nil, "OVERLAY", Theme.FONT_CHILD)
+		search.Instructions:SetPoint("LEFT", search, "LEFT", 10, 0)
+		search:SetScript("OnEscapePressed", function(self)
+			self:SetText("")
+			self:ClearFocus()
+		end)
 		if search.Instructions then
 			search.Instructions:SetText("Search this page")
 		end
 		search:HookScript("OnTextChanged", function(self)
+			self.Instructions:SetShown(self:GetText() == "")
 			f.Content:SetFilter(self:GetText())
 		end)
 		search:HookScript("OnEditFocusLost", function(self)
@@ -263,7 +228,14 @@ local function buildWindow()
 		f.SearchBox = search
 	end
 
+	local hints = f:CreateFontString(nil, "OVERLAY", Theme.FONT_CHILD)
+	hints:SetPoint("BOTTOM", f, "BOTTOM", 40, 18)
+	hints:SetText("D-pad Move  A Select  B Back  X/Y Tabs  LB/RB Pages  LT/RT Scroll")
+	f.ControllerHints = hints
 	f:SetScript("OnShow", function()
+		local w, h = UIParent:GetWidth(), UIParent:GetHeight()
+		f:SetScale(math.min(1, (w - 24) / Theme.PANEL_WIDTH, (h - 24) / Theme.PANEL_HEIGHT))
+		hints:SetShown(Gamepad.IsEnabled())
 		f.Content:RefreshRows()
 		f.Content:LayoutRows()
 		Gamepad.OnShow()
@@ -299,7 +271,7 @@ function Panel.EnsureBuilt()
 	return frame
 end
 
--- ── Open / close ──────────────────────────────────────────────────────────────
+-- Open / close
 
 function Panel.GoToPage(pageID)
 	if not frame or not frame.pageList or not pageID then
@@ -350,7 +322,7 @@ local combat = CreateFrame("Frame")
 combat:RegisterEvent("PLAYER_REGEN_DISABLED")
 combat:SetScript("OnEvent", Panel.Close)
 
--- ── Esc > Options > AddOns entry ──────────────────────────────────────────────
+-- Esc > Options > AddOns entry
 
 local function registerAddOnsEntry()
 	if type(Settings) ~= "table" or type(Settings.RegisterCanvasLayoutCategory) ~= "function" then

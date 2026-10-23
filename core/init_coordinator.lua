@@ -1,12 +1,10 @@
--- Roth UI Initialization Coordinator - Simple Wrapper
--- Provides simple PLAYER_ENTERING_WORLD-based initialization
--- Uses OnUpdate polling instead of C_Timer.After to avoid taint
+-- Queue initialization callbacks until login/world entry and a safe UI state.
+-- OnUpdate supplies the delay; callbacks run once and report failures.
 
 local addon, ns = ...
 local InitCoordinator = {}
 ns.InitCoordinator = InitCoordinator
 
--- Simple frame for initialization
 local initFrame = CreateFrame("Frame")
 local callbacks = {}
 local initialized = false
@@ -40,11 +38,7 @@ executionFrame:SetScript("OnUpdate", function(self, elapsed)
         if success then
           callbackData.executed = true
         else
-          -- Surface the error in a way that Lua-error displays
-          -- (BugSack/!BugGrabber, default error frame) can show it.
-          -- Previously we silently swallowed init failures, so a broken
-          -- module would never load and never explain why. Mark executed
-          -- so we don't re-raise the same error every event tick.
+          -- Report once through the error handler; mark executed to prevent repeated failures.
           callbackData.executed = true
           local label = callbackData.name or "unnamed"
           local msg = ("|cFFFF6060Roth_UI:|r init callback '%s' failed: %s")

@@ -1,33 +1,20 @@
----------------------------------------------
---  Roth UI
----------------------------------------------
+-- DiabolusUnits: defaults for the WoW Forever edition of Roth UI.
+-- Original: zork (Erik Raetz); maintained by Galaxy119/Joker119 and EchoZulu69er.
+-- Forever edition: codingdoctorbot, with Claude and Gemini assistance.
+-- Credits: CREDITS.md. Version and client interface: DiabolusUnits.toc.
 
---  Diabolus Orbs Forever: a Diablo themed unitframe layout for oUF (Roth UI for WoW Forever, private alpha)
---  zork (Lars Norberg) - Original Creator (~2008-2016)
---  Galaxy119/Joker119 - Maintainer (2012-2018)
---  EchoZulu69er - TBC Anniversary edition (2025) - assisted by Grok and Cursor AI
---  codingdoctorbot - WoW Forever edition (2026) - assisted by Claude and Gemini
---  Full credits: CREDITS.md; version: Roth_UI.toc
----------------------------------------------
-
---get the addon namespace
 local addon, ns = ...
 local oUF = ns.oUF
 mediapath = "Interface\\AddOns\\DiabolusUnits\\media\\"
 local addonName, Roth_UI = ...
 local LSM = LibStub("LibSharedMedia-3.0")
 
---object container
 local cfg = {}
 ns.cfg = cfg
 local locale = GetLocale()
----------------------------------------------
 -- // CONFIG // --
----------------------------------------------
 
----------------------------------------------
 -- // Incoming heals and absorbs // --
----------------------------------------------
 -- On group, target and focus frames (core/healbars.lua).
 cfg.healbars = {
 	heals = true, -- your heals bright, other healers' darker green
@@ -44,18 +31,13 @@ cfg.powerCost = true
 -- Your shields as a gold crescent up the rim of the health orb.
 cfg.orbShield = true
 
--- Roth's movable buff / debuff anchors (modules/MovableBuffs.lua,
--- MovableDebuffs.lua). Off on WoW Forever: moving Blizzard's aura frames from
--- add-on code taints their timers in combat. Move them with Edit Mode instead.
+-- Legacy movable-aura option; its modules are not bundled. Use Blizzard Edit Mode.
 cfg.movableAuras = false
 
 -- A dark inner rim on both orbs, so the liquid reads as inside the glass.
 cfg.orbInnerShadow = true
 
--- Diablo nameplates (units/nameplates.lua): zork's iron bar art over the
--- game's plates, health inside, name and level above, a head for elites /
--- rares / bosses, threat colour on the iron, a gold glow on your target, a
--- cast bar with the interrupt-ready burn, and the debuffs you applied.
+-- Diablo nameplates: iron frames, threat/target glows, cast bars, and player debuffs.
 cfg.nameplates = {
 	enabled = true,
 	friendly = true, -- Roth plates on friendly units too (false: Blizzard's for them)
@@ -89,46 +71,37 @@ cfg.buffCoverage = {
 	blessing = true, -- paladin: members without a blessing from you
 }
 
--- Diablo potion belt: best health potion, healthstone, mana potion (rage / Thistle Tea
--- for warriors / rogues), buff food, bandage (Key Bindings > AddOns > DiabolusUnits: Belt 1-5).
+-- Potion belt: five sockets plus optional drink; bindings are Belt 1-6.
 cfg.belt = {
+	showDrink = false, -- optional sixth socket; first five bindings retain their order
+	macroStopCasting = false, -- prefix the action-bar click macros with /stopcasting
+	buffFoodFirst = true, -- prefer a stat meal only when Well Fed is known to be missing
+	foodStat = "auto", -- class default; manually choose a stat in settings
+	includeRejuvenation = true, -- allow dual-restoration potions in the mana socket
 	show = true,
 	foodWarnMinutes = 10, -- food socket rim pulses when Well Fed has less than this left (or is missing)
 	x = 6, -- offset relative to health orb BOTTOMRIGHT (clear of the orb rim)
 	y = 24, -- above bottom stone ledge / XP bar
 }
 
--- Seamless Gamepad <-> Standard (Keyboard/Mouse) Mode adaptation:
---   * Gamepad Mode: Orbs sit wide (±325) around the native Crossbar, Potion Belt sits beside Health Orb.
---   * Standard Mode:
---       - 12-slot Diablo stone bar (bar1/bar2/bar3) scaled to 1.30x at bottom; orbs and statues at 0.85x,
---         orbs at ±325 with the statues just outside them.
---       - ActionButton1..12 & MultiBars fitted into the 12 stone slots via ns.Blizz (C base methods, zero taint).
---       - ActionBarPageNumber (+/- paging arrows) placed on the carved left stone shoulder of bar1.tga.
---       - Micro Menu docked on the left stone wing (Roth_UIMicroDock) and Bags on the right stone wing (Roth_UIBagDock).
---       - Potion Belt (Roth_UIBelt) anchored directly above the Right Bag Bar Wing (Roth_UIBagDock).
---       - Pet Action Bar (PetActionBar / PetActionBarFrame) anchored to the top-left of the uppermost active
---         action bar row (Bar 1, Bar 2, or Bar 3).
---   * Reload / Scale Integrity Note:
---       - All DiabolusUnits frames use SetUserPlaced(false) so WoW's C++ layout-local.txt never overwrites
---         Roth_UIPlayerFrame coordinates when ApplyPixelPerfectScale() changes UIParent:SetScale() on PLAYER_LOGIN.
---       - RestoreSavedLayout() in core/editmode.lua always finishes by calling ns.StandardMode:Apply().
+-- Keyboard defaults; gamepad geometry is configured separately below.
+-- Saved per-mode layout overrides take precedence.
 cfg.standardMode = {
 	enabled = true,
 	integrateActionBars = true, -- scale & fit ActionButton1..12 / MultiBars into bar1/bar2/bar3 slots
 	integrateMicroMenu = true, -- dock Game Menu micro buttons on the left outer stone wing
 	integrateBags = true, -- dock Bag slots + Backpack on the right outer stone wing
-	integratePetBar = true, -- anchor PetActionBar to the top-left of the uppermost active actionbar row
+	integratePetBar = true, -- position the pet bar above the uppermost active action-bar row
 	beltAnchor = "bags", -- "bags" = above Roth_UIBagDock in Standard Mode; "actionbar" = top-left of top actionbar
 	petBarAnchor = "center", -- pet bar over the top action row: "left", "center" or "right"
 	targetScale = 0.9, -- target frame default scale (the edit layout's size wins)
-	microDockOffset = 215, -- game menu wing: centre's distance outward from the demon statue
-	bagDockOffset = 220, -- bag wing: centre's distance outward from the angel statue
+	microDockOffset = 235, -- game menu wing: centre's distance outward from the demon statue
+	bagDockOffset = 240, -- bag wing: centre's distance outward from the angel statue
 	dockY = -6, -- game menu and bag wings: vertical offset (negative tucks the bottom rim under the screen edge)
 	microButtonsX = 0, -- game menu buttons inside their bay (0 = cleanly centered in the recessed bay)
 	bagButtonsX = 0, -- bag buttons inside their bay (0 = cleanly centered in the recessed bay)
 	beltDockX = 18, -- horizontal offset of potion belt over bag dock (shifts right to clear angel statue)
-	beltDockY = 8, -- vertical offset of potion belt above bag dock (8px gives clean gap above bag icons)
+	beltDockY = 4, -- compact gap above the bag wing; the fitted rim already clears bag buttons
 	petFrameOrbGap = -10, -- pet frame above an orb: its bottom edge vs the orb frame's top (both have empty margins; -10 leaves ~10 px of air)
 	petFrameAnchor = "healthOrb", -- "healthOrb" = above the health orb; "orb" = above the power orb;
 	-- "petbarLeft" / "petbarRight" = up and left / right of the pet bar
@@ -136,16 +109,25 @@ cfg.standardMode = {
 	targetTargetFrameAnchor = "topright", -- "topright" = top-right over target; "topleft" = top-left; "left" = left; "right" = right
 	targetFrameOrbGap = 12, -- target frame above power orb: its bottom edge vs the orb frame's top
 	dockFadeAlpha = 0.85, -- idle alpha for Micro Menu & Bag buttons (1.0 on mouseover)
-	padOrbX = 325, -- orb X offset in Gamepad mode (around crossbar)
+	padOrbX = 325, -- legacy setting; current spacing uses gamepadLayout.orbX
 	standardOrbX = 325, -- orb X offset in Standard mode (hugging the 12-slot stone bar)
 	standardBarScale = 1.30, -- scale of the 12-slot stone bar & action buttons in Standard mode
 	standardOrbScale = 0.85, -- default scale of both orbs in Standard mode (edit layout scale wins)
 	standardStatueScale = 0.78, -- default scale of the demon & angel statues in Standard mode
 }
 
----------------------------------------------
+-- Gamepad defaults are independent of the keyboard layout. Edit Layout overrides
+-- are saved in profile.gamepadLayout; these settings define its starting geometry.
+cfg.gamepadLayout = {
+ followCrossbar = true, -- follow the native Edit Mode actionbar position and scale
+ orbX = 365, orbY = 10, orbScale = 0.82, artScale = 0.72, artY = -2,
+ castGap = 36, castScale = 1, swingGap = 28, targetScale = 0.9,
+ beltScale = 0.85, beltY = 40,
+ arrangePanels = true,
+ centerRadial = true, radialScale = 0.85,
+}
+
 -- // Embeds // --
----------------------------------------------
 cfg.embeds = {
 	rChat = false,
 	rActionBarStyler = false,
@@ -160,11 +142,9 @@ cfg.embeds = {
 	rObjectiveTracker = false,
 	RothFont = true, -- makes game client use a font (as defined in config file) for all game text
 }
-----------------------------------------
 -- colorswitcher define your color for healthbars here
-----------------------------------------
 
---color is in RGB (red (r), green (g), blue (b), alpha (a)), values are from 0 (dark color) to 1 (bright color). 1,1,1 = white / 0,0,0 = black / 1,0,0 = red etc
+-- RGBA components range from 0 to 1.
 cfg.colorswitcher = {
 	bright = { r = 1, g = 0, b = 0, a = 1 }, -- the bright color
 	dark = { r = 1, g = 0, b = 0, a = 0.1 }, -- the dark color
@@ -174,12 +154,10 @@ cfg.colorswitcher = {
 	threatColored = true, -- true/false -> enable threat coloring of the health plate for raidframes
 }
 
---frames have a new highlight that fades on hp loss, if that is still not enough you can adjust a multiplier here
+-- Strength of the highlight that fades after health loss.
 cfg.highlightMultiplier = 0 --range 0-1
 
-----------------------------------------
 --units
-----------------------------------------
 
 cfg.units = {
 	-- PLAYER
@@ -256,9 +234,10 @@ cfg.units = {
 			pos = { a1 = "BOTTOM", a2 = "BOTTOM", af = "UIParent", x = 0, y = 14 }, -- default between orbs
 			texture = (mediapath .. "statusbar2"),
 			scale = 1,
-			color = { r = 0.85, g = 0.65, b = 0.15 }, -- Rich amber gold (Diablo aesthetic)
+			colorStyle = "amber", -- paired XP/rested theme; selectable in Settings > Layout
+			color = { r = 0.85, g = 0.48, b = 0.10 }, -- warm amber earned XP
 			rested = {
-				color = { r = 0.0, g = 0.45, b = 0.9 }, -- Deep rested azure
+				color = { r = 0.55, g = 0.26, b = 0.06 }, -- deeper amber rested extension
 			},
 		},
 		repbar = { --reputation
@@ -277,12 +256,12 @@ cfg.units = {
 			},
 			angel = {
 				show = true,
-				pos = { a1 = "BOTTOM", a2 = "BOTTOM", af = "UIParent", x = 350, y = 6 },
+				pos = { a1 = "BOTTOM", a2 = "BOTTOM", af = "UIParent", x = 350, y = -2 },
 				scale = 1,
 			},
 			demon = {
 				show = true,
-				pos = { a1 = "BOTTOM", a2 = "BOTTOM", af = "UIParent", x = -355, y = 6 },
+				pos = { a1 = "BOTTOM", a2 = "BOTTOM", af = "UIParent", x = -355, y = -2 },
 				scale = 1,
 			},
 			bottomline = {
@@ -299,7 +278,7 @@ cfg.units = {
 		},
 	},
 
-	-- TARGET (minor pos tweak for minimap cluster)
+	-- TARGET
 	target = {
 		show = true,
 		threatGlow = true, -- the frame glows red / orange while the target is attacking you
@@ -316,12 +295,12 @@ cfg.units = {
 		scale = 1.5,
 		width = 240, -- was 270 (originally 300)
 		height = 64,
-		pos = { a1 = "TOP", a2 = "TOP", af = "UIParent", x = 0, y = -80 }, -- Down 10px
+		pos = { a1 = "TOP", a2 = "TOP", af = "UIParent", x = 0, y = -80 },
 		health = {
 			frequentUpdates = true,
 			texture = (mediapath .. "statusbar3"),
 			tag = "[diablo:hpval]", -- Added class color support if tag allows
-			fontSize = 7,
+			fontSize = 10,
 			point = "RIGHT",
 			x = 25,
 			y = -30,
@@ -337,7 +316,7 @@ cfg.units = {
 		powper = {
 			frequentUpdates = true,
 			tag = "[perpp]%",
-			fontSize = 7,
+			fontSize = 10,
 			point = "CENTER",
 			x = 0,
 			y = 0,
@@ -346,14 +325,14 @@ cfg.units = {
 			frequentUpdates = true,
 			texture = (mediapath .. "statusbar3"),
 			tag = "[diablo:ppval]",
-			fontSize = 7,
+			fontSize = 10,
 			point = "LEFT",
 			x = -25,
 			y = -30,
 		},
 		misc = {
-			classFontSize = 13,
-			NameFontSize = 16,
+			classFontSize = 11,
+			NameFontSize = 14,
 		},
 		auras = {
 			show = true,
@@ -631,7 +610,7 @@ cfg.units = {
 
 	--PARTY
 	party = {
-		show = true, -- Roth party frames (units/party.lua); Blizzard's are ghosted (DESIGN.md §5.3)
+		show = true, -- Custom party frames; native party frames are faded.
 		healthFormat = "deficit", -- "deficit", "percent", "value", "current", "both", "none"
 		vertical = true, -- read by shared helpers in core/lib.lua (aura watch, absorb); the party column is always vertical
 		alpha = {
@@ -765,9 +744,7 @@ cfg.units = {
 	},
 }
 
-----------------------------------------
 -- Button / Cooldown Styling
-----------------------------------------
 cfg.bars = {
 	showMacroName = true,
 	showCooldown = true,
@@ -781,9 +758,7 @@ cfg.bars = {
 	},
 }
 
-----------------------------------------
 -- frame movement
-----------------------------------------
 
 --setting this to false will use the default frame positions, true allows moving
 cfg.framesUserplaced = true
@@ -791,18 +766,14 @@ cfg.framesUserplaced = true
 --setting this to true will lock the frames in place, false unlocks them
 cfg.framesLocked = true
 
-----------------------------------------
 -- player specific data
-----------------------------------------
 
 --player stuff
 cfg.playername = UnitName("player")
 cfg.playerclass = select(2, UnitClass("player"))
 cfg.playercolor = RAID_CLASS_COLORS[cfg.playerclass]
 
-----------------------------------------
 -- Embeds
-----------------------------------------
 --rTooltip
 cfg.rtooltip = {
 	scale = 1.15,
@@ -845,9 +816,7 @@ cfg.minimap = {
 	point = { "TOPRIGHT", 0, -33 }, -- Shift for anniv (under header)
 }
 
-----------------------------------------
 -- other
-----------------------------------------
 
 cfg.Nameplates = {
 	showHealthValue = true,
@@ -855,10 +824,7 @@ cfg.Nameplates = {
 	fontSize = 25,
 }
 
--- Roth's power colours: its own mana blue, the rest read from Blizzard's
--- PowerBarColor. Never written into PowerBarColor itself: that table is
--- Blizzard's, and an entry written by an add-on taints every Blizzard frame
--- that reads it (the player / compact frames errored on secret values).
+-- Copy Blizzard's power colours; writing into PowerBarColor taints its readers.
 cfg.powercolors = setmetatable({ MANA = { r = 0, g = 0.4, b = 1 } }, { __index = PowerBarColor })
 --the same mana blue for oUF's colorPower (ColorMixin objects, by token and by power type index)
 oUF.colors.power.MANA = oUF:CreateColor(0, 0.4, 1)

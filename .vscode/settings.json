@@ -1,0 +1,17 @@
+{
+  "[lua]": {
+    "editor.defaultFormatter": "JohnnyMorganz.stylua",
+    "editor.formatOnSave": false
+  },
+  "stylua.styluaPath": "/opt/homebrew/bin/stylua",
+  "stylua.configPath": "/Users/erik2/Developer/WoW/.devtools/stylua.toml",
+  "stylua.verify": true,
+  "Lua.runtime.version": "Lua 5.1",
+  "terminal.integrated.env.osx": {
+    "PATH": "/Users/erik2/Developer/WoW/.devtools/bin:/opt/homebrew/bin:${env:PATH}",
+    "LUA": "/Users/erik2/Developer/WoW/.devtools/lua51/bin/lua"
+  },
+  "files.associations": {
+    "*.toc": "plaintext"
+  }
+}

@@ -1,37 +1,7 @@
--- DiabolusUnits — settings/Rows.lua
---
--- One constructor per kind of settings row, each returning a finished, permanent frame.
---
--- Deliberately plain: a row is created, wired to its get/set closures, and lives until
--- logout. No Init, no Release, no element data, no pool — the three pieces of Blizzard's
--- row contract that exist only because its rows are recycled. Nothing here can be handed a
--- different setting later, so nothing here can hold a stale one.
---
--- The widgets INSIDE a row are Blizzard's, which is what makes the result look native:
--- MinimalSliderWithSteppersTemplate, the settings dropdown with its stepper arrows,
--- UIPanelButtonTemplate, the checkbox atlases. Those are widget templates from
--- Blizzard_SharedXML — inert artwork and geometry, not the Settings framework's lifecycle.
--- Borrowing a slider is not borrowing the panel that kept recycling it.
---
--- WHICH FRAME TYPE A ROW IS, AND WHY IT MATTERS. SmartNavigation picks its target by
--- walking the panel and taking anything that is a Button or EditBox, has a mouse script, or
--- was explicitly marked focusable (Blizzard_GamepadSmartNavigation/Utility.lua:191-200),
--- then calls SetHighlightLocked on it (SmartNavigation.lua:506, :518).
---
---   * A checkbox row and a button row are plain Frames, and the widget inside them is the
---     navigation target — the same shape Blizzard uses, and the inner widget is a real
---     Button so SetHighlightLocked is always there.
---   * A slider row and a dropdown row are Buttons themselves, with the inner control
---     marked ignored, so the stick lands on the whole row rather than one of the three
---     sub-widgets a slider is made of. Blizzard marks a Frame focusable instead; a real
---     Button gets the same navigation with no question about whether SetHighlightLocked
---     exists on what is being highlighted.
---
--- Every row exposes the same four things to Content.lua:
---   row.rowHeight        how much vertical space it wants
---   row.searchText       lowercased label + tooltip, for the search box
---   row:RefreshValue()   re-read the database and update the widget
---   row:SetRowEnabled(b) grey out / restore, including gamepad reachability
+-- Permanent settings rows bound to one spec for the session.
+-- Rows expose rowHeight, searchText, RefreshValue, and SetRowEnabled to Content.
+-- Button rows own navigation focus; other rows expose their inner control.
+-- Framework ported from PulseHaptics UI/Panel.
 
 local ADDON_NAME, ns = ...
 
@@ -41,10 +11,9 @@ local Theme = Panel.Theme
 local Rows = {}
 Panel.Rows = Rows
 
--- ── Shared row scaffolding ────────────────────────────────────────────────────
+-- Shared row scaffolding
 
--- Blizzard_SettingControls.lua:449-452 — the gamepad cursor sits off the row's left edge
--- rather than on top of the control it is pointing at.
+-- Place the controller cursor beside the row instead of over its control.
 local function setCursorAnchor(row, control)
 	if type(SmartNavigation_SetCustomCursorAnchorPointForFrame) ~= "function" then
 		return
@@ -58,10 +27,8 @@ local function setCursorAnchor(row, control)
 	end
 end
 
--- The label, the hover wash, and for Frame rows the invisible hit area owning the tooltip.
--- Copied from SettingsListElementTemplate (Blizzard_SettingControls.xml:45-79), including
--- the odd BOTTOMRIGHT-relative-to-BOTTOM anchor that makes the tooltip region cover the
--- label column but stop short of the control.
+-- Shared label, hover, and tooltip area. Label hit geometry originated in
+-- Blizzard SettingsListElementTemplate; control positions use Theme offsets.
 local function createBaseRow(parent, spec, frameType)
 	local row = CreateFrame(frameType or "Frame", nil, parent)
 	row:SetHeight(Theme.ROW_HEIGHT)
@@ -72,19 +39,27 @@ local function createBaseRow(parent, spec, frameType)
 
 	row.Text = row:CreateFontString(nil, "OVERLAY", spec.child and Theme.FONT_CHILD or Theme.FONT_NORMAL)
 	row.Text:SetJustifyH("LEFT")
-	row.Text:SetWordWrap(false)
+	row.Text:SetWordWrap(true)
+	row.Text:SetJustifyV("MIDDLE")
 	row.Text:SetPoint("LEFT", row, "LEFT", indent + Theme.TEXT_LEFT, 0)
-	row.Text:SetPoint("RIGHT", row, "CENTER", Theme.TEXT_RIGHT, 0)
+
 	row.Text:SetText(spec.label or "")
 	if row.Text.SetTextColor then
 		row.Text:SetTextColor(Theme.COLOR_TEXT_PRIMARY.r, Theme.COLOR_TEXT_PRIMARY.g, Theme.COLOR_TEXT_PRIMARY.b)
 	end
 
+	row.MeasureHeight = function()
+		local available = math.max(80, row:GetWidth() / 2 + Theme.TEXT_RIGHT - indent - Theme.TEXT_LEFT)
+		row.Text:SetWidth(available)
+		row.rowHeight = math.max(Theme.ROW_HEIGHT, row.Text:GetStringHeight() + 12)
+		row:SetHeight(row.rowHeight)
+		return row.rowHeight
+	end
 	row.HoverBackground = Theme.CreateHoverBackground(row)
 
 	local pip = row:CreateTexture(nil, "OVERLAY")
 	pip:SetSize(2, 16)
-	pip:SetPoint("LEFT", row, "LEFT", 14, 0)
+	pip:SetPoint("LEFT", row, "LEFT", 2, 0)
 	pip:SetColorTexture(Theme.COLOR_ACCENT.r, Theme.COLOR_ACCENT.g, Theme.COLOR_ACCENT.b, 0.9)
 	pip:Hide()
 	row.HoverPip = pip
@@ -112,7 +87,7 @@ local function createBaseRow(parent, spec, frameType)
 	else
 		local hit = CreateFrame("Frame", nil, row)
 		hit:SetPoint("TOPLEFT", row, "TOPLEFT", 0, 0)
-		hit:SetPoint("BOTTOMRIGHT", row, "BOTTOM", -80, 0)
+		hit:SetPoint("BOTTOMRIGHT", row, "BOTTOM", Theme.CONTROL_LEFT - 8, 0)
 		hit:EnableMouse(true)
 		hit:SetScript("OnEnter", row.ShowRowTooltip)
 		hit:SetScript("OnLeave", row.HideRowTooltip)
@@ -153,13 +128,9 @@ local function attachControlTooltip(row, control, spec)
 	end)
 end
 
--- ── Section header ────────────────────────────────────────────────────────────
+-- Section header
 
--- 45px, GameFontHighlightLarge, TOPLEFT 7,-16 — SettingsListSectionHeaderTemplate
--- (Blizzard_SettingControls.xml:13-23) to the pixel. No NewFeature badge, no tooltip mixin,
--- no navigation presence: a heading is a line of text. The retired UI/SectionHeader.lua
--- existed to work around a Settings-framework bug in exactly this spot; here the frame is
--- never pooled and never has to clean up after itself, so no workaround is needed.
+-- Non-focusable section heading with themed text and divider.
 function Rows.CreateHeader(parent, spec)
 	local row = CreateFrame("Frame", nil, parent)
 	row:SetHeight(Theme.HEADER_ROW_H)
@@ -167,10 +138,10 @@ function Rows.CreateHeader(parent, spec)
 	row.spec = spec
 	row.isHeader = true
 
-	row.Title = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")
+	row.Title = row:CreateFontString(nil, "OVERLAY", Theme.SECTION_FONT)
 	row.Title:SetJustifyH("LEFT")
 	row.Title:SetJustifyV("TOP")
-	row.Title:SetPoint("TOPLEFT", row, "TOPLEFT", 7, -16)
+	row.Title:SetPoint("TOPLEFT", row, "TOPLEFT", 12, -12)
 	row.Title:SetText(spec.label or "")
 
 	local rule = row:CreateTexture(nil, "ARTWORK")
@@ -188,7 +159,7 @@ function Rows.CreateHeader(parent, spec)
 	return row
 end
 
--- ── Free-text block (the Guide page) ──────────────────────────────────────────
+-- Free-text block (the Guide page)
 
 -- The one row that is not a control. Height depends on the wrapped text, so Content.lua
 -- calls MeasureHeight once the real width is known rather than fixing it here.
@@ -198,7 +169,7 @@ function Rows.CreateText(parent, spec)
 	row.isText = true
 	row.rowHeight = 1
 
-	row.Body = row:CreateFontString(nil, "OVERLAY", spec.font or "GameFontHighlight")
+	row.Body = row:CreateFontString(nil, "OVERLAY", spec.font or Theme.FONT_CHILD)
 	row.Body:SetJustifyH("LEFT")
 	row.Body:SetSpacing(2)
 	-- One corner only, width set explicitly in MeasureHeight. A FontString deriving its
@@ -252,11 +223,9 @@ function Rows.CreateText(parent, spec)
 	return row
 end
 
--- ── Checkbox ──────────────────────────────────────────────────────────────────
+-- Checkbox
 
--- Hand-rolled from the same four atlases SettingsCheckboxTemplate uses
--- (Blizzard_SettingControls.xml:82-101) rather than inheriting it. Five lines either way,
--- and this way the row owes nothing to the Settings addon.
+-- Custom checkbox surface with separate checked and disabled states.
 function Rows.CreateCheckbox(parent, spec)
 	local row = createBaseRow(parent, spec, "Frame")
 
@@ -280,10 +249,17 @@ function Rows.CreateCheckbox(parent, spec)
 	box:SetSize(Theme.CHECKBOX_SIZE_X, Theme.CHECKBOX_SIZE_Y)
 	box:SetPoint("LEFT", row, "CENTER", Theme.CONTROL_LEFT, 0)
 	box:SetMotionScriptsWhileDisabled(true)
-	box:SetNormalAtlas("checkbox-minimal")
-	box:SetPushedAtlas("checkbox-minimal")
-	box:SetCheckedTexture("checkmark-minimal")
-	box:SetDisabledCheckedTexture("checkmark-minimal-disabled")
+	Theme.CreateSurface(box, Theme.COLOR_BG)
+	local check = box:CreateTexture(nil, "ARTWORK")
+	check:SetPoint("TOPLEFT", 4, -4)
+	check:SetPoint("BOTTOMRIGHT", -4, 4)
+	check:SetColorTexture(Theme.COLOR_ACCENT.r, Theme.COLOR_ACCENT.g, Theme.COLOR_ACCENT.b, 1)
+	box:SetCheckedTexture(check)
+	local disabledCheck = box:CreateTexture(nil, "ARTWORK")
+	disabledCheck:SetPoint("TOPLEFT", 4, -4)
+	disabledCheck:SetPoint("BOTTOMRIGHT", -4, 4)
+	disabledCheck:SetColorTexture(0.38, 0.40, 0.43, 1)
+	box:SetDisabledCheckedTexture(disabledCheck)
 
 	if statusBadge then
 		statusBadge:SetPoint("LEFT", box, "RIGHT", 10, 0)
@@ -347,11 +323,9 @@ function Rows.CreateCheckbox(parent, spec)
 	return row
 end
 
--- ── Slider ────────────────────────────────────────────────────────────────────
+-- Slider
 
--- Formats the number under the slider handle. Blizzard's own sliders pass no formatter and
--- print the raw float, which on a 0.05 step is how "0.6500000001" reaches the screen. The
--- step already says how much precision is meaningful.
+-- Match displayed precision to the slider step; avoid floating-point text artifacts.
 local function makeFormatter(step)
 	local decimals, scale = 0, step or 0
 	while scale > 0 and scale < 1 and decimals < 4 do
@@ -380,12 +354,10 @@ function Rows.CreateSlider(parent, spec)
 
 	local formatters = {}
 	if MinimalSliderWithSteppersMixin and MinimalSliderWithSteppersMixin.Label then
-		formatters[MinimalSliderWithSteppersMixin.Label.Right] = makeFormatter(step)
+		formatters[MinimalSliderWithSteppersMixin.Label.Right] = spec.format or makeFormatter(step)
 	end
 
-	-- A missing value would reach Slider:SetValue as nil and error inside a Blizzard
-	-- widget, a confusing place to read an addon bug from. Falls back to the bottom of the
-	-- range; the next refresh corrects it if the store catches up.
+	-- Fall back to the range minimum until the settings store has a numeric value.
 	local function currentValue()
 		local value = spec.get()
 		if type(value) ~= "number" then
@@ -395,10 +367,9 @@ function Rows.CreateSlider(parent, spec)
 	end
 
 	slider:Init(currentValue(), spec.min or 0, spec.max or 1, steps, formatters)
+	Theme.StyleSlider(slider)
 
-	-- Feedback-loop guard: writing to the database notifies the panel, the panel refreshes
-	-- this row, and the refresh would drive SetValue back into the slider mid-drag.
-	-- `applying` makes the round trip a no-op instead of a fight.
+	-- Prevent database refreshes from feeding back into the slider mid-drag.
 	local applying = false
 	slider:RegisterCallback(MinimalSliderWithSteppersMixin.Event.OnValueChanged, function(_, value)
 		if applying then
@@ -450,27 +421,42 @@ function Rows.CreateSlider(parent, spec)
 	return row
 end
 
--- ── Dropdown ──────────────────────────────────────────────────────────────────
+-- Dropdown
 
 -- SettingsDropdownWithButtonsTemplate is the dropdown-plus-stepper-arrows combination
 -- Blizzard's own rows use; the arrows are what left and right map onto for gamepad. Falls
 -- back to the bare dropdown if the template is absent, so the page still renders.
 local function createDropdownControl(row)
-	local ok, control = pcall(CreateFrame, "Frame", nil, row, "SettingsDropdownWithButtonsTemplate")
-	if ok and control and control.Dropdown then
-		control:SetPoint("LEFT", row, "CENTER", Theme.DROPDOWN_LEFT, 3)
-		control.Dropdown:SetWidth(Theme.DROPDOWN_WIDTH)
-		return control, control.Dropdown
+	local control = CreateFrame("Frame", nil, row)
+	control:SetSize(Theme.DROPDOWN_WIDTH + 56, 26)
+	control:SetPoint("LEFT", row, "CENTER", Theme.CONTROL_LEFT, 0)
+	local back = CreateFrame("Button", nil, control)
+	back:SetSize(24, 26)
+	back:SetPoint("LEFT")
+	Theme.StylePlainButton(back, "<")
+	local dropdown = CreateFrame("Button", nil, control)
+	dropdown:SetSize(Theme.DROPDOWN_WIDTH, 26)
+	dropdown:SetPoint("LEFT", back, "RIGHT", 4, 0)
+	dropdown.Text = Theme.StylePlainButton(dropdown)
+	local nextButton = CreateFrame("Button", nil, control)
+	nextButton:SetSize(24, 26)
+	nextButton:SetPoint("LEFT", dropdown, "RIGHT", 4, 0)
+	Theme.StylePlainButton(nextButton, ">")
+	control.Dropdown, control.DecrementButton, control.IncrementButton = dropdown, back, nextButton
+	function control:SetSteppersEnabled(left, right)
+		back:SetEnabled(left)
+		nextButton:SetEnabled(right)
 	end
-
-	local ok2, dropdown = pcall(CreateFrame, "DropdownButton", nil, row, "WowStyle2DropdownTemplate")
-	if ok2 and dropdown then
-		dropdown:SetWidth(Theme.DROPDOWN_WIDTH)
-		dropdown:SetPoint("LEFT", row, "CENTER", Theme.CONTROL_LEFT, 3)
-		return dropdown, dropdown
+	function control:SetSteppersShown(show)
+		back:SetShown(show)
+		nextButton:SetShown(show)
 	end
-
-	return nil, nil
+	function control:SetEnabled(enabled)
+		dropdown:SetEnabled(enabled)
+		back:SetEnabled(enabled)
+		nextButton:SetEnabled(enabled)
+	end
+	return control, dropdown
 end
 
 function Rows.CreateDropdown(parent, spec)
@@ -487,11 +473,7 @@ function Rows.CreateDropdown(parent, spec)
 		return row
 	end
 
-	-- DELIBERATELY NO SetupMenu. That one call wires this widget to Blizzard's Menu
-	-- system, and opening such a menu ends at a protected binding call an addon's stack
-	-- may not reach — UI/Panel/Popup.lua's header has the trace. Without a generator,
-	-- DropdownButtonMixin:GenerateMenu returns immediately, so the widget keeps all of its
-	-- artwork and none of its behaviour, and Popup.OpenList supplies the behaviour.
+	-- Do not call SetupMenu: use Popup.OpenList to avoid protected gamepad Menu activation.
 
 	local function options()
 		local ok, result = pcall(spec.options)
@@ -556,7 +538,7 @@ function Rows.CreateDropdown(parent, spec)
 		control:SetSteppersEnabled(index ~= nil and index > 1, index ~= nil and index < #list)
 	end
 
-	dropdown:HookScript("OnMouseDown", function()
+	dropdown:SetScript("OnClick", function()
 		if not dropdown:IsEnabled() then
 			return
 		end
@@ -629,15 +611,14 @@ function Rows.CreateDropdown(parent, spec)
 	return row
 end
 
--- ── Button ────────────────────────────────────────────────────────────────────
+-- Button
 
--- A named row with a button on the right.
--- Blizzard_SettingControls.lua:920 sets the width to 200 and leaves height to the template.
+-- Action button beside a settings label.
 function Rows.CreateButton(parent, spec)
 	local row = createBaseRow(parent, spec, "Frame")
 
 	local button = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
-	button:SetWidth(Theme.BUTTON_WIDTH)
+	button:SetSize(Theme.BUTTON_WIDTH, 26)
 	button:SetPoint("LEFT", row, "CENTER", Theme.BUTTON_LEFT, 0)
 	button:SetText(spec.buttonText or "")
 	Theme.StyleActionButton(button, true)
@@ -671,11 +652,9 @@ function Rows.CreateButton(parent, spec)
 	return row
 end
 
--- ── Collapsible section header (Phase 2) ──────────────────────────────────────
+-- Collapsible section header
 
--- A heading you can click. A Button, not the plain Frame CreateHeader makes, and marked
--- ignored for SmartNavigation like every header: the panel is mouse-driven by design
--- (UI/Panel/Gamepad.lua:40-69), so nothing here adds controller navigation.
+-- Collapsible header; excluded from native SmartNavigation discovery.
 local PLUS = "Interface\\Buttons\\UI-PlusButton-Up"
 local MINUS = "Interface\\Buttons\\UI-MinusButton-Up"
 
@@ -723,12 +702,10 @@ function Rows.CreateSectionHeader(parent, spec)
 	return row
 end
 
--- ── Colour swatch ─────────────────────────────────────────────────────────────
+-- Colour swatch
 
--- A named row with a colour swatch on the right. Clicking opens Blizzard's colour picker,
--- which Forever shows with a plain Show() (Blizzard_ColorPickerFrame/Mainline, not
--- ShowUIPanel), so no protected panel-manager call is reached from here.
--- spec.get() returns r, g, b; spec.set(r, g, b) receives the picked colour.
+-- Colour swatch: open the client colour picker with plain Show(), avoiding ShowUIPanel.
+-- spec.get() returns r, g, b; spec.set(r, g, b) receives the selection.
 function Rows.CreateColor(parent, spec)
 	local row = createBaseRow(parent, spec, "Frame")
 
@@ -791,7 +768,7 @@ function Rows.CreateColor(parent, spec)
 	return row
 end
 
--- ── Dispatch ──────────────────────────────────────────────────────────────────
+-- Dispatch
 
 local builders = {
 	header = Rows.CreateHeader,

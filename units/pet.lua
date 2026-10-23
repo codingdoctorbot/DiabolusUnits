@@ -1,21 +1,14 @@
---get the addon namespace
 local _, ns = ...
 
---get oUF namespace (just in case needed)
 local oUF = ns.oUF or oUF
 
---get the config
 local cfg = ns.cfg
 
---get the functions
 local func = ns.func
 
---get the unit container
 local unit = ns.unit
 
----------------------------------------------
 -- UNIT SPECIFIC FUNCTIONS
----------------------------------------------
 
 --init parameters
 local initUnitParameters = function(self)
@@ -181,9 +174,7 @@ local createPetHappiness = function(self)
 	self.PetHappiness = f
 end
 
----------------------------------------------
 -- PET STYLE FUNC
----------------------------------------------
 
 local function createStyle(self)
 	--apply config to self
@@ -212,10 +203,7 @@ local function createStyle(self)
 		func.createPortrait(self)
 		local size = self.cfg.portrait.size or self.cfg.width
 		self:SetHitRectInsets(0, 0, -(size - 28), 0)
-		-- createPortrait places the name and the portrait for a frame-wide portrait; with a
-		-- smaller one the name floated a portrait-height above it and a gap opened down to
-		-- the health bar. Keep the three together: portrait resting on the health bar's
-		-- stone frame, name just above the portrait.
+		-- Keep the compact portrait on the health-bar frame, with its name directly above.
 		local holder = self.PortraitHolder
 		if holder and self.cfg.portrait.side then
 			-- portrait beside the frame on the left, vertically centred on the bars; the art has
@@ -290,9 +278,7 @@ local function createStyle(self)
 	unit.pet = self
 end
 
----------------------------------------------
 -- SPAWN PET UNIT
----------------------------------------------
 
 if cfg.units.pet.show then
 	oUF:RegisterStyle("diablo:pet", createStyle)

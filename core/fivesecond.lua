@@ -1,14 +1,6 @@
----------------------------------------------
---  Roth_UI - five second rule on the mana orb
----------------------------------------------
--- Classic spirit regeneration stops for five seconds after you spend mana.
--- When a spell that costs mana goes off, a pale blue spark runs once around
--- the rim of the mana orb; when it closes the circle, spirit regen is back.
---
--- Mana itself is never read (UnitPower can be secret in combat): the cast
--- event and the spell's cost decide. The spell ID goes to GetSpellPowerCost
--- as it comes, secret or not (it takes secret arguments; ForeverUnitFrames
--- does the same); a secret cost type starts nothing.
+-- Mana-spend spark for the five-second regeneration rule.
+-- Pass cast spell IDs directly to GetSpellPowerCost, as ForeverUnitFrames does.
+-- Only readable mana costs start the spark; secret UnitPower values are never inspected.
 
 local _, ns = ...
 

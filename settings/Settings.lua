@@ -1,14 +1,6 @@
--- DiabolusUnits — settings/Settings.lua
---
--- The store behind the settings window for values that live in config.lua's `cfg`
--- tables (cfg.standardMode, cfg.belt, ...). config.lua stays the source of defaults; a
--- value changed in the window is written into `cfg` (so the code reading it sees it at
--- once) and saved as an override in the AceDB profile, `profile.settings["path.key"]`.
--- Overrides are put back into `cfg` at ADDON_LOADED, before any layout runs, and follow
--- profile switches (which reload the UI).
---
--- Orb settings keep their own per-character store (core/db.lua, Roth_UI_DB_CHAR); fonts
--- and the edit layout keep theirs in the same AceDB profile.
+-- Persist cfg overrides in AceDB profile.settings["path.key"].
+-- Apply changes to cfg immediately and restore them at ADDON_LOADED before layout.
+-- Profile switches reload the UI; orb settings retain their per-character store.
 
 local ADDON_NAME, ns = ...
 

@@ -1,6 +1,4 @@
----------------------------------------------
 --  Roth_UI - group member status icon
----------------------------------------------
 -- One icon in the middle of a group frame, in the priority order of
 -- Blizzard's compact frames (CompactUnitFrame_GetCenterStatusIconState):
 --

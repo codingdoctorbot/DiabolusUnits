@@ -1,12 +1,7 @@
--- Roth UI Tweaks - Simple UI modifications
--- Works independently of rActionBarStyler
+-- Conceal default cast/status bars and move loot rolls above the action bars.
 
 local addon, ns = ...
 local cfg = ns.cfg
-
--- Note: The C_UnitAuras nil unit error is a Blizzard bug in CompactUnitFrame
--- We cannot hook C_UnitAuras directly as it causes taint
--- The error is harmless - just visual spam in BugSack
 
 -- Configuration options (edit these to customize)
 local HIDE_CAST_BAR = true        -- Hide Blizzard's default cast bar
@@ -55,10 +50,7 @@ local function SetupTweaks()
   
   -- Handle XP/Rep bar (StatusTrackingBarManager)
   if HIDE_XP_BAR then
-    -- Completely hide
-    -- The status tracking containers are Edit Mode managed frames: hiding
-    -- them from add-on code re-lays the bottom managed container tainted, so
-    -- they are faded and made inert instead (core/blizzsafe.lua).
+    -- Fade managed tracking containers instead of running their OnHide layout in addon context.
     ns.Blizz.Conceal(StatusTrackingBarManager)
     ns.Blizz.Conceal(MainStatusTrackingBarContainer)
     setupDone = true
@@ -82,7 +74,7 @@ local function SetupTweaks()
   end
 end
 
--- Use OnUpdate polling instead of C_Timer.After to avoid taint
+-- Retry setup after the delay once combat permits it.
 local needsSetup = false
 f:SetScript("OnEvent", function(self, event)
   needsSetup = true
