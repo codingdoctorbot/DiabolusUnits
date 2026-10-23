@@ -1,24 +1,18 @@
---get the addon namespace
 local addon, ns = ...
 
---get oUF namespace (just in case needed)
 local oUF = ns.oUF or oUF
 local Secrets = ns.Secrets
 local LSM = LibStub("LibSharedMedia-3.0")
 
---get the config
 local cfg = ns.cfg
 local mediapath = "Interface\\AddOns\\DiabolusUnits\\media\\"
 
---object container
 local func = CreateFrame("Frame")
 ns.func = func
 
----------------------------------------------
 -- GLOBAL PROTECTION STATE
 -- Prevents addon callbacks from running during protected states
 -- (game menu, logout, combat) to avoid ADDON_ACTION_FORBIDDEN errors
----------------------------------------------
 ns.isProtected = false
 ns.isLoggingOut = false
 ns.isGameMenuOpen = false
@@ -40,10 +34,8 @@ function ns.SafeCallback(func)
 	end
 end
 
----------------------------------------------
 -- SAFE TIMER WRAPPER
 -- Single-frame scheduler to avoid creating a new frame per timer call
----------------------------------------------
 local timerQueue = {}
 local timerFrame = CreateFrame("Frame")
 timerFrame:SetScript("OnUpdate", function(self, delta)
@@ -69,15 +61,11 @@ ns.SafeTimer = function(delay, callback)
 	timerQueue[#timerQueue + 1] = { delay = delay, callback = callback, elapsed = 0 }
 end
 
----------------------------------------------
 -- VARIABLES
----------------------------------------------
 
 local tinsert, tremove, floor, mod, format = tinsert, tremove, floor, mod, format
 
----------------------------------------------
 -- FUNCTIONS
----------------------------------------------
 
 --number format func (secret-safe)
 func.numFormat = function(v)
@@ -367,8 +355,6 @@ func.createAltPowerBar = function(self, name)
 	bar:SetSize(w, h)
 	bar:SetStatusBarTexture(self.cfg.altpower.texture)
 	bar:SetStatusBarColor(self.cfg.altpower.color.r, self.cfg.altpower.color.g, self.cfg.altpower.color.b)
-	--bar:SetMinMaxValues(0,100)
-	--bar:SetValue(70)
 
 	t = bar:CreateTexture(nil, "BACKGROUND", nil, -8)
 	t:SetSize(64, 64)
@@ -448,7 +434,7 @@ func.createAuraWatch = function(self)
 
 	-- Set any other AuraWatch settings
 	auras.icons = {}
-	do -- (was gated on the party layout's setting, so no icon was ever made)
+	do
 		local columns = 2
 		local xGrowth = 19
 		local yGrowth = -20
@@ -689,7 +675,6 @@ func.createPortrait = function(self)
 			border:SetAllPoints(borderholder)
 			border:SetTexture(mediapath .. "portrait_border")
 			border:SetVertexColor(0.6, 0.5, 0.5)
-			--border:SetVertexColor(1,0,0,1) --threat test
 			self.Border = border
 
 			local gloss = borderholder:CreateTexture(nil, "BACKGROUND", nil, -5)
@@ -727,7 +712,6 @@ func.createPortrait = function(self)
 			border:SetAllPoints(borderholder)
 			border:SetTexture(mediapath .. "portrait_border")
 			border:SetVertexColor(0.6, 0.5, 0.5)
-			--border:SetVertexColor(1,0,0,1) --threat test
 			self.Border = border
 
 			local gloss = borderholder:CreateTexture(nil, "BACKGROUND", nil, -5)
@@ -831,7 +815,8 @@ func.createCastbar = function(f)
 	local c = CreateFrame("StatusBar", "$parentCastbar", frame)
 	--wow is this outdated...man I really need to rewrite how the drag stuff is handled
 	tinsert(Roth_UI_Bars, frame:GetName())
-	c:SetSize(265, 15)
+	c.cfg = f.cfg.castbar
+	c:SetSize(c.cfg.width or 265, c.cfg.height or 15)
 	c:SetStatusBarTexture(f.cfg.castbar.texture)
 	c:SetScale(f.cfg.castbar.scale)
 	c:SetPoint("CENTER", frame, 0, 0)
@@ -842,7 +827,6 @@ func.createCastbar = function(f)
 		f.cfg.castbar.color.bar.b,
 		f.cfg.castbar.color.bar.a
 	)
-	--c:SetStatusBarColor(0,0,0,1)
 
 	c.background = c:CreateTexture(nil, "BACKGROUND", nil, -8)
 	c.background:SetTexture(mediapath .. "castbar")
@@ -868,8 +852,12 @@ func.createCastbar = function(f)
 	c.Time = func.createFontString(c, cfg.font, f.cfg.castbar.TextSize, "THINOUTLINE")
 	c.Time:SetPoint("RIGHT", -2, 0)
 
+ if f.cfg.style == "player" then
+  c.Delay = func.createFontString(c, cfg.font, f.cfg.castbar.TextSize, "THINOUTLINE")
+  c.Delay:SetTextColor(1, 0.3, 0.2)
+  c.Delay:SetText("")
+ end
 	c.Text:SetPoint("RIGHT", -50, 0)
-	--c.Text:SetPoint("RIGHT", c.Time, "LEFT", -10, 0) --right point of text will anchor left point of time
 
 	c.Spark = c:CreateTexture(nil, "OVERLAY", nil, -7)
 	c.Spark:SetSize(32, 32)
@@ -898,7 +886,7 @@ func.createCastbar = function(f)
 	end
 
 	--safezone
-	if f.cfg.style == "player" and f.cfg.castbar.latency then
+	if f.cfg.style == "player" then
 		c.SafeZone = c:CreateTexture(nil, "OVERLAY")
 		c.SafeZone:SetTexture(f.cfg.castbar.texture)
 		c.SafeZone:SetVertexColor(0.6, 0, 0, 0.6)
@@ -909,6 +897,8 @@ func.createCastbar = function(f)
 	func.applyDragFunctionality(frame)
 
 	f.Castbar = c
+ frame.RothCastbar = c
+ ns.CastBars.ApplyAppearance(c)
 end
 
 local LSM = LibStub("LibSharedMedia-3.0")
@@ -931,8 +921,7 @@ local function CheckFont()
 	end
 end
 
---allows frames to become movable but frames can be locked or set to default positions
--- Uses custom drag system (ALT+SHIFT to drag) instead of Blizzard's buggy Edit Mode
+-- Custom drag overlay: Alt+Shift to move, or drag directly while editing the layout.
 func.applyDragFunctionality = function(f, special)
 	--save the default position
 	local getPoint = function(self)
@@ -947,12 +936,10 @@ func.applyDragFunctionality = function(f, special)
 		f.defaultPosition = getPoint(f)
 	end
 
-	-- Always use custom drag system (we disabled Blizzard's Edit Mode due to bugs)
-	--new form of dragframe
+	-- Use our overlay while following Blizzard Edit Mode enter/exit callbacks.
 	local df = CreateFrame("Frame", nil, f)
 	df:SetAllPoints(f)
 	df:SetFrameStrata("HIGH")
-	--df:SetHitRectInsets(-15,-15,-15,-15)
 	df:SetScript("OnDragStart", function(self)
 		-- ALT+SHIFT, or nothing at all while the layout is being edited (core/editmode.lua)
 		if (IsAltKeyDown() and IsShiftKeyDown()) or (ns.EditMode and ns.EditMode.active) then
@@ -1022,8 +1009,6 @@ func.applyDragFunctionality = function(f, special)
 			end)
 		end
 	end
-	--print(f:GetName())
-	--print(f:IsUserPlaced())
 end
 
 --simple frame movement
@@ -1046,7 +1031,6 @@ func.simpleDragFunc = function(f)
     f:SetScript("OnLeave", function(s) GameTooltip:Hide() end)
     ]]
 	--
-	--f:SetScript("OnDragStart", function(s) if IsAltKeyDown() and IsShiftKeyDown() then s:StartMoving() end end)
 	f:SetScript("OnDragStart", function(s)
 		s:StartMoving()
 	end)
@@ -1092,9 +1076,7 @@ LSM:Register("font", "Cracked", "Interface\\AddOns\\DiabolusUnits\\media\\Cracke
 LSM:Register("font", "Expressway", "Interface\\AddOns\\DiabolusUnits\\media\\Expressway.ttf")
 LSM:Register("font", "Diablo", "Interface\\AddOns\\DiabolusUnits\\media\\Diablo Std Regular.otf")
 
----------------------------------------------
 -- SCREEN & RESOLUTION METRICS
----------------------------------------------
 function ns.GetScreenMetrics()
 	local GetPhysicalScreenSize = rawget(_G, "GetPhysicalScreenSize")
 	local physW, physH

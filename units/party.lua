@@ -1,10 +1,4 @@
----------------------------------------------
---  Roth_UI - party
----------------------------------------------
--- The party column: the targettarget bar art with health and power for you
--- and party1..4, built on units/group.lua. Members are sorted by party
--- index, the order the game's friendly targeting uses for LB + D-pad
--- (pad/grouptarget.lua draws those badges).
+-- Party column built on units/group.lua: player and party1..4, sorted by party index.
 
 local _, ns = ...
 

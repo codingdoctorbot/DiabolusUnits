@@ -129,12 +129,11 @@ local function Enable(self, unit)
 		self:RegisterEvent("UNIT_EXITED_VEHICLE", Visibility)
 		self:RegisterEvent("UPDATE_SHAPESHIFT_FORM", Visibility, true)
 
-		local helper = CreateFrame("Frame") --this is needed...adding player_login to the visivility events does not do anything
+		local helper = CreateFrame("Frame") -- Initialize visibility after world entry.
 		helper:RegisterEvent("PLAYER_ENTERING_WORLD")
 		helper:SetScript("OnEvent", function()
 			Visibility(self)
 		end)
-		--    helper:SetScript("OnEvent", function() Update(self) end)
 
 		return true
 	end

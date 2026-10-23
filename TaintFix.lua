@@ -1,49 +1,13 @@
---[[
-    Roth UI Taint Mitigation
-
-    Records refused actions and keeps the gamepad "add-on blocked" popup from
-    looping (below).
-
-    An earlier version closed every dropdown and menu at combat start by
-    calling CloseDropDownMenus / CloseMenus from here. That wrote the
-    UIDROPDOWNMENU_* globals and the menu manager's state from add-on code at
-    every pull, so Blizzard code reading them ran tainted in combat; removed
-    2026-10-16. Roth's own dropdowns now use the Menu system (core/panel.lua).
-
-    NOTE: Do NOT hook UIDropDownMenu_Initialize or write to dropdown frames
-    from addon code — even rawset taints the frame in WoW's taint system,
-    which propagates through SecureTemplates to FocusUnit/TargetUnit.
-]]
+-- Log blocked actions and optionally suppress the recursive gamepad error popup.
+-- The popup guard requires the ns.Pad activation callback; logging works independently.
+-- Do not initialize legacy dropdowns or mutate Blizzard menu state from addon code.
 
 local addonName, ns = ...
 
----------------------------------------------
 -- BLOCKED ACTIONS: log, and keep the gamepad popup loop from starting
----------------------------------------------
--- On WoW Forever the client fires ADDON_ACTION_FORBIDDEN inside the tainted
--- call that was refused, so Blizzard's handler shows the "has been blocked"
--- popup from tainted code and every field it writes on the popup is tainted
--- (taint.log 2026-10-16 19:42: "reading field gamepadShown"). In the gamepad
--- UI, dismissing that popup (or anything that hides it) runs
--- FrameControlsManager -> InputBindingManager:RemoveSet ->
--- GamepadMainActionBarFrame:UpdateInteractIcons ->
--- SetPreferredGamepadInteractTarget tainted, which is refused again, which
--- shows the popup again: 2048 refusals in one second, then the client's 20 s
--- freeze (ERROR #109). Seen when looting, 2026-10-16 22:29.
---
--- An earlier "circuit breaker" here called StaticPopup_Hide from this file
--- after three popups. That hide is itself add-on code hiding a gamepad
--- window, so it fed the loop instead of breaking it; it is gone.
---
--- What is left:
---   * every ADDON_ACTION_FORBIDDEN / ADDON_ACTION_BLOCKED is recorded (chat
---     line, /roth taint, Roth_UI_DB_GLOB.blockedLog) so nothing is hidden;
---   * while the gamepad UI is on (cfg.pad.forbiddenGuard, default on) the
---     game's own popup frame is unsubscribed from ADDON_ACTION_FORBIDDEN, so
---     no tainted popup can start the loop. It is subscribed again when the
---     gamepad UI goes off, or when the guard is turned off.
--- The refused call itself stays refused either way; the guard only removes
--- the popup that turns one refusal into a frozen client.
+-- A forbidden-action popup can recursively trigger protected gamepad binding failures.
+-- Record refusals; when ns.Pad requests the guard, detach other listeners temporarily.
+-- Restore listeners when the guard turns off. The original action remains refused.
 
 local Blocked = { count = 0, recent = {} }
 ns.TaintFix = Blocked
@@ -70,9 +34,7 @@ local function Record(event, addon, func)
 			log[i] = nil
 		end
 	end
-	-- One chat line per burst: a tainted refresh refuses a dozen calls at
-	-- once (the crossbar's sub-bars, 2026-10-16 22:57); the rest are counted
-	-- into one follow-up line and all are kept for /roth taint.
+	-- Summarize each burst in chat; retain individual entries for diagnostics.
 	if burstOpen then
 		burstMore = burstMore + 1
 		return

@@ -1,21 +1,6 @@
----------------------------------------------
---  Roth_UI - swing timer
----------------------------------------------
--- A Diablo bar for melee swings and Auto Shot, built from Roth's spare
--- segmented-bar art: combo_bar_left / right buckles, a combo_back2 slab and
--- the skull-studded combo_fill, which flashes combo_glow on every hit.
---
--- WoW Forever announces each swing itself: PLAYER_SWING (swingDuration,
--- swingType), the event its own Blizzard_SwingTimer resets its bars on
--- (SwingTimerDocumentation.lua). The duration is a plain number there
--- (Blizzard's bar does arithmetic on it); a secret one is skipped rather
--- than tested. The bar fills toward the next swing and fades out a moment
--- after the last one. Main hand and Auto Shot / wand / throw; the off hand
--- is left out (one bar, and the main hand sets the rhythm).
---
--- An energy or mana tick bar was the other use considered for this art:
--- UnitPower goes secret in combat on Forever, so ticks cannot be told apart
--- from Lua there, and it was dropped.
+-- Main-hand and ranged swing timer using Roth's segmented-bar artwork.
+-- PLAYER_SWING supplies duration/type (Blizzard SwingTimerDocumentation.lua).
+-- Skip secret durations; fill toward the next swing, flash, then fade after inactivity.
 
 local _, ns = ...
 
@@ -48,9 +33,7 @@ local COLOR = {
 	[RANGED] = { 0.55, 0.9, 0.3 },
 }
 
----------------------------------------------
 -- THE BAR
----------------------------------------------
 
 local holder = CreateFrame("Frame", "Roth_UISwingTimer", UIParent)
 holder:SetSize(WIDTH, HEIGHT)
@@ -109,9 +92,7 @@ timeText:SetPoint("RIGHT", holder, "RIGHT", -6, 0)
 timeText:SetTextColor(1, 0.9, 0.7)
 Swing.timeText = timeText
 
----------------------------------------------
 -- TIMING
----------------------------------------------
 
 local state = { start = nil, duration = nil }
 Swing.state = state
@@ -205,13 +186,15 @@ end
 -- Above the player's cast bar (it moves with the pad layout); the mover can
 -- move it from there.
 function Swing.Place()
-	if holder:IsUserPlaced() then
+	local profile = ns.LayoutProfile and ns.LayoutProfile()
+	if profile and profile.framePositions and profile.framePositions.Roth_UISwingTimer then
 		return
 	end
 	holder:ClearAllPoints()
 	local castbar = rawget(_G, "Roth_UIPlayerFrameCastBarDragFrame")
 	if castbar then
-		holder:SetPoint("BOTTOM", castbar, "TOP", 0, Opt("gap", 24))
+		local gap = ns.activeLayoutMode == "gamepad" and cfg.gamepadLayout.swingGap or Opt("gap", 24)
+		holder:SetPoint("BOTTOM", castbar, "TOP", 0, gap)
 	else
 		holder:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 260)
 	end

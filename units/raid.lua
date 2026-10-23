@@ -1,12 +1,5 @@
----------------------------------------------
---  Roth_UI - raid
----------------------------------------------
--- zork's oUF_Diablo raid layout (wow6.0), rebuilt on units/group.lua:
--- one header per raid group, five members per column, groups left to
--- right; square tiles by default (cfg.units.raid.layout), or the
--- targettarget bar art for every member. The grid matches
--- Blizzard's "keep groups together" layout, so the game's raid D-pad moves
--- the way the frames look (DESIGN.md §5.3).
+-- Raid frames based on zork's oUF_Diablo wow6.0 layout and units/group.lua.
+-- One five-member column per raid group; cfg.units.raid.layout selects tiles or bars.
 
 local _, ns = ...
 

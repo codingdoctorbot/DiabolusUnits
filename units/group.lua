@@ -1,11 +1,5 @@
----------------------------------------------
---  Roth_UI - group frames (shared)
----------------------------------------------
--- Building blocks for the party and raid layouts (DESIGN.md §5): zork's
--- targettarget bar art with spiked iron endcaps, made secret-safe for WoW
--- Forever. Health, auras, range and threat may be secret in combat, so
--- nothing here compares or does arithmetic on them: values go to C setters
--- and curves, and the server-side aura filters pick what is shown.
+-- Shared party/raid frames using zork's targettarget and raid artwork.
+-- Health/range/threat values use C setters and curves; client filters handle secret auras.
 
 local _, ns = ...
 
@@ -77,9 +71,7 @@ local function TileTexture(parent, frame, layer, sublevel, file)
 	return t
 end
 
----------------------------------------------
 -- ART
----------------------------------------------
 
 local function CreateArt(self)
 	if self.groupLayout.tile then
@@ -123,9 +115,7 @@ local function CreateGlow(self, sublevel, r, g, b)
 	return t
 end
 
----------------------------------------------
 -- HEALTH / POWER
----------------------------------------------
 
 local function UpdateHealth(bar, unit, min, max)
 	func.updateHealth(bar, unit, min, max)
@@ -316,9 +306,7 @@ local function CreateTexts(self, layout)
 	self.HealthValue = hpval
 end
 
----------------------------------------------
 -- AURAS
----------------------------------------------
 
 -- Spell IDs the rows never show; the client checks them (candidate filters),
 -- so the blacklist holds in combat too.
@@ -390,9 +378,7 @@ local function CreateAuras(self)
 	end
 end
 
----------------------------------------------
 -- STATE: dispel glow, target glow, dead skull, threat
----------------------------------------------
 
 local function UpdateDispel(self, unit)
 	local glow = self.DispelGlow
@@ -445,8 +431,7 @@ local function UpdateThreat(self, unit)
 	end
 end
 
--- Other modules (pad/grouptarget.lua) add fn(frame) here; they run after
--- every full update, which is also when a header gives the frame a new unit.
+-- Optional refresh callbacks run after full updates and header unit reassignment.
 Group.refreshHooks = {}
 
 local function RefreshState(self)
@@ -495,7 +480,7 @@ local function CreateState(self)
 	self.DispelGlow = CreateGlow(self, -6, 0.6, 0, 1)
 	self.TargetGlow = CreateGlow(self, -7, 1, 0.82, 0.3)
 
-	-- The pad layer's raid selection: red, pulsing (pad/grouptarget.lua shows it).
+	-- Optional controller-selection highlight; starts hidden.
 	local sel = CreateGlow(self, -5, 1, 0.1, 0.05)
 	sel:SetBlendMode("ADD")
 	local pulse = sel:CreateAnimationGroup()
@@ -531,9 +516,7 @@ local function CreateState(self)
 	self.PostUpdate = RefreshState
 end
 
----------------------------------------------
 -- ICONS
----------------------------------------------
 
 -- oUF's role / leader indicators set Blizzard atlases: keep Roth's art.
 local function UpdateRole(self)
@@ -576,9 +559,7 @@ local function CreateIcons(self)
 	ns.BuffCoverage.Attach(self, self.Health)
 end
 
----------------------------------------------
 -- STYLE
----------------------------------------------
 
 -- Builds one member frame. kind is "party" or "raid".
 function Group.Style(self, kind)

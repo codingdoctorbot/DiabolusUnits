@@ -25,6 +25,8 @@ local GameTooltipStatusBar = GameTooltipStatusBar
 local Secrets = ns.Secrets
 local Compat = ns.Compat
 local mediapath = "Interface\\AddOns\\DiabolusUnits\\media\\"
+local Tooltips = {}
+ns.Tooltips = Tooltips
 
 ---------------------------------------------
 --  FUNCTIONS
@@ -55,6 +57,19 @@ statusBarBg:SetVertexColor(0, 0, 0, 0.7)
 -- drawn under the tooltip's text, and the NineSlice is only faded out (a C
 -- call): nothing is written into Blizzard's tooltip tables.
 local skins = {}
+local function FitTooltip(tooltip, width, height)
+ local minHeight = cfg.rtooltip.height or 0
+ if type(height) == "nil" then height = tooltip:GetHeight() end
+ local plainHeight = Secrets.Number(height)
+ if type(width) == "nil" then width = tooltip:GetWidth() end
+ local plainWidth = Secrets.Number(width)
+ if (cfg.rtooltip.width or 0) > 0 and plainWidth and plainWidth < cfg.rtooltip.width then
+  tooltip:SetWidth(cfg.rtooltip.width)
+ end
+ if minHeight > 0 and plainHeight and plainHeight < minHeight then
+  tooltip:SetHeight(minHeight)
+ end
+end
 local function Skin(tooltip)
 	local skin = skins[tooltip]
 	if not skin then
@@ -98,6 +113,7 @@ local function Skin(tooltip)
 		iconFrame:Hide()
 		skin.icon, skin.iconBorder, skin.iconFrame = icon, iconBorder, iconFrame
 		skins[tooltip] = skin
+  tooltip:HookScript("OnSizeChanged", FitTooltip)
 	end
 	-- under the tooltip's own text, whatever level the tooltip is raised to
 	skin:SetFrameLevel(math.max(0, tooltip:GetFrameLevel() - 1))
@@ -109,7 +125,7 @@ end
 
 local function SetBorderColor(tooltip, r, g, b)
 	local skin = Skin(tooltip)
-	skin:SetBackdropColor(1, 1, 1, 1)
+	skin:SetBackdropColor(1, 1, 1, cfg.rtooltip.opacity or 1)
 	skin:SetBackdropBorderColor(r, g, b, 1)
 end
 
@@ -128,7 +144,7 @@ local function ItemDress(tooltip, texture, r, g, b)
 	skin.footer:Show()
 	skin.icon:SetTexture(texture)
 	skin.iconBorder:SetVertexColor(r, g, b)
-	skin.iconFrame:Show()
+	skin.iconFrame:SetShown(cfg.rtooltip.itemIcon ~= false)
 end
 
 --HookScript GameTooltip OnTooltipCleared
@@ -155,19 +171,43 @@ local TOOLTIP_POINTS = {
 	center = { "BOTTOM", UIParent, "BOTTOM", 0, 310 },
 }
 
+function Tooltips.Anchor(tooltip)
+ local opts = cfg.rtooltip
+ local pad = ns.StandardMode and ns.StandardMode:IsGamepad()
+ local db = ns.LayoutProfile and ns.LayoutProfile()
+ local saved = db and db.framePositions and db.framePositions.Roth_UITooltipAnchor
+ if saved then
+  tooltip:ClearAllPoints()
+  tooltip:SetPoint(saved.point, UIParent, saved.relativePoint or saved.point, saved.x or 0, saved.y or 0)
+  return
+ end
+ local anchor = pad and opts.gamepadAnchor or opts.anchor
+ local point
+ if pad and (not anchor or anchor == "top") then
+  point = { "TOP", UIParent, "TOP", 0, -100 }
+ else
+  point = TOOLTIP_POINTS[anchor] or opts.pos
+ end
+ local x = pad and (opts.gamepadOffsetX or 0) or (opts.offsetX or 0)
+ local y = pad and (opts.gamepadOffsetY or 0) or (opts.offsetY or 0)
+ tooltip:ClearAllPoints()
+ tooltip:SetPoint(point[1], point[2], point[3], point[4] + x, point[5] + y)
+end
+
 hooksecurefunc("GameTooltip_SetDefaultAnchor", function(tooltip, parent)
-	local pad = ns.Pad and ns.Pad:IsActive()
-	local anchor = cfg.rtooltip.anchor
-	if (anchor == "cursor" or cfg.rtooltip.cursorfocus) and not pad then
-		tooltip:SetOwner(parent, "ANCHOR_CURSOR")
-	else
-		tooltip:ClearAllPoints()
-		tooltip:SetPoint(unpack(TOOLTIP_POINTS[anchor] or cfg.rtooltip.pos))
-	end
+ local pad = ns.StandardMode and ns.StandardMode:IsGamepad()
+ local db = ns.LayoutProfile and ns.LayoutProfile()
+ local moved = db and db.framePositions and db.framePositions.Roth_UITooltipAnchor
+ if not moved and not pad and (cfg.rtooltip.anchor == "cursor" or cfg.rtooltip.cursorfocus) then
+  tooltip:SetOwner(parent, "ANCHOR_CURSOR")
+ else
+  Tooltips.Anchor(tooltip)
+ end
 end)
 
 --func AddSpellIdRow
 local function AddSpellIdRow(tooltip, spellid)
+ if cfg.rtooltip.showSpellID == false then return end
 	local sid = Secrets and Secrets.Number(spellid) or (type(spellid) == "number" and spellid or nil)
 	if sid then
 		tooltip:AddDoubleLine("|cff0099ffSpell ID|r", sid)
@@ -362,13 +402,15 @@ OnTooltipData("Unit", "OnTooltipSetUnit", function(self, ...)
 		GameTooltipTextLeft1:SetTextColor(0.5, 0.5, 0.5)
 	end
 
-	if Secrets and Secrets.UnitExists(unit .. "target") or UnitExists(unit .. "target") then
+	if cfg.rtooltip.showTarget ~= false and (Secrets and Secrets.UnitExists(unit .. "target") or UnitExists(unit .. "target")) then
 		GameTooltip:AddDoubleLine("|cffff9999Target|r", GetTarget(unit .. "target") or "Unknown")
 	end
 end)
 
 --func TooltipOnShow
 local function TooltipOnShow(self, ...)
+ if (cfg.rtooltip.width or 0) > 0 then self:SetMinimumWidth(cfg.rtooltip.width) end
+ FitTooltip(self)
 	SetBorderColor(self, 1, 1, 1)
 	ItemDress(self, nil)
 	if not self.GetItem then
@@ -386,7 +428,7 @@ local function TooltipOnShow(self, ...)
 				r, g, b = qualityColor(itemRarity)
 			end
 			r, g, b = r or 1, g or 1, b or 1
-			SetBorderColor(self, r, g, b)
+			if cfg.rtooltip.qualityBorder ~= false then SetBorderColor(self, r, g, b) end
 		end
 		if cfg.rtooltip.itemDress ~= false then
 			local getInstant = (C_Item and C_Item.GetItemInfoInstant) or GetItemInfoInstant
@@ -420,3 +462,52 @@ local menues = {
 for idx, menu in ipairs(menues) do
 	menu:SetScale(cfg.rtooltip.scale)
 end
+
+local preview
+function Tooltips.SetEditing(on)
+ if not preview and not on then return end
+ if not preview then
+  preview = CreateFrame("Frame", "Roth_UITooltipAnchor", UIParent, "BackdropTemplate")
+  preview:SetFrameStrata("HIGH")
+  preview:SetBackdrop({ bgFile = mediapath .. "Tooltip_Background", edgeFile = mediapath .. "Tooltip_Border", edgeSize = 10 })
+  preview:SetBackdropColor(1, 1, 1, 1)
+  local text = preview:CreateFontString(nil, "OVERLAY")
+  text:SetFont(cfg.font, 12, "THINOUTLINE")
+  text:SetPoint("TOPLEFT", 12, -12)
+  text:SetPoint("BOTTOMRIGHT", -12, 12)
+  text:SetText("|cffffcc66Tooltip preview|r\n\nDrag to move. Click to edit width, height and scale.\nLonger tooltips expand to fit their contents.")
+  Tooltips.Anchor(preview)
+  ns.func.applyDragFunctionality(preview)
+ end
+ preview:SetShown(on)
+ if on then Tooltips.Refresh() end
+end
+
+function Tooltips.Refresh()
+ for tooltip, skin in pairs(skins) do
+  tooltip:SetScale(cfg.rtooltip.scale)
+  tooltip:SetMinimumWidth(cfg.rtooltip.width or 0)
+  FitTooltip(tooltip)
+  skin:SetBackdropColor(1, 1, 1, cfg.rtooltip.opacity or 1)
+  if cfg.rtooltip.itemDress == false then
+   ItemDress(tooltip, nil)
+  elseif cfg.rtooltip.itemIcon == false then
+   skin.iconFrame:Hide()
+  end
+ end
+ GameTooltipStatusBar:SetAlpha(cfg.rtooltip.showHealth ~= false and 1 or 0)
+ if preview then
+  preview:SetScale(cfg.rtooltip.scale)
+  preview:SetSize(cfg.rtooltip.width > 0 and cfg.rtooltip.width or 260, cfg.rtooltip.height > 0 and cfg.rtooltip.height or 120)
+  Tooltips.Anchor(preview)
+ end
+end
+
+-- Settings overrides restore at ADDON_LOADED, after this embed loads.
+local loader = CreateFrame("Frame")
+loader:RegisterEvent("ADDON_LOADED")
+loader:SetScript("OnEvent", function(self, _, name)
+ if name ~= addon then return end
+ self:UnregisterEvent("ADDON_LOADED")
+ C_Timer.After(0, Tooltips.Refresh)
+end)

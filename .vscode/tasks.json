@@ -1,0 +1,49 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "WoW: Check syntax and manifests",
+      "type": "process",
+      "command": "/usr/bin/python3",
+      "args": [
+        "/Users/erik2/Developer/WoW/.devtools/wowdev.py",
+        "check",
+        "${workspaceFolder}"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "WoW: Lint",
+      "type": "process",
+      "command": "/usr/bin/python3",
+      "args": [
+        "/Users/erik2/Developer/WoW/.devtools/wowdev.py",
+        "check",
+        "${workspaceFolder}",
+        "--lint"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "WoW: Offline tests",
+      "type": "process",
+      "command": "/usr/bin/python3",
+      "args": [
+        "/Users/erik2/Developer/WoW/.devtools/wowdev.py",
+        "check",
+        "${workspaceFolder}",
+        "--tests"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+# Local development notes; excluded from addon release packages as well.
+/docs/
+
+# Finder metadata.
+.DS_Store

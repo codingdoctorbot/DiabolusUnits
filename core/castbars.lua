@@ -1,19 +1,7 @@
----------------------------------------------
---  Roth_UI - cast bar extras
----------------------------------------------
--- Channel ticks (player): a thin gold line wherever a channel ticks, so a
--- Drain Life or Arcane Missiles can be clipped after the last tick worth
--- having. Counts are MSUF's table for WoW Forever / Classic Era spell data
--- (MSUF_CastbarChannelTicks.lua: SpellDuration / EffectAuraPeriod per rank,
--- build 1.60.1). Fixed counts keep their ticks under haste, so the lines sit
--- at even fractions of the bar and no (possibly secret) time is read.
---
--- Interrupt ready (target, focus): while an enemy casts something you can
--- interrupt and your interrupt is off cooldown, the cast bar burns
--- orange. Interrupts are MSUF's Vanilla table, which Forever uses (Paladins
--- and Hunters have none there). Neither "cannot be interrupted" nor "ready"
--- is tested in Lua: a holder frame takes its alpha from the first, the glow
--- inside it from the second (SetAlphaFromBoolean takes secret booleans).
+-- Cast-bar extras: fixed channel tick marks and an interrupt-ready glow.
+-- Channel counts and Vanilla interrupt IDs reference MSUF_CastbarChannelTicks.lua
+-- and MSUF_InterruptReady.lua for Forever/Classic.
+-- Tick positions use fractions; secret interrupt/readiness flags go to C alpha setters.
 
 local _, ns = ...
 
@@ -25,9 +13,50 @@ ns.CastBars = CastBars
 
 local MEDIA = "Interface\\AddOns\\DiabolusUnits\\media\\"
 
----------------------------------------------
+function CastBars.ApplyAppearance(bar)
+ local opts = bar.cfg or {}
+ bar:SetSize(opts.width or 265, opts.height or 15)
+ bar.timeToHold = opts.timeToHold or 0
+ local size = opts.TextSize or 11
+ for _, text in ipairs({ bar.Text, bar.Time, bar.Delay }) do
+  text:SetFont(cfg.font, size, "THINOUTLINE")
+ end
+ bar.Text:SetShown(opts.showName ~= false)
+ bar.Time:SetShown(opts.showTime ~= false)
+ if bar.Delay then
+  bar.Delay:ClearAllPoints()
+  if opts.showTime ~= false then
+   bar.Delay:SetPoint("RIGHT", bar.Time, "LEFT", -6, 0)
+  else
+   bar.Delay:SetPoint("RIGHT", bar, "RIGHT", -2, 0)
+  end
+  bar.Delay:SetShown(opts.showDelay ~= false)
+ end
+ bar.Text:ClearAllPoints()
+ bar.Text:SetPoint("LEFT", bar, "LEFT", 5, 0)
+ local reserve = (opts.showTime ~= false and 50 or 5)
+ if bar.Delay and opts.showDelay ~= false then reserve = reserve + 55 end
+ bar.Text:SetPoint("RIGHT", bar, "RIGHT", -reserve, 0)
+ if bar.SafeZone then bar.SafeZone:SetAlpha(opts.latency ~= false and 1 or 0) end
+ if bar.RothKick and opts.interruptReady == false then bar.RothKick.holder:Hide() end
+ if bar.RothTicks then
+  local unit = bar.__owner and (bar.__owner.__unit or bar.__owner.unit)
+  local name, _, _, _, _, _, _, spellID
+  if unit then name, _, _, _, _, _, _, spellID = UnitChannelInfo(unit) end
+  CastBars.ShowTicks(bar, type(name) ~= "nil" and spellID or nil)
+ end
+end
+
+function CastBars.RefreshAppearance()
+ for _, key in ipairs({ "player", "target", "focus", "pet" }) do
+  local unit = ns.unit and ns.unit[key]
+  if unit and unit.Castbar then
+   CastBars.ApplyAppearance(unit.Castbar)
+  end
+ end
+end
+
 -- CHANNEL TICKS
----------------------------------------------
 
 local TICKS = {}
 do
@@ -94,6 +123,7 @@ end
 -- spellID: as oUF passes it (a secret one shows no ticks).
 function CastBars.ShowTicks(bar, spellID)
 	HideTicks(bar)
+ if bar.cfg and bar.cfg.channelTicks == false then return end
 	spellID = Secrets.Number(spellID)
 	local count = spellID and TICKS[spellID]
 	if not count then
@@ -123,9 +153,14 @@ function CastBars.AddChannelTicks(bar)
 		return
 	end
 	bar.RothTicks = {}
+ Chain(bar, "PostCastStart", function(self)
+  if self.Delay then self.Delay:SetText("") end
+ end)
 	-- oUF 14 starts casts and channels alike through PostCastStart
 	Chain(bar, "PostCastStart", function(self, unit, spellID)
-		if type(UnitChannelInfo(unit)) ~= "nil" then
+		-- A non-channel cast can return zero values; assignment normalizes that to nil.
+		local channelName = UnitChannelInfo(unit)
+		if type(channelName) ~= "nil" then
 			CastBars.ShowTicks(self, spellID)
 		else
 			HideTicks(self)
@@ -136,9 +171,7 @@ function CastBars.AddChannelTicks(bar)
 	end
 end
 
----------------------------------------------
 -- INTERRUPT READY
----------------------------------------------
 
 -- { spellID, spell book bank } per class; Spell Lock is the Felhunter's.
 local INTERRUPTS = {
@@ -220,6 +253,10 @@ end
 
 local function Refresh(bar)
 	local k = bar.RothKick
+ if bar.cfg and bar.cfg.interruptReady == false then
+  k.holder:Hide()
+  return
+ end
 	local unit = OwnerUnit(bar)
 	local hostile = unit and Secrets.Bool(UnitCanAttack, "player", unit)
 	-- not "hostile and Ready() or nil": that turns false (on cooldown) into

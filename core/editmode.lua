@@ -1,30 +1,7 @@
------------------------------------------
--- DiabolusUnits - Edit Layout (Mouse)
------------------------------------------
--- Integrated Edit Mode for all DiabolusUnits frames:
---   * Each unit frame, orb, statue, bar, and swing timer shows a green
---     outline box and drags directly with LeftButton.
---   * Clicking ANY element opens its dedicated settings popup dialog
---     (Roth_UISettingsDialog) right beside it.
---   * Dialog features:
---       - Element name header with [X] close button (movable by title).
---       - Visible / Enabled checkbox to turn elements on / off live.
---       - Size (scale) slider with [-] [+] nudge buttons (50% to 200%).
---       - Horizontal (X) & Vertical (Y) offset sliders with [-] [+] buttons.
---       - Context-specific Spacing / Size slider:
---           * Orbs: orb spacing / gap (moves orbs apart / together).
---           * Angel / Demon: horizontal spacing and offset from orbs.
---           * Bottom Bar: vertical Y spacing / position.
---           * XP / Rep Bar: vertical Y spacing / position.
---           * Stone Bar: width / scale.
---           * Target / ToT / Focus: Aura Icon Size (12px to 40px).
---       - [ Reset to Default ] button to revert scale, spacing & position.
---   * Top toolbar (DoneBar) provides frame cycling (< / >), element dropdown,
---     global UI Size slider, [ Reset UI ], and [ Done ].
---   * Mouse Wheel over any frame changes its size live (+/- 5%).
---   * Shift + Mouse Wheel over any frame adjusts spacing / aura size live.
---   * All scales, spacings, positions, and disabled states persist in Roth_UI_DB.
---   * Combat ends editing immediately (unit frames are protected).
+-- Edit layout: drag, scale, position, visibility, and per-element options.
+-- Mouse wheel scales; Shift + wheel changes spacing. The toolbar shifts the layout.
+-- Saves through ns.LayoutProfile() for the active keyboard/gamepad layout.
+-- Follows Blizzard Edit Mode callbacks and closes when combat starts.
 
 local _, ns = ...
 
@@ -59,6 +36,7 @@ local EDITABLE_FRAMES = {
 	{ id = "Roth_UIPlayerFrameCastBarDragFrame", name = "Player Cast Bar", type = "castbar" },
 	{ id = "Roth_UITargetFrameCastBarDragFrame", name = "Target Cast Bar", type = "castbar" },
 	{ id = "Roth_UIFocusFrameCastBarDragFrame", name = "Focus Cast Bar", type = "castbar" },
+ { id = "Roth_UITooltipAnchor", name = "Tooltip", type = "tooltip" },
 	{ id = "Roth_UISwingTimer", name = "Swing Timer", type = "swing" },
 	{ id = "Roth_UIPlayerPortrait", name = "Player Portrait", type = "art" },
 	{ id = "Roth_UITargetPortrait", name = "Target Portrait", type = "art" },
@@ -83,7 +61,7 @@ local function Say(msg)
 end
 
 -- Database helpers
-function ns.LayoutProfile()
+function ns.BaseLayoutProfile()
 	local adb = ns.configDB
 	if adb and adb.profile then
 		return adb.profile
@@ -96,8 +74,27 @@ function ns.LayoutProfile()
 	return nil
 end
 
+-- Keep the existing profile as the keyboard layout; gamepad has its own bucket.
+function ns.LayoutProfile()
+ local base = ns.BaseLayoutProfile()
+ if not base then return end
+ local mode = ns.activeLayoutMode
+ if not mode then
+  mode = ns.StandardMode and ns.StandardMode:IsGamepad() and "gamepad" or "keyboard"
+ end
+ if mode == "gamepad" then
+  base.gamepadLayout = base.gamepadLayout or {
+   layoutScaleDefaults = true, layoutScaleDefaults2 = true, layoutScaleDefaults3 = true,
+   layoutDocksUnclamped = true, layoutTargetAnchorInit = true,
+  }
+  base.gamepadLayout.autoScale = base.autoScale
+  return base.gamepadLayout
+ end
+ return base
+end
+
 local function GetDB()
-	return ns.LayoutProfile()
+ return ns.LayoutProfile()
 end
 
 -- Apply party / raid header scales directly
@@ -134,12 +131,37 @@ function EditMode:GetGlobalScale()
 	return 1.0
 end
 
-function EditMode:ApplyGlobalScale(scale)
+-- Keep a wing's anchor fixed on screen as its own coordinate scale changes.
+-- Blizzard's EditModeSystemMixin:SetScaleOverride uses the same offset ratio.
+function EditMode:ApplyFrameScale(frame, scale, savePosition)
+	local name = frame.GetName and frame:GetName()
+	if name ~= "Roth_UIMicroDock" and name ~= "Roth_UIBagDock" then
+		frame:SetScale(scale)
+		return
+	end
+	local oldScale = frame:GetScale()
+	if oldScale == scale then return end
+	local points = {}
+	for i = 1, frame:GetNumPoints() do points[i] = { frame:GetPoint(i) } end
+	frame:SetScale(scale)
+	frame:ClearAllPoints()
+	for _, point in ipairs(points) do
+		point[4] = (point[4] or 0) * oldScale / scale
+		point[5] = (point[5] or 0) * oldScale / scale
+		frame:SetPoint(unpack(point))
+	end
+	local db = GetDB()
+	if savePosition and db and db.framePositions and db.framePositions[name] then
+		self:SaveFramePosition(frame)
+	end
+end
+
+function EditMode:ApplyGlobalScale(scale, savePositions)
 	scale = scale or self:GetGlobalScale()
 	for _, entry in ipairs(EDITABLE_FRAMES) do
 		local f = rawget(_G, entry.id)
-		if f and f.SetScale and not InCombatLockdown() and not entry.headerScale then
-			f:SetScale(self:GetScale(f) * scale)
+		if f and f.SetScale and not InCombatLockdown() and not entry.headerScale and entry.type ~= "tooltip" then
+			self:ApplyFrameScale(f, self:GetScale(f) * scale, savePositions)
 		end
 	end
 	self:ApplyHeaderScales()
@@ -154,7 +176,7 @@ function EditMode:SetGlobalScale(scale)
 	if db then
 		db.globalScale = scale
 	end
-	self:ApplyGlobalScale(scale)
+	self:ApplyGlobalScale(scale, true)
 	if self.UpdateTopBar then
 		self:UpdateTopBar()
 	end
@@ -170,6 +192,7 @@ function EditMode:GetScale(frame)
 		return 1.0
 	end
 	local name = frame.GetName and frame:GetName()
+ if name == "Roth_UITooltipAnchor" then return ns.cfg.rtooltip.scale end
 	local db = GetDB()
 	if name and db and db.frameScales and db.frameScales[name] then
 		return db.frameScales[name]
@@ -205,6 +228,12 @@ function EditMode:SetScale(frame, scale)
 	end
 	scale = math.max(0.50, math.min(2.00, math.floor(scale * 100 + 0.5) / 100))
 	local name = frame.GetName and frame:GetName()
+ if name == "Roth_UITooltipAnchor" and ns.Tooltips then
+  ns.Settings.Set("rtooltip.scale", scale)
+  ns.Tooltips.Refresh()
+  if self.UpdateDialog then self:UpdateDialog() end
+  return
+ end
 	if name then
 		local db = GetDB()
 		if db then
@@ -228,7 +257,7 @@ function EditMode:SetScale(frame, scale)
 	end
 
 	local globalScale = self:GetGlobalScale()
-	frame:SetScale(scale * globalScale)
+	self:ApplyFrameScale(frame, scale * globalScale, true)
 
 	-- If scaling BossFrame1, scale BossFrame2..5 to match
 	if name == "Roth_UIBossFrame1" then
@@ -261,9 +290,16 @@ function EditMode:SaveFramePosition(frame)
 		return
 	end
 	db.framePositions = db.framePositions or {}
+	if ns.LayoutShift then
+		ns.LayoutShift:AfterMove(frame)
+	end
 	local pt, relTo, relPt, x, y = frame:GetPoint(1)
 	if pt then
 		local relName = (relTo and relTo.GetName and relTo:GetName()) or "UIParent"
+		-- the "Move all" anchor stands in for UIParent (core/layoutshift.lua)
+		if ns.LayoutShift and relTo == ns.LayoutShift.anchor then
+			relName = "UIParent"
+		end
 		db.framePositions[name] = {
 			point = pt,
 			relativeTo = relName,
@@ -312,6 +348,7 @@ function EditMode:IsElementEnabled(entry)
 	if not entry then
 		return true
 	end
+ if entry.type == "tooltip" then return true end
 	local db = GetDB()
 	if db and db.disabledElements and db.disabledElements[entry.id] ~= nil then
 		return not db.disabledElements[entry.id]
@@ -330,6 +367,7 @@ function EditMode:SetElementEnabled(entry, enabled)
 	if InCombatLockdown() or not entry then
 		return
 	end
+ if entry.type == "tooltip" then return end
 	local f = rawget(_G, entry.id)
 	if f then
 		f:SetShown(enabled)
@@ -391,6 +429,39 @@ function EditMode:SetElementEnabled(entry, enabled)
 	if EditMode.UpdateDialog then
 		EditMode:UpdateDialog()
 	end
+end
+
+function EditMode:GetDimensionInfo(entry)
+ if not entry then return end
+ local f = rawget(_G, entry.id)
+ local bar = f and f.RothCastbar
+ local path
+ if bar and bar.__owner then
+  local unit = bar.__owner.__unit or bar.__owner.unit
+  if unit then path = "units." .. unit .. ".castbar." end
+ elseif entry.type == "tooltip" then
+  path = "rtooltip."
+ end
+ if not path or not ns.Settings then return end
+ local tooltip = entry.type == "tooltip"
+ local info = {}
+ for _, key in ipairs({ "width", "height" }) do
+  local fullPath = path .. key
+  local width = key == "width"
+  info[#info + 1] = {
+   label = (tooltip and "Minimum " or "") .. (width and "Width" or "Height"),
+   value = ns.Settings.Get(fullPath),
+   min = tooltip and 0 or (width and 160 or 10),
+   max = tooltip and 500 or (width and 420 or 26),
+   step = tooltip and 10 or (width and 5 or 1),
+   apply = function(value)
+    if InCombatLockdown() then return end
+    ns.Settings.Set(fullPath, value)
+    if tooltip then ns.Tooltips.Refresh() else ns.CastBars.RefreshAppearance() end
+   end,
+  }
+ end
+ return info
 end
 
 -- Live Spacing (Context-specific)
@@ -886,7 +957,10 @@ function EditMode:ResetSelected()
 	end
 	local f = rawget(_G, entry.id)
 	if f then
-		self:SetScale(f, entry.headerScale and HEADER_DEFAULT[entry.headerScale] or 1.0)
+  for _, info in ipairs(self:GetDimensionInfo(entry) or {}) do
+   info.apply(entry.type == "tooltip" and 0 or (info.label == "Width" and 265 or 15))
+  end
+		self:SetScale(f, entry.type == "tooltip" and 1.15 or (entry.headerScale and HEADER_DEFAULT[entry.headerScale] or 1.0))
 		self:SetElementEnabled(entry, entry.type ~= "stonebar")
 
 		local db = GetDB()
@@ -918,6 +992,7 @@ function EditMode:ResetSelected()
 	if ns.StandardMode and ns.StandardMode.Apply then
 		ns.StandardMode:Apply()
 	end
+ if entry.type == "tooltip" and ns.Tooltips then ns.Tooltips.Refresh() end
 	Say(entry.name .. " reset to default.")
 	if self.UpdateDialog then
 		self:UpdateDialog()
@@ -928,6 +1003,11 @@ end
 function EditMode:ResetAllToDefault()
 	if InCombatLockdown() then
 		Say("frames cannot be reset in combat.")
+		return
+	end
+
+	if ns.GamepadLayout then
+		ns.GamepadLayout:ResetCurrent()
 		return
 	end
 
@@ -1054,9 +1134,7 @@ function EditMode:ResetAllToDefault()
 	end
 end
 
-------------------------------------------------------------------------
 -- THE PER-FRAME SETTINGS DIALOG (like normal Edit Mode)
-------------------------------------------------------------------------
 local function SetSliderLabel(slider, childKey, text)
 	if not slider then
 		return
@@ -1337,6 +1415,45 @@ local function CreateSettingsDialog()
 	end)
 	d.spacePlus = spacePlus
 
+ d.dimensionRows = {}
+ for i = 1, 2 do
+  local row = CreateFrame("Frame", nil, d)
+  row:SetSize(312, 42)
+  local text = row:CreateFontString(nil, "OVERLAY")
+  text:SetFont(ns.cfg.font, 11, "THINOUTLINE")
+  text:SetPoint("TOPLEFT")
+  text:SetTextColor(1, 0.82, 0)
+  local minus = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+  minus:SetSize(20, 20)
+  minus:SetPoint("TOPLEFT", 0, -16)
+  minus:SetText("-")
+  local slider = CreateFrame("Slider", "Roth_UIEditDimension" .. i, row, "OptionsSliderTemplate")
+  slider:SetSize(180, 16)
+  slider:SetPoint("LEFT", minus, "RIGHT", 6, 0)
+  SetSliderLabel(slider, "Text", "")
+  local plus = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+  plus:SetSize(20, 20)
+  plus:SetPoint("LEFT", slider, "RIGHT", 6, 0)
+  plus:SetText("+")
+  local function apply(value)
+   local info = EditMode:GetDimensionInfo(EDITABLE_FRAMES[selectedIdx])
+   info = info and info[i]
+   if info then
+    value = math.max(info.min, math.min(info.max, value))
+    info.apply(value)
+    EditMode:UpdateDialog()
+   end
+  end
+  slider:SetScript("OnValueChanged", function(s, value)
+   if not s.settingValue then apply(value) end
+  end)
+  minus:SetScript("OnClick", function() apply(slider:GetValue() - row.step) end)
+  plus:SetScript("OnClick", function() apply(slider:GetValue() + row.step) end)
+  row.text, row.slider = text, slider
+  row:Hide()
+  d.dimensionRows[i] = row
+ end
+
 	-- Option rows (context-specific): "Label: value" with < > to step through choices
 	d.choiceRows = {}
 	for i = 1, 3 do
@@ -1404,6 +1521,7 @@ function EditMode:UpdateDialog()
 	-- Update enabled check
 	local isEnabled = self:IsElementEnabled(entry)
 	settingsDialog.enableCheck:SetChecked(isEnabled)
+ settingsDialog.enableCheck:SetEnabled(entry.type ~= "tooltip")
 
 	-- Update size slider
 	local scale = self:GetScale(f)
@@ -1452,7 +1570,26 @@ function EditMode:UpdateDialog()
 
 	-- Option rows below the sliders
 	local choices = self:GetChoiceInfo(entry) or {}
-	local top = spaceInfo and -230 or -188
+ local top = spaceInfo and -230 or -188
+ local dimensions = self:GetDimensionInfo(entry) or {}
+ for i, row in ipairs(settingsDialog.dimensionRows) do
+  local info = dimensions[i]
+  row:SetShown(info ~= nil)
+  if info then
+   row:ClearAllPoints()
+   row:SetPoint("TOPLEFT", settingsDialog, "TOPLEFT", 14, top)
+   row.text:SetText(string.format("%s: %d px%s", info.label, info.value, info.value == 0 and " (auto)" or ""))
+   row.step = info.step
+   row.slider.settingValue = true
+   row.slider:SetMinMaxValues(info.min, info.max)
+   row.slider:SetValueStep(info.step)
+   row.slider:SetValue(info.value)
+   SetSliderLabel(row.slider, "Low", tostring(info.min))
+   SetSliderLabel(row.slider, "High", tostring(info.max))
+   row.slider.settingValue = nil
+   top = top - 42
+  end
+ end
 	for i, row in ipairs(settingsDialog.choiceRows) do
 		local choice = choices[i]
 		if choice then
@@ -1471,7 +1608,7 @@ function EditMode:UpdateDialog()
 			row:Hide()
 		end
 	end
-	settingsDialog:SetHeight((spaceInfo and 280 or 235) + #choices * 28)
+	settingsDialog:SetHeight((spaceInfo and 280 or 235) + #dimensions * 42 + #choices * 28)
 end
 
 -- Open dialog for clicked frame
@@ -1520,9 +1657,7 @@ end
 
 local doneBar
 
-------------------------------------------------------------------------
 -- THE DROPDOWN LIST (shows all options)
-------------------------------------------------------------------------
 local dropdownFrame
 local function CreateDropdownFrame()
 	if dropdownFrame then
@@ -1615,9 +1750,7 @@ function EditMode:ToggleDropdown()
 	end
 end
 
-------------------------------------------------------------------------
 -- THE TOP TOOLBAR (DoneBar)
-------------------------------------------------------------------------
 local function DoneBar()
 	if doneBar then
 		return doneBar
@@ -1744,6 +1877,90 @@ local function DoneBar()
 	doneBar.scaleSlider = scaleSlider
 	doneBar.scaleVal = scaleVal
 
+	-- "Move all" strip: one sideways offset for the whole layout (core/layoutshift.lua)
+	local LayoutShift = ns.LayoutShift
+	local shiftBar = CreateFrame("Frame", nil, doneBar, "BackdropTemplate")
+	shiftBar:SetSize(440, 44)
+	shiftBar:SetPoint("TOP", doneBar, "BOTTOM", 0, 2)
+	shiftBar:EnableMouse(true)
+	shiftBar:SetBackdrop({
+		bgFile = "Interface\\AddOns\\DiabolusUnits\\media\\Tooltip_Background",
+		edgeFile = "Interface\\AddOns\\DiabolusUnits\\media\\Tooltip_Border",
+		edgeSize = 12,
+		insets = { left = 6, right = 6, top = 6, bottom = 6 },
+	})
+	shiftBar:SetBackdropColor(0.5, 0.45, 0.45, 0.95)
+	shiftBar:SetScript("OnEnter", function(s)
+		GameTooltip:SetOwner(s, "ANCHOR_BOTTOM")
+		GameTooltip:SetText("Move all")
+		GameTooltip:AddLine(
+			"Moves the orbs, statues, stone bar, XP bar, wings, belt, cast bars and unit frames sideways together. Each frame keeps its own position on top of this. Keyboard and gamepad layouts have their own setting.",
+			1, 1, 1, true
+		)
+		GameTooltip:Show()
+	end)
+	shiftBar:SetScript("OnLeave", function()
+		GameTooltip:Hide()
+	end)
+
+	local shiftLabel = shiftBar:CreateFontString(nil, "OVERLAY")
+	shiftLabel:SetFont(ns.cfg.font, 11, "THINOUTLINE")
+	shiftLabel:SetPoint("LEFT", 12, 2)
+	shiftLabel:SetTextColor(1, 0.82, 0)
+	shiftLabel:SetText("Move all:")
+
+	local shiftMinus = CreateFrame("Button", nil, shiftBar, "UIPanelButtonTemplate")
+	shiftMinus:SetSize(20, 20)
+	shiftMinus:SetPoint("LEFT", shiftLabel, "RIGHT", 6, 0)
+	shiftMinus:SetText("-")
+	shiftMinus:SetScript("OnClick", function()
+		LayoutShift:Nudge(IsShiftKeyDown() and -1 or -10)
+	end)
+
+	local shiftSlider = CreateFrame("Slider", "Roth_UILayoutShiftSlider", shiftBar, "OptionsSliderTemplate")
+	shiftSlider:SetPoint("LEFT", shiftMinus, "RIGHT", 4, 0)
+	shiftSlider:SetWidth(170)
+	shiftSlider:SetHeight(16)
+	shiftSlider:SetMinMaxValues(-LayoutShift.LIMIT, LayoutShift.LIMIT)
+	shiftSlider:SetValueStep(1)
+	shiftSlider:SetObeyStepOnDrag(true)
+	SetSliderLabel(shiftSlider, "Text", "")
+	SetSliderLabel(shiftSlider, "Low", "Left")
+	SetSliderLabel(shiftSlider, "High", "Right")
+	shiftSlider:SetScript("OnValueChanged", function(s, value)
+		if s.settingValue then
+			return
+		end
+		LayoutShift:Set(value)
+	end)
+
+	local shiftPlus = CreateFrame("Button", nil, shiftBar, "UIPanelButtonTemplate")
+	shiftPlus:SetSize(20, 20)
+	shiftPlus:SetPoint("LEFT", shiftSlider, "RIGHT", 4, 0)
+	shiftPlus:SetText("+")
+	shiftPlus:SetScript("OnClick", function()
+		LayoutShift:Nudge(IsShiftKeyDown() and 1 or 10)
+	end)
+
+	local shiftVal = shiftBar:CreateFontString(nil, "OVERLAY")
+	shiftVal:SetFont(ns.cfg.font, 11, "THINOUTLINE")
+	shiftVal:SetPoint("LEFT", shiftPlus, "RIGHT", 5, 0)
+	shiftVal:SetWidth(36)
+	shiftVal:SetJustifyH("LEFT")
+	shiftVal:SetTextColor(1, 1, 1)
+	shiftVal:SetText("0")
+
+	local shiftCentre = CreateFrame("Button", nil, shiftBar, "UIPanelButtonTemplate")
+	shiftCentre:SetSize(60, 22)
+	shiftCentre:SetPoint("LEFT", shiftVal, "RIGHT", 4, 0)
+	shiftCentre:SetText("Centre")
+	shiftCentre:SetScript("OnClick", function()
+		LayoutShift:Set(0)
+	end)
+
+	doneBar.shiftSlider = shiftSlider
+	doneBar.shiftVal = shiftVal
+
 	function EditMode:UpdateTopBar()
 		if not doneBar or not doneBar:IsShown() then
 			return
@@ -1760,6 +1977,15 @@ local function DoneBar()
 		end
 		if doneBar.scaleVal then
 			doneBar.scaleVal:SetText(string.format("%d%%", math.floor(gs * 100 + 0.5)))
+		end
+		local shift = ns.LayoutShift:Get()
+		if doneBar.shiftSlider then
+			doneBar.shiftSlider.settingValue = true
+			doneBar.shiftSlider:SetValue(shift)
+			doneBar.shiftSlider.settingValue = nil
+		end
+		if doneBar.shiftVal then
+			doneBar.shiftVal:SetText(shift > 0 and ("+" .. shift) or tostring(shift))
 		end
 	end
 
@@ -1789,6 +2015,7 @@ function EditMode:SetActive(on, quiet, fromBlizzard)
 		return
 	end
 	self.active = on
+ if ns.Tooltips then ns.Tooltips.SetEditing(on) end
 	for _, group in ipairs(GROUPS) do
 		if on and Roth_UIUnlock then
 			Roth_UIUnlock(group, true)
@@ -1851,7 +2078,8 @@ function EditMode:Toggle()
 end
 
 -- Restore saved scales, positions, and disabled states at login
-local function RestoreSavedLayout()
+local function RestoreSavedLayout(skipApply)
+	if ns.GamepadLayout then ns.GamepadLayout:CaptureDefaults() end
 	local db = GetDB()
 	if not db then
 		return
@@ -1993,10 +2221,12 @@ local function RestoreSavedLayout()
 	end
 
 	-- Re-apply Standard/Gamepad mode layout after restoring saved overrides
-	if ns.StandardMode and ns.StandardMode.Apply then
+	if not skipApply and ns.StandardMode and ns.StandardMode.Apply then
 		ns.StandardMode:Apply()
 	end
 end
+
+EditMode.RestoreSavedLayout = RestoreSavedLayout
 
 -- Blizzard's Edit Mode callback
 if EventRegistry and EventRegistry.RegisterCallback then

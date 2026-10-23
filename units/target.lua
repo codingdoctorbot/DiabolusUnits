@@ -1,22 +1,15 @@
---get the addon namespace
 local _, ns = ...
 
---get oUF namespace (just in case needed)
 local oUF = ns.oUF or oUF
 local Secrets = ns.Secrets
 
---get the config
 local cfg = ns.cfg
 
---get the functions
 local func = ns.func
 
---get the unit container
 local unit = ns.unit
 
----------------------------------------------
 -- UNIT SPECIFIC FUNCTIONS
----------------------------------------------
 
 --init parameters
 local initUnitParameters = function(self)
@@ -126,8 +119,8 @@ local createHealthFrame = function(self)
 	--health
 	local h = CreateFrame("StatusBar", nil, self)
 	h:SetPoint("TOP", 0, -21.9)
-	h:SetPoint("LEFT", 24.5, 0)
-	h:SetPoint("RIGHT", -24.5, 0)
+	h:SetPoint("LEFT", 16, 0)
+	h:SetPoint("RIGHT", -16, 0)
 	h:SetPoint("BOTTOM", 0, 29.7)
 	h:SetFrameStrata("BACKGROUND")
 
@@ -155,8 +148,8 @@ local createPowerFrame = function(self)
 	--power
 	local h = CreateFrame("StatusBar", nil, self.Health)
 	h:SetPoint("TOP", 0, -20)
-	h:SetPoint("LEFT", 11, 0)
-	h:SetPoint("RIGHT", -12, 0)
+	h:SetPoint("LEFT", 5, 0)
+	h:SetPoint("RIGHT", -8, 0)
 	h:SetPoint("BOTTOM", 0, -14)
 
 	h:SetStatusBarTexture(cfg.texture)
@@ -177,8 +170,8 @@ end
 
 local AURA_LAYOUTS = {
 	right = {
-		buffs = { a1 = "BOTTOMLEFT", a2 = "TOPRIGHT", x = 0, y = -15, init = "BOTTOMLEFT", gx = "RIGHT", gy = "UP" },
-		debuffs = { a1 = "TOPLEFT", a2 = "BOTTOMRIGHT", x = 0, y = 15, init = "TOPLEFT", gx = "RIGHT", gy = "DOWN" },
+		buffs = { a1 = "BOTTOMLEFT", a2 = "TOPRIGHT", x = 36, y = -15, init = "BOTTOMLEFT", gx = "RIGHT", gy = "UP" },
+		debuffs = { a1 = "TOPLEFT", a2 = "BOTTOMRIGHT", x = 36, y = -12, init = "TOPLEFT", gx = "RIGHT", gy = "DOWN" },
 	},
 	above = {
 		buffs = { a1 = "BOTTOMLEFT", a2 = "TOPLEFT", x = 0, y = 35, init = "BOTTOMLEFT", gx = "RIGHT", gy = "UP" },
@@ -189,8 +182,8 @@ local AURA_LAYOUTS = {
 		debuffs = { a1 = "TOPLEFT", a2 = "BOTTOMLEFT", x = 0, y = -15, init = "TOPLEFT", gx = "RIGHT", gy = "DOWN" },
 	},
 	left = {
-		buffs = { a1 = "BOTTOMRIGHT", a2 = "TOPLEFT", x = 0, y = -15, init = "BOTTOMRIGHT", gx = "LEFT", gy = "UP" },
-		debuffs = { a1 = "TOPRIGHT", a2 = "BOTTOMLEFT", x = 0, y = 15, init = "TOPRIGHT", gx = "LEFT", gy = "DOWN" },
+		buffs = { a1 = "BOTTOMRIGHT", a2 = "TOPLEFT", x = -36, y = -15, init = "BOTTOMRIGHT", gx = "LEFT", gy = "UP" },
+		debuffs = { a1 = "TOPRIGHT", a2 = "BOTTOMLEFT", x = -36, y = -12, init = "TOPRIGHT", gx = "LEFT", gy = "DOWN" },
 	},
 }
 
@@ -330,10 +323,11 @@ local createHealthPowerStrings = function(self)
 	name:SetPoint("BOTTOM", self, "TOP", 0, 0)
 	name:SetPoint("LEFT", self.Health, 0, 0)
 	name:SetPoint("RIGHT", self.Health, 0, 0)
+	name:SetWordWrap(false)
 	self.Name = name
 
 	local hpval = func.createFontString(self.Health, cfg.font, self.cfg.health.fontSize, "THINOUTLINE")
-	hpval:SetPoint(self.cfg.health.point, self.cfg.health.x, self.cfg.health.y)
+	hpval:SetPoint("TOPRIGHT", self, "BOTTOMRIGHT", 0, -5)
 	self.hpval = hpval
 
 	local perphp = func.createFontString(self.Health, cfg.font, self.cfg.healper.fontSize, "THINOUTLINE")
@@ -345,11 +339,13 @@ local createHealthPowerStrings = function(self)
 	self.perpp = perpp
 
 	local ppval = func.createFontString(self.Health, cfg.font, self.cfg.power.fontSize, "THINOUTLINE")
-	ppval:SetPoint(self.cfg.power.point, self.cfg.power.x, self.cfg.power.y)
+	ppval:SetPoint("TOPLEFT", self, "BOTTOMLEFT", 0, -5)
 	self.ppval = ppval
 
 	local classtext = func.createFontString(self, cfg.font, self.cfg.misc.classFontSize, "THINOUTLINE")
 	classtext:SetPoint("BOTTOM", self, "TOP", 0, -15)
+	classtext:SetWidth(self.cfg.width - 32)
+	classtext:SetWordWrap(false)
 	self.classtext = classtext
 
 	self:Tag(name, "[diablo:name]")
@@ -423,9 +419,7 @@ local createDebuffs = function(self)
 	})
 end
 
----------------------------------------------
 -- UNIT SPECIFIC TAG
----------------------------------------------
 
 oUF.Tags.Methods["diablo:classtext"] = function(unit)
 	local string, tmpstring, sp = "", "", " "
@@ -486,9 +480,7 @@ oUF.Tags.Methods["diablo:classtext"] = function(unit)
 end
 oUF.Tags.Events["diablo:classtext"] = "UNIT_LEVEL UNIT_CLASSIFICATION_CHANGED PLAYER_TARGET_CHANGED"
 
----------------------------------------------
 -- TARGET STYLE FUNC
----------------------------------------------
 
 local function createStyle(self)
 	--apply config to self
@@ -574,9 +566,7 @@ local function createStyle(self)
 	unit.target = self
 end
 
----------------------------------------------
 -- SPAWN TARGET UNIT
----------------------------------------------
 
 if cfg.units.target.show then
 	oUF:RegisterStyle("diablo:target", createStyle)

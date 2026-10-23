@@ -1,21 +1,14 @@
---get the addon namespace
 local addon, ns = ...
 
---get oUF namespace (just in case needed)
 local oUF = ns.oUF or oUF
 
---get the config
 local cfg = ns.cfg
 
---get the functions
 local func = ns.func
 
---get the unit container
 local unit = ns.unit
 
----------------------------------------------
 -- UNIT SPECIFIC FUNCTIONS
----------------------------------------------
 
 --init parameters
 local initUnitParameters = function(self)
@@ -115,9 +108,7 @@ local createHealthPowerStrings = function(self)
 	self:Tag(ppval, self.cfg.power.tag or "")
 end
 
----------------------------------------------
 -- BOSS STYLE FUNC
----------------------------------------------
 
 local bossid = 1
 unit.boss = {}
@@ -153,9 +144,7 @@ local function createStyle(self)
 	bossid = bossid + 1
 end
 
----------------------------------------------
 -- SPAWN BOSS UNIT
----------------------------------------------
 
 if cfg.units.boss.show then
 	oUF:RegisterStyle("diablo:boss", createStyle)

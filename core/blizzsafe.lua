@@ -1,23 +1,6 @@
----------------------------------------------
---  Roth_UI - calls on Blizzard frames that leave the game's code untainted
----------------------------------------------
--- WoW Forever's Edit Mode system frames (MinimapCluster, ChatFrame1,
--- PlayerFrame, TargetFrame, PlayerCastingBarFrame, the status tracking bars,
--- LootFrame, BuffFrame, ...) replace SetPoint, ClearAllPoints, SetScale, Hide
--- and SetShown with Lua overrides (Blizzard_EditMode EditModeSystemTemplates
--- .lua, SetupAnchorOverrides / SetupVisibilityFunctionOverrides). Those write
--- into EditModeManagerFrame (editModeSystemAnchorDirty, snapped frames) and,
--- for managed frames, re-lay the bottom/right managed containers. Called from
--- add-on code every one of those writes is tainted, and the next time the
--- game reads them all Edit Mode systems run tainted: the buff frame's timers
--- then fail on secret durations in combat, and the gamepad binding stack's
--- SetPreferredGamepadInteractTarget is blocked (the loot / popup freeze).
---
--- The original C methods stay on each system frame as plain fields
--- (SetPointBase, ClearAllPointsBase, SetScaleBase, HideBase). Calling those
--- moves or hides the frame without running any Blizzard Lua. Edit Mode is
--- then unaware of the move; it re-applies its own layout on Edit Mode exit or
--- a layout switch, and the callers here re-apply theirs on their own events.
+-- Blizzard frame helpers: bypass Edit Mode Lua overrides with *Base methods.
+-- Calling the overrides from addon code can taint shared layout state and input handling.
+-- Base calls do not update Edit Mode's layout; callers must reapply placement as needed.
 
 local _, ns = ...
 
@@ -62,15 +45,9 @@ local function NoMouse(frame)
 	end
 end
 
--- Hides a Blizzard frame from add-on code with the least Blizzard Lua run.
--- Managed frames are not hidden at all (their OnHide re-lays the managed
--- container in our context): they are made invisible and inert instead
--- (alpha 0, no mouse on them or their children). Their own methods are not
--- hooked (a hooked method on a Forever plate frame came back nil), so the
--- managed-frame system may restore their alpha when the override bar
--- switches (they stay faded again from the next login or /reload).
--- Everything else gets the C Hide; its OnHide script still runs, which for
--- plain Edit Mode systems only clears a selection.
+-- Managed frames stay shown but transparent and mouse-inert: OnHide would relayout
+-- shared containers in addon context. Others use the base Hide method.
+-- Blizzard may restore managed-frame alpha later; no per-frame method hooks are installed.
 function Blizz.Conceal(frame)
 	if not frame then
 		return

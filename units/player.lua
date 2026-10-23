@@ -1,30 +1,21 @@
---get the addon namespace
 local addon, ns = ...
 
---get oUF namespace (just in case needed)
 local oUF = ns.oUF or oUF
 local Secrets = ns.Secrets
 
---get the config
 local cfg = ns.cfg
---get the database
 local db = ns.db
 
---get the functions
 local func = ns.func
 
---get the unit container
 local unit = ns.unit
 
---get the bars container
 local bars = ns.bars
 
 local floor, abs, sin, pi = floor, math.abs, math.sin, math.pi
 local tinsert = tinsert
 
----------------------------------------------
 -- UNIT SPECIFIC FUNCTIONS
----------------------------------------------
 
 --init parameters
 local initUnitParameters = function(self)
@@ -463,7 +454,6 @@ local createOrb = function(self, type)
 		self:SetRotation(cfg.rotation)
 		self:SetPortraitZoom(cfg.portraitZoom)
 		self:ClearModel()
-		--self:SetModel("interface\\buttons\\talktomequestionmark.m2") --in case setdisplayinfo fails
 		self:SetDisplayInfo(cfg.displayInfo)
 		-- The model presets are display IDs from later expansions; WoW Forever's
 		-- game files may not have them. A second later, note whether anything
@@ -516,7 +506,6 @@ local createOrb = function(self, type)
 
 	--overlay frame
 	local overlay = CreateFrame("Frame", "$parentOverlay", scrollFrame)
-	--overlay:SetFrameLevel(model:GetFrameLevel()+1)
 	overlay:SetAllPoints(orb)
 	orb.overlay = orb
 
@@ -615,7 +604,6 @@ local createOrb = function(self, type)
 		self.Health.PostUpdate = updateValue
 		ns.OrbShield.Attach(orb)
 	end
-	--print(addon..": orb created "..orb.type)
 end
 
 local OnClick = function(butt)
@@ -709,9 +697,7 @@ local createAdditionalPower = function(self)
 	self.AdditionalPower = DM
 end
 
----------------------------------------------
 -- PLAYER STYLE FUNC
----------------------------------------------
 
 local createStyle = function(self)
 	--apply config to self
@@ -800,9 +786,7 @@ local createStyle = function(self)
 	unit.player = self
 end
 
----------------------------------------------
 -- SPAWN PLAYER UNIT
----------------------------------------------
 if cfg.units.player.show then
 	oUF:RegisterStyle("diablo:player", createStyle)
 	oUF:SetActiveStyle("diablo:player")

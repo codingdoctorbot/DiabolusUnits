@@ -1,19 +1,9 @@
--- DiabolusUnits — settings/Gamepad.lua
---
--- Controller navigation for the DiabolusUnits settings window (ported from PulseHaptics
--- UI/Panel/Gamepad.lua).
---
--- Architecture:
---   - Two focus contexts: "SIDEBAR" (category list) and "CONTENT" (settings rows).
---   - D-Pad UP/DOWN moves focus; D-Pad RIGHT or A enters content; D-Pad LEFT or B returns to sidebar.
---   - Bumpers (LB/RB) switch categories smoothly from anywhere.
---   - Triggers (LT/RT) scroll the content frame.
---   - Sliders claim D-Pad LEFT/RIGHT to step values by their own precision.
---   - Auto-scrolling: Ensures the focused row is always cleanly visible in the ScrollFrame.
---   - Taint-free execution: Uses EnableGamePadButton and window-owned override bindings out of combat.
---     Clears cleanly on OnHide and closes instantly on combat start (PLAYER_REGEN_DISABLED).
+-- Settings controller navigation, ported from PulseHaptics UI/Panel/Gamepad.lua.
+-- Focus moves through categories, subpage tabs, and rows; Left/B backs up one level.
+-- Bumpers change categories, triggers scroll, PAD3/PAD4 change subpages.
+-- The visible window receives button input; closing it releases capture state.
 
-local ADDON_NAME, ns = ...
+local _, ns = ...
 
 local Panel = ns.UI.Panel
 local Theme = Panel.Theme
@@ -22,46 +12,22 @@ local Gamepad = {}
 Panel.Gamepad = Gamepad
 
 local panel -- the settings window
-local captureButton -- invisible button owned by panel for override binding capture
+local nativeInputActive = false
 local focusBox -- visual focus reticle
-local mode = "SIDEBAR" -- "SIDEBAR" or "CONTENT"
+local mode = "SIDEBAR" -- "SIDEBAR", "TABS" or "CONTENT"
 local currentSidebarIndex = 1
 local currentContentIndex = 1
 local focusedRow = nil
 
-local GAMEPAD_KEYS = {
-	"PAD1",
-	"PAD2",
-	"PAD3",
-	"PAD4",
-	"PADLSHOULDER",
-	"PADRSHOULDER",
-	"PADLTRIGGER",
-	"PADRTRIGGER",
-	"PADDUP",
-	"PADDDOWN",
-	"PADDLEFT",
-	"PADDRIGHT",
-	"PADFORWARD",
-	"PADBACK",
-}
-
 function Gamepad.IsEnabled()
-	if type(InputUtil) == "table" and type(InputUtil.IsGamepadUIEnabled) == "function" then
-		if InputUtil.IsGamepadUIEnabled() then
-			return true
-		end
+	if ns.StandardMode then
+		return ns.StandardMode:IsGamepad()
 	end
-	if type(GetCVarBool) == "function" then
-		local ok, val = pcall(GetCVarBool, "GamePadEnable")
-		if ok and val then
-			return true
-		end
-	end
-	return true
+	local input = _G.InputUtil
+	return input and input.IsGamepadUIEnabled and input.IsGamepadUIEnabled() or false
 end
 
--- ── Visual Focus Reticle ─────────────────────────────────────────────────────
+-- Visual Focus Reticle
 
 local function getFocusBox(parent)
 	if focusBox then
@@ -72,48 +38,48 @@ local function getFocusBox(parent)
 	fb:SetFrameStrata("DIALOG")
 	fb:SetFrameLevel((parent:GetFrameLevel() or 10) + 15)
 
-	-- Hollow 2px Radiant Cyan Border (never washes out the card surface)
+	-- Thin controller-focus outline, distinct from the selected bronze tab.
 	local bTop = fb:CreateTexture(nil, "OVERLAY")
 	bTop:SetPoint("TOPLEFT", fb, "TOPLEFT", 0, 0)
 	bTop:SetPoint("TOPRIGHT", fb, "TOPRIGHT", 0, 0)
-	bTop:SetHeight(2)
-	bTop:SetColorTexture(Theme.COLOR_ACCENT.r, Theme.COLOR_ACCENT.g, Theme.COLOR_ACCENT.b, 1.0)
+	bTop:SetHeight(1)
+	bTop:SetColorTexture(Theme.COLOR_FOCUS.r, Theme.COLOR_FOCUS.g, Theme.COLOR_FOCUS.b, 1.0)
 	fb.bTop = bTop
 
 	local bBottom = fb:CreateTexture(nil, "OVERLAY")
 	bBottom:SetPoint("BOTTOMLEFT", fb, "BOTTOMLEFT", 0, 0)
 	bBottom:SetPoint("BOTTOMRIGHT", fb, "BOTTOMRIGHT", 0, 0)
-	bBottom:SetHeight(2)
-	bBottom:SetColorTexture(Theme.COLOR_ACCENT.r, Theme.COLOR_ACCENT.g, Theme.COLOR_ACCENT.b, 1.0)
+	bBottom:SetHeight(1)
+	bBottom:SetColorTexture(Theme.COLOR_FOCUS.r, Theme.COLOR_FOCUS.g, Theme.COLOR_FOCUS.b, 1.0)
 	fb.bBottom = bBottom
 
 	local bLeft = fb:CreateTexture(nil, "OVERLAY")
 	bLeft:SetPoint("TOPLEFT", fb, "TOPLEFT", 0, 0)
 	bLeft:SetPoint("BOTTOMLEFT", fb, "BOTTOMLEFT", 0, 0)
-	bLeft:SetWidth(2)
-	bLeft:SetColorTexture(Theme.COLOR_ACCENT.r, Theme.COLOR_ACCENT.g, Theme.COLOR_ACCENT.b, 1.0)
+	bLeft:SetWidth(1)
+	bLeft:SetColorTexture(Theme.COLOR_FOCUS.r, Theme.COLOR_FOCUS.g, Theme.COLOR_FOCUS.b, 1.0)
 	fb.bLeft = bLeft
 
 	local bRight = fb:CreateTexture(nil, "OVERLAY")
 	bRight:SetPoint("TOPRIGHT", fb, "TOPRIGHT", 0, 0)
 	bRight:SetPoint("BOTTOMRIGHT", fb, "BOTTOMRIGHT", 0, 0)
-	bRight:SetWidth(2)
-	bRight:SetColorTexture(Theme.COLOR_ACCENT.r, Theme.COLOR_ACCENT.g, Theme.COLOR_ACCENT.b, 1.0)
+	bRight:SetWidth(1)
+	bRight:SetColorTexture(Theme.COLOR_FOCUS.r, Theme.COLOR_FOCUS.g, Theme.COLOR_FOCUS.b, 1.0)
 	fb.bRight = bRight
 
-	-- Glowing Left Accent Docking Socket (4px wide)
+	-- Small focus marker on the left edge.
 	local accent = fb:CreateTexture(nil, "OVERLAY")
 	accent:SetPoint("TOPLEFT", fb, "TOPLEFT", 0, 0)
 	accent:SetPoint("BOTTOMLEFT", fb, "BOTTOMLEFT", 0, 0)
-	accent:SetWidth(4)
-	accent:SetColorTexture(Theme.COLOR_ACCENT.r, Theme.COLOR_ACCENT.g, Theme.COLOR_ACCENT.b, 1.0)
+	accent:SetWidth(2)
+	accent:SetColorTexture(Theme.COLOR_FOCUS.r, Theme.COLOR_FOCUS.g, Theme.COLOR_FOCUS.b, 1.0)
 	fb.accent = accent
 
-	-- Subtle translucent interior tint (only 0.05 alpha for crystal-clear readability)
+	-- Faint fill inside the focus outline.
 	local inner = fb:CreateTexture(nil, "BACKGROUND")
 	inner:SetPoint("TOPLEFT", fb, "TOPLEFT", 2, -2)
 	inner:SetPoint("BOTTOMRIGHT", fb, "BOTTOMRIGHT", -2, 2)
-	inner:SetColorTexture(Theme.COLOR_ACCENT.r, Theme.COLOR_ACCENT.g, Theme.COLOR_ACCENT.b, 0.05)
+	inner:SetColorTexture(Theme.COLOR_FOCUS.r, Theme.COLOR_FOCUS.g, Theme.COLOR_FOCUS.b, 0.05)
 	fb.inner = inner
 
 	fb:Hide()
@@ -136,20 +102,20 @@ local function highlightWidget(widget, insetX, insetY)
 	fb:Show()
 end
 
--- ── Content Row Navigation ───────────────────────────────────────────────────
+-- Content Row Navigation
 
 local function getVisibleRows()
 	local rows = {}
 	if not panel or not panel.Content or not panel.Content.page then
 		return rows
 	end
-	local pageRows = panel.Content.page.rows
+	local pageRows = panel.Content:GetActiveRows()
 	if not pageRows then
 		return rows
 	end
 
 	for _, row in ipairs(pageRows) do
-		if row:IsShown() and not row.isHeader and not row.isText then
+		if row:IsShown() and not row.isHeader and not row.isText and row.lastEnabled ~= false then
 			rows[#rows + 1] = row
 		end
 	end
@@ -229,7 +195,57 @@ local function setContentFocus(index)
 	end
 end
 
--- ── Sidebar Navigation ───────────────────────────────────────────────────────
+-- Subpage navigation
+local function getTabs()
+	local content = panel and panel.Content
+	return content and content.page and content.page.tabs
+end
+local function activeTabIndex()
+	local tabs = getTabs() or {}
+	for i, tab in ipairs(tabs) do
+		if tab == panel.Content.activeTab then
+			return i
+		end
+	end
+	return 1
+end
+local function hasTabs()
+	local tabs = getTabs()
+	return tabs and #tabs > 0
+end
+local function highlightTab()
+	local button = panel.Content.tabButtons[activeTabIndex()]
+	if button then
+		highlightWidget(button, 2, 2)
+	end
+end
+local function setTabFocus(index)
+	local tabs = getTabs()
+	if not tabs or #tabs == 0 then
+		return
+	end
+	if focusedRow and focusedRow.HideRowTooltip then
+		focusedRow:HideRowTooltip()
+	end
+	focusedRow = nil
+	mode = "TABS"
+	index = (index - 1) % #tabs + 1
+	panel.Content:SetTab(tabs[index])
+	highlightTab()
+	if Gamepad.UpdateHints then
+		Gamepad.UpdateHints()
+	end
+end
+local function enterContent()
+	if hasTabs() then
+		setTabFocus(activeTabIndex())
+	else
+		mode = "CONTENT"
+		setContentFocus(1)
+	end
+end
+
+-- Sidebar Navigation
 
 local function getSidebarButtons()
 	if not panel or not panel.Sidebar or not panel.Sidebar.buttons then
@@ -262,8 +278,7 @@ local function selectSidebarIndex(index, enterContent)
 	if btn and btn.page then
 		panel.Sidebar:Select(btn.page)
 		if enterContent then
-			mode = "CONTENT"
-			setContentFocus(1)
+			enterContent()
 		else
 			mode = "SIDEBAR"
 			if focusedRow and focusedRow.HideRowTooltip then
@@ -278,7 +293,7 @@ local function selectSidebarIndex(index, enterContent)
 	end
 end
 
--- ── Input Dispatcher ─────────────────────────────────────────────────────────
+-- Input Dispatcher
 
 local function scrollContent(delta)
 	if not panel or not panel.Content or not panel.Content.Scroll then
@@ -297,6 +312,20 @@ local function handleInput(key)
 		return
 	end
 
+	if Panel.Popup.HandleGamepad and Panel.Popup.HandleGamepad(key) then
+		return
+	end
+	if key == "PAD3" or key == "PAD4" then
+		if hasTabs() then
+			local keepContent = mode == "CONTENT"
+			setTabFocus(activeTabIndex() + (key == "PAD3" and -1 or 1))
+			if keepContent then
+				mode = "CONTENT"
+				setContentFocus(1)
+			end
+		end
+		return
+	end
 	-- Global Bumpers: Tab categories forward/backward
 	if key == "PADLSHOULDER" then
 		selectSidebarIndex(currentSidebarIndex - 1, mode == "CONTENT")
@@ -327,10 +356,22 @@ local function handleInput(key)
 		elseif key == "PADDDOWN" then
 			selectSidebarIndex(currentSidebarIndex + 1, false)
 		elseif key == "PADDRIGHT" or key == "PAD1" then
-			-- Enter content area
+			-- Unit frames enter the subpage strip before the settings below it.
+			enterContent()
+		elseif key == "PAD2" or key == "PADFORWARD" then
+			Panel.Close()
+		end
+	elseif mode == "TABS" then
+		if key == "PADDLEFT" then
+			setTabFocus(activeTabIndex() - 1)
+		elseif key == "PADDRIGHT" then
+			setTabFocus(activeTabIndex() + 1)
+		elseif key == "PAD1" or key == "PADDDOWN" then
 			mode = "CONTENT"
 			setContentFocus(1)
-		elseif key == "PAD2" or key == "PADFORWARD" then
+		elseif key == "PAD2" or key == "PADDUP" then
+			selectSidebarIndex(currentSidebarIndex, false)
+		elseif key == "PADFORWARD" then
 			Panel.Close()
 		end
 	elseif mode == "CONTENT" then
@@ -338,11 +379,15 @@ local function handleInput(key)
 		local row = rows[currentContentIndex]
 
 		if key == "PADDUP" then
-			setContentFocus(currentContentIndex - 1)
+			if currentContentIndex == 1 and hasTabs() then
+				setTabFocus(activeTabIndex())
+			else
+				setContentFocus(currentContentIndex - 1)
+			end
 		elseif key == "PADDDOWN" then
 			setContentFocus(currentContentIndex + 1)
 		elseif key == "PADDLEFT" then
-			-- If on a slider, step the slider down; otherwise return to sidebar
+			-- Step a slider down; otherwise return to tabs or categories.
 			if row and row.Control and row.Control.OnStepperClicked then
 				row.Control:OnStepperClicked(false)
 			elseif row and row.Control and (row.Control.DecrementButton or row.Control.Decrement) then
@@ -352,8 +397,11 @@ local function handleInput(key)
 					row.Control:Decrement()
 				end
 			else
-				mode = "SIDEBAR"
-				selectSidebarIndex(currentSidebarIndex, false)
+				if hasTabs() then
+					setTabFocus(activeTabIndex())
+				else
+					selectSidebarIndex(currentSidebarIndex, false)
+				end
 			end
 		elseif key == "PADDRIGHT" then
 			-- If on a slider or dropdown, step up
@@ -369,7 +417,9 @@ local function handleInput(key)
 		elseif key == "PAD1" then
 			-- A button: Activate the control
 			if row then
-				if row.Control and row.Control:IsObjectType("CheckButton") then
+				if row.Dropdown then
+					row.Dropdown:Click()
+				elseif row.Control and row.Control:IsObjectType("CheckButton") then
 					row.Control:Click()
 				elseif row.Button and row.Button:IsObjectType("Button") then
 					row.Button:Click()
@@ -378,44 +428,21 @@ local function handleInput(key)
 				end
 			end
 		elseif key == "PAD2" then
-			-- B button: Return to sidebar
-			mode = "SIDEBAR"
-			selectSidebarIndex(currentSidebarIndex, false)
+			if hasTabs() then
+				setTabFocus(activeTabIndex())
+			else
+				selectSidebarIndex(currentSidebarIndex, false)
+			end
 		elseif key == "PADFORWARD" then
 			Panel.Close()
 		end
 	end
 end
 
--- ── Bindings & Lifecycle ─────────────────────────────────────────────────────
+-- Bindings & Lifecycle
 
-local function bindCaptureKeys(owner)
-	if InCombatLockdown and InCombatLockdown() then
-		return
-	end
-	if not captureButton then
-		captureButton = CreateFrame("Button", "DiabolusSettingsCaptureButton", UIParent)
-		captureButton:SetSize(1, 1)
-		captureButton:SetPoint("TOPLEFT", UIParent, "TOPLEFT", -10, 10)
-		captureButton:RegisterForClicks("AnyDown")
-		captureButton:SetScript("OnClick", function(_, _, down)
-			if down and captureButton.currentKey then
-				handleInput(captureButton.currentKey)
-			end
-		end)
-	end
-
-	if ClearOverrideBindings then
-		ClearOverrideBindings(owner)
-	end
-
-	for _, key in ipairs(GAMEPAD_KEYS) do
-		if SetOverrideBindingClick then
-			SetOverrideBindingClick(owner, true, key, captureButton:GetName(), "LeftButton")
-		end
-	end
-end
-
+-- Input comes directly from the visible window. Capturing PAD keys with hidden
+-- click targets prevented the native handler from receiving input on this client.
 local function releaseCaptureKeys(owner)
 	if ClearOverrideBindings then
 		pcall(ClearOverrideBindings, owner)
@@ -428,7 +455,7 @@ function Gamepad.OnShow()
 	end
 
 	mode = "SIDEBAR"
-	currentSidebarIndex = 1
+	Gamepad.SyncPage(panel.Sidebar.selectedPage)
 	currentContentIndex = 1
 	focusedRow = nil
 
@@ -437,15 +464,23 @@ function Gamepad.OnShow()
 		pcall(panel.EnableGamePadButton, panel, true)
 	end
 
+	releaseCaptureKeys(panel)
+	nativeInputActive = Gamepad.IsEnabled()
 	panel:SetScript("OnGamePadButtonDown", function(_, key)
+		nativeInputActive = true
 		handleInput(key)
+		Gamepad.UpdateHints()
 	end)
-
-	bindCaptureKeys(panel)
-	selectSidebarIndex(1, false)
+	if nativeInputActive then
+		selectSidebarIndex(currentSidebarIndex, false)
+	elseif focusBox then
+		focusBox:Hide()
+	end
+	Gamepad.UpdateHints()
 end
 
 function Gamepad.OnHide()
+	nativeInputActive = false
 	if focusBox then
 		focusBox:Hide()
 	end
@@ -461,18 +496,58 @@ end
 function Gamepad.RefreshNavigation()
 	if mode == "CONTENT" then
 		setContentFocus(currentContentIndex)
+	elseif mode == "TABS" and hasTabs() then
+		highlightTab()
 	end
+	Gamepad.UpdateHints()
 end
-
-function Gamepad.Setup() end
-
--- Rows call these when SmartNavigation itself selects them; this window drives its own
--- focus (handleInput above), so there is nothing extra to do.
-function Gamepad.OnSliderSelected() end
-function Gamepad.OnSliderDeselected() end
-function Gamepad.OnDropdownSelected() end
-function Gamepad.OnDropdownDeselected() end
 
 function Gamepad.Init(owner)
 	panel = owner
+end
+
+function Gamepad.OnPointer()
+	if focusBox then
+		focusBox:Hide()
+	end
+end
+function Gamepad.SyncPage(page)
+	-- Mouse category selection must also leave the old tab/content focus context.
+	if focusedRow and focusedRow.HideRowTooltip then
+		focusedRow:HideRowTooltip()
+	end
+	focusedRow = nil
+	mode = "SIDEBAR"
+	for index, button in ipairs(getSidebarButtons()) do
+		if button.page == page then
+			currentSidebarIndex = index
+			break
+		end
+	end
+end
+
+function Gamepad.UpdateHints()
+	if not panel then
+		return
+	end
+	local enabled = Gamepad.IsEnabled() or nativeInputActive
+	if panel.ControllerHints then
+		panel.ControllerHints:SetShown(enabled)
+		if mode == "TABS" and hasTabs() then
+			panel.ControllerHints:SetText("Left/Right Subpage   A Edit   B Categories   X/Y Subpages")
+		elseif mode == "CONTENT" and hasTabs() then
+			panel.ControllerHints:SetText("D-pad Edit   A Select   B Subpages   X/Y Subpages   LT/RT Scroll")
+		else
+			panel.ControllerHints:SetText("D-pad Move   A Open   B Back   LB/RB Categories   LT/RT Scroll")
+		end
+	end
+	local content = panel.Content
+	if content and content.TabHint then
+		content.TabHint:SetShown(enabled and hasTabs() and true or false)
+		if mode == "TABS" then
+			content.TabHint:SetText("Left / Right: subpage     A / Down: edit settings     B / Up: categories")
+		else
+			content.TabHint:SetText("X / Y (Square / Triangle): subpage     Up from the first setting returns to tabs")
+		end
+	end
 end

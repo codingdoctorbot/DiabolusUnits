@@ -1,15 +1,6 @@
----------------------------------------------
---  Roth_UI - spell cost on the power orb
----------------------------------------------
--- While you cast, the slice of the power orb the spell will use glows: the
--- band from the orb's surface down by the spell's cost, as Blizzard's player
--- frame shows the mana cost on its bar (ForeverUnitFrames
--- Elements/PowerCost.lua). Instant spells have no cast and show nothing.
---
--- The band is the orb's own filling texture, cropped (SetTexCoord) to the
--- slice, so it keeps the orb's round shape. The orb only has a level when
--- power, its maximum and the cost are plain numbers (the orb itself shows
--- full otherwise), so the band only shows then; nothing secret is tested.
+-- Preview a cast's power cost with a cropped slice of the orb fill.
+-- Requires readable power, maximum, and cost; hides for secret values and instant spells.
+-- Reference: ForeverUnitFrames Elements/PowerCost.lua.
 
 local _, ns = ...
 

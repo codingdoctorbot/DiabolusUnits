@@ -1,12 +1,8 @@
----------------------------------------------
 --  DiabolusUnits - slashcmd
----------------------------------------------
 
 local addon, ns = ...
 
----------------------------------------------
 -- FRAME LISTS
----------------------------------------------
 
 Roth_UI_Bars = {
 	"Roth_UIExpBar",
@@ -148,6 +144,10 @@ local function SlashCmd(cmd)
 		if ns.TaintCheck then
 			ns.TaintCheck:Run()
 		end
+	elseif cmd == "belt" then
+		if ns.Belt and ns.Belt.Debug then
+			ns.Belt.Debug()
+		end
 	elseif cmd == "food" then
 		if ns.Belt and ns.Belt.DebugFood then
 			ns.Belt.DebugFood()
@@ -284,6 +284,7 @@ local function SlashCmd(cmd)
 		print("|c00FF3300/roth scale <number>|r, to scale all unit frames and art globally")
 		print("|c00FF3300/roth autoscale [on|off]|r, to toggle pixel-perfect (768/h) UI scaling")
 		print("|c00FF3300/roth screen|r, to display resolution, DPI, and pixel metrics")
+		print("|c00FF3300/roth belt|r, to inspect potion belt choices and context")
 		print("|c00FF3300/roth auras|r, to inspect target aura API output")
 		print("|c00FF3300/roth taint|r, to list refused actions and taint diagnostics")
 	end

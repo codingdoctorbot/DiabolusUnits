@@ -24,9 +24,9 @@ These ship inside Roth UI and keep their own authors and licences.
 | RothFont (keeps the saved variable `PhanxFontDB`) | probably derived from Phanx's PhanxFont | origin and licence to confirm |
 | Target frame art | Goldpaw (Diabolic UI) | to confirm before any release |
 | Fonts in `media/`: Diablo Std (titles), Expressway (text), Cracked Narrow | not recorded in the add-on | to confirm before any release (nine unused fonts were removed in stage 25) |
-| Ace3 (AceAddon, AceEvent, AceConsole, AceHook, AceLocale, AceDB, AceDBOptions, AceGUI, AceConfig), CallbackHandler, LibStub — current release, taken from Bartender4 4.18.3.1's libs | Ace3 Development Team | BSD-style (`Libs/Ace3-LICENSE.txt`) |
+| AceDB-3.0 and CallbackHandler-1.0 | Ace3 Development Team | BSD-style (`Libs/Ace3-LICENSE.txt`) |
+| LibStub | LibStub contributors | Public domain (notice in `Libs/LibStub/LibStub.lua`) |
 | LibSharedMedia-3.0 | Elkano | LGPL 2.1 |
-| AceGUI-3.0-SharedMediaWidgets (current release, from Bartender4's libs) | Yssaril and contributors | to confirm |
 
 ## What the WoW Forever edition took from other add-ons
 
@@ -66,14 +66,18 @@ chat keyboard's word prediction and dictionaries, and without the parts it
 took from ConsolePort (Artistic License 2.0). Roth's changes are in
 `embeds/EasyController/_roth_pre.lua` and `_roth_post.lua`.
 
-## Potion belt item rankings
+## Potion belt item facts and ranking
 
-The ranked item lists in `core/beltdata.lua` (health and mana potions,
-healthstones, bandages, food, battleground items) follow **AutoPotion** by
-**ollidiemaus** (version 3.17.2, its `Core/*/Forever.lua` lists). AutoPotion
-is "all rights reserved"; only item IDs and their order (game data) were
-taken, the belt code is DiabolusUnits' own. Licensing to be settled before
-any public release.
+The addon author independently assembled the current consumable item list by
+scraping **Wowhead**. Item facts are sourced from **Wowhead Classic** tooltip
+snapshots, with source URLs, a retrieval date and per-item snapshot hashes.
+Class consumables are included in the same facts table. DiabolusUnits computes
+its own ordering from restoration values, food policy and an item-ID tie-breaker.
+
+The current database and ranking logic replace the previous manually ordered
+database. References to that older database in historical proposals and session
+notes do not describe the provenance of the current implementation. Exclude
+historical proposals, raw snapshots and development fixtures from release packages.
 
 The settings window framework (`settings/`) is ported from **PulseHaptics**
 (same author as DiabolusUnits).

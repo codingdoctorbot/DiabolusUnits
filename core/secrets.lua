@@ -1,11 +1,8 @@
----------------------------------------------
 --  Roth_UI - WoW Forever (16001) Secret Value & Curve Compatibility Layer
----------------------------------------------
 --  Provides safe helpers for WoW Forever / Midnight Secret Values (issecretvalue),
 --  LuaCurveObject / LuaColorCurveObject evaluation (C_CurveUtil),
 --  DurationObject helpers (C_UnitAuras.GetAuraDuration, UnitCastingDuration),
 --  and secret-safe string/number formatting.
----------------------------------------------
 
 local addon, ns = ...
 
@@ -265,10 +262,7 @@ function Secrets.UnitHealthPercent100(unit)
     return 0
 end
 
--- A percent ready to display: a whole number. Hidden (secret) percents come
--- from UnitHealthPercent / UnitPowerPercent as full floats (84.3498...),
--- which turned into long decimals as text; the game rounds them for us
--- (C_StringUtil.RoundToNearestString takes secrets from add-on code).
+-- Round display percentages through C_StringUtil so secret values stay opaque.
 function Secrets.RoundPercent(v)
     if type(v) == "nil" then
         return nil
