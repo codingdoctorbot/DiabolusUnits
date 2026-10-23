@@ -6,7 +6,7 @@
       "type": "process",
       "command": "/usr/bin/python3",
       "args": [
-        "/Users/erik2/Developer/WoW/.devtools/wowdev.py",
+        "/home/deck/developer/_from-mac/WoW/.devtools/wowdev.py",
         "check",
         "${workspaceFolder}"
       ],
@@ -20,7 +20,7 @@
       "type": "process",
       "command": "/usr/bin/python3",
       "args": [
-        "/Users/erik2/Developer/WoW/.devtools/wowdev.py",
+        "/home/deck/developer/_from-mac/WoW/.devtools/wowdev.py",
         "check",
         "${workspaceFolder}",
         "--lint"
@@ -35,7 +35,7 @@
       "type": "process",
       "command": "/usr/bin/python3",
       "args": [
-        "/Users/erik2/Developer/WoW/.devtools/wowdev.py",
+        "/home/deck/developer/_from-mac/WoW/.devtools/wowdev.py",
         "check",
         "${workspaceFolder}",
         "--tests"
