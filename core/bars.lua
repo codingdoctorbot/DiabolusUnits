@@ -6,7 +6,7 @@ ns.bars = bars
 local func = ns.func
 local cfg = ns.cfg
 local barposition = ns.player
-local mediapath = "Interface\\AddOns\\DiabolusUnits\\media\\"
+local mediapath = "Interface\\AddOns\\DiabolusForever\\media\\"
 
 -- FUNCTIONS
 

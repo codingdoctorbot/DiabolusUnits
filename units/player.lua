@@ -101,11 +101,11 @@ local createActionBarBackground = function(self)
 		local leftShown = MultiBarBottomLeft and MultiBarBottomLeft:IsShown()
 		local rightShown = MultiBarBottomRight and MultiBarBottomRight:IsShown()
 		if leftShown and rightShown then
-			t:SetTexture("Interface\\AddOns\\DiabolusUnits\\media\\bar3")
+			t:SetTexture("Interface\\AddOns\\DiabolusForever\\media\\bar3")
 		elseif leftShown or rightShown then
-			t:SetTexture("Interface\\AddOns\\DiabolusUnits\\media\\bar2")
+			t:SetTexture("Interface\\AddOns\\DiabolusForever\\media\\bar2")
 		else
-			t:SetTexture("Interface\\AddOns\\DiabolusUnits\\media\\bar1")
+			t:SetTexture("Interface\\AddOns\\DiabolusForever\\media\\bar1")
 		end
 
 		if ns.bars and ns.bars.UpdateStatusBarLayout then
@@ -189,7 +189,7 @@ local createAngelFrame = function(self)
 	func.applyDragFunctionality(f)
 	local t = f:CreateTexture(nil, "BACKGROUND", nil, 2)
 	t:SetAllPoints(f)
-	t:SetTexture("Interface\\AddOns\\DiabolusUnits\\media\\d3_angel2")
+	t:SetTexture("Interface\\AddOns\\DiabolusForever\\media\\d3_angel2")
 end
 
 --create the demon
@@ -212,7 +212,7 @@ local createDemonFrame = function(self)
 	func.applyDragFunctionality(f)
 	local t = f:CreateTexture(nil, "BACKGROUND", nil, 2)
 	t:SetAllPoints(f)
-	t:SetTexture("Interface\\AddOns\\DiabolusUnits\\media\\d3_demon2")
+	t:SetTexture("Interface\\AddOns\\DiabolusForever\\media\\d3_demon2")
 end
 
 --create the bottomline
@@ -231,7 +231,7 @@ local createBottomLine = function(self)
 	func.applyDragFunctionality(f, "bottomline")
 	local t = f:CreateTexture(nil, "BACKGROUND", nil, 3)
 	t:SetAllPoints(f)
-	t:SetTexture("Interface\\AddOns\\DiabolusUnits\\media\\d3_bottom")
+	t:SetTexture("Interface\\AddOns\\DiabolusForever\\media\\d3_bottom")
 end
 
 --post update orb func (used to display lowHp on percentage)
@@ -360,7 +360,7 @@ local createGalaxy = function(frame, type, x, y, size, duration, texture, sublev
 	local t = frame:CreateTexture(nil, "OVERLAY", nil, sublevel)
 	t:SetSize(size, size)
 	t:SetPoint("CENTER", x, y)
-	t:SetTexture("Interface\\AddOns\\DiabolusUnits\\media\\" .. texture)
+	t:SetTexture("Interface\\AddOns\\DiabolusForever\\media\\" .. texture)
 	t:SetBlendMode("ADD")
 	t.ag = t:CreateAnimationGroup()
 	t.ag.anim = t.ag:CreateAnimation("Rotation")
@@ -406,7 +406,7 @@ local createOrb = function(self, type)
 		glow:SetSize(self.cfg.size + 5, self.cfg.size + 5)
 		glow:SetBlendMode("BLEND")
 		glow:SetVertexColor(0, 1, 1, 0) -- set alpha to 0 to hide the texture
-		glow:SetTexture("Interface\\AddOns\\DiabolusUnits\\media\\orb_debuff_glow")
+		glow:SetTexture("Interface\\AddOns\\DiabolusForever\\media\\orb_debuff_glow")
 		orb.glow = glow
 		self.DebuffHighlight = orb.glow
 		self.DebuffHighlightAlpha = 1
@@ -416,7 +416,7 @@ local createOrb = function(self, type)
 	--background
 	local bg = orb:CreateTexture("$parentBG", "BACKGROUND", nil, -6)
 	bg:SetAllPoints()
-	bg:SetTexture("Interface\\AddOns\\DiabolusUnits\\media\\orb_back2")
+	bg:SetTexture("Interface\\AddOns\\DiabolusForever\\media\\orb_back2")
 	orb.bg = bg
 
 	--filling statusbar
@@ -511,7 +511,7 @@ local createOrb = function(self, type)
 
 	--spark frame
 	local spark = overlay:CreateTexture(nil, "BACKGROUND", nil, -3)
-	spark:SetTexture("Interface\\AddOns\\DiabolusUnits\\media\\orb_spark")
+	spark:SetTexture("Interface\\AddOns\\DiabolusForever\\media\\orb_spark")
 	--the spark should fit the filling color otherwise it will stand out too much
 	spark:SetVertexColor(orbcfg.filling.color.r, orbcfg.filling.color.g, orbcfg.filling.color.b)
 	spark:SetWidth(256 * orb.size / 256)
@@ -527,7 +527,7 @@ local createOrb = function(self, type)
 	if cfg.orbInnerShadow ~= false then
 		local shade = overlay:CreateTexture(nil, "BACKGROUND", nil, -4)
 		shade:SetAllPoints(orb)
-		shade:SetTexture("Interface\\AddOns\\DiabolusUnits\\media\\orb_innershadow")
+		shade:SetTexture("Interface\\AddOns\\DiabolusForever\\media\\orb_innershadow")
 		shade:SetVertexColor(0, 0, 0, 0.6)
 		orb.innerShadow = shade
 	end
@@ -537,7 +537,7 @@ local createOrb = function(self, type)
 		local skull = overlay:CreateTexture(nil, "BACKGROUND", nil, 1)
 		skull:SetPoint("CENTER", 0, 0)
 		skull:SetSize(self.cfg.size - 40, self.cfg.size - 40)
-		skull:SetTexture("Interface\\AddOns\\DiabolusUnits\\media\\d2_skull")
+		skull:SetTexture("Interface\\AddOns\\DiabolusForever\\media\\d2_skull")
 		skull:SetBlendMode("ADD")
 		skull:SetAlpha(0.6)
 		skull:Hide()
@@ -546,7 +546,7 @@ local createOrb = function(self, type)
 		local lowHP = overlay:CreateTexture(nil, "BACKGROUND", nil, 2)
 		lowHP:SetPoint("CENTER", 0, 0)
 		lowHP:SetSize(self.cfg.size - 15, self.cfg.size - 15)
-		lowHP:SetTexture("Interface\\AddOns\\DiabolusUnits\\media\\orb_lowhp_glow")
+		lowHP:SetTexture("Interface\\AddOns\\DiabolusForever\\media\\orb_lowhp_glow")
 		lowHP:SetBlendMode("ADD")
 		lowHP:SetVertexColor(1, 0, 0, 1)
 		lowHP:Hide()
@@ -556,7 +556,7 @@ local createOrb = function(self, type)
 	--highlight
 	local highlight = overlay:CreateTexture("$parentHighlight", "BACKGROUND", nil, 3)
 	highlight:SetAllPoints()
-	highlight:SetTexture("Interface\\AddOns\\DiabolusUnits\\media\\orb_gloss")
+	highlight:SetTexture("Interface\\AddOns\\DiabolusForever\\media\\orb_gloss")
 	highlight:SetAlpha(orbcfg.highlight.alpha or 1)
 	orb.highlight = highlight
 
@@ -678,7 +678,7 @@ local createAdditionalPower = function(self)
 	br:SetPoint("LEFT", -50, 0)
 	br:SetPoint("RIGHT", 50, 0)
 	br:SetPoint("BOTTOM", 0, -8)
-	br:SetTexture("Interface\\AddOns\\DiabolusUnits\\media\\d3_altpower_border")
+	br:SetTexture("Interface\\AddOns\\DiabolusForever\\media\\d3_altpower_border")
 
 	b:RegisterEvent("PLAYER_ENTERING_WORLD")
 	b:RegisterEvent("UPDATE_SHAPESHIFT_FORM")

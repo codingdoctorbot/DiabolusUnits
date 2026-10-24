@@ -5,7 +5,7 @@
 
 local addon, ns = ...
 local oUF = ns.oUF
-mediapath = "Interface\\AddOns\\DiabolusUnits\\media\\"
+mediapath = "Interface\\AddOns\\DiabolusForever\\media\\"
 local addonName, Roth_UI = ...
 local LSM = LibStub("LibSharedMedia-3.0")
 
@@ -500,7 +500,7 @@ cfg.units = {
 		castbar = {
 			show = false,
 			hideDefault = true, --if you hide the Roth_UI castbar, should the Blizzard castbar be shown?
-			texture = "Interface\\AddOns\\DiabolusUnits\\media\\statusbar3",
+			texture = "Interface\\AddOns\\DiabolusForever\\media\\statusbar3",
 			scale = 1 / 0.85, --divide 1 by current unit scale if you want to prevent scaling of the castbar based on unit scale
 			color = {
 				bar = { r = 1, g = 0.7, b = 0, a = 1 },

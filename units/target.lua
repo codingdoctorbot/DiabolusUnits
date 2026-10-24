@@ -39,7 +39,7 @@ local createArtwork = function(self)
 
 	-- a horned crest over boss frames (RareIcon PostUpdate, modules/oUF_RareIcon.lua)
 	local crest = self:CreateTexture(nil, "BORDER", nil, -6)
-	crest:SetTexture("Interface\\AddOns\\DiabolusUnits\\media\\d3_head_elite")
+	crest:SetTexture("Interface\\AddOns\\DiabolusForever\\media\\d3_head_elite")
 	crest:SetSize(128, 64)
 	crest:SetPoint("BOTTOM", t, "TOP", 0, -40)
 	crest:Hide()
@@ -56,7 +56,7 @@ local createArtwork = function(self)
 	-- threat: the frame glows in the threat colour while the target is on you
 	if self.cfg.threatGlow ~= false then
 		local glow = self:CreateTexture(nil, "BACKGROUND", nil, -8)
-		glow:SetTexture("Interface\\AddOns\\DiabolusUnits\\media\\target_threatglow")
+		glow:SetTexture("Interface\\AddOns\\DiabolusForever\\media\\target_threatglow")
 		-- The glow's outline fills its whole 512 x 128 canvas, the frame art only
 		-- x 58..454 / y 37..106 of its own: fit the outline just around the art
 		-- (art box 422 x 104 here; glow canvas x 50..462, y 10..132 of the art's).
@@ -130,11 +130,11 @@ local createHealthFrame = function(self)
 	h.bg:SetAllPoints(h)
 
 	h.glow = h:CreateTexture(nil, "OVERLAY", nil, -5)
-	h.glow:SetTexture("Interface\\AddOns\\DiabolusUnits\\media\\target_hpglow")
+	h.glow:SetTexture("Interface\\AddOns\\DiabolusForever\\media\\target_hpglow")
 	h.glow:SetVertexColor(0, 0, 0, 1)
 
 	h.highlight = h:CreateTexture(nil, "OVERLAY", nil, -4)
-	h.highlight:SetTexture("Interface\\AddOns\\DiabolusUnits\\media\\target_highlight")
+	h.highlight:SetTexture("Interface\\AddOns\\DiabolusForever\\media\\target_highlight")
 	h.highlight:SetAllPoints(h)
 
 	self.Health = h
@@ -159,7 +159,7 @@ local createPowerFrame = function(self)
 	h.bg:SetAllPoints(h)
 
 	h.glow = h:CreateTexture(nil, "OVERLAY", nil, -5)
-	h.glow:SetTexture("Interface\\AddOns\\DiabolusUnits\\media\\target_ppglow")
+	h.glow:SetTexture("Interface\\AddOns\\DiabolusForever\\media\\target_ppglow")
 	h.glow:SetAllPoints(self)
 	h.glow:SetVertexColor(0, 0, 0, 1)
 
@@ -555,7 +555,7 @@ local function createStyle(self)
 
 	--icons
 	self.RaidTargetIndicator = func.createIcon(self, "BACKGROUND", 24, self.Name, "BOTTOM", "TOP", 0, 0, -1)
-	self.RaidTargetIndicator:SetTexture("Interface\\AddOns\\DiabolusUnits\\media\\raidicons")
+	self.RaidTargetIndicator:SetTexture("Interface\\AddOns\\DiabolusForever\\media\\raidicons")
 
 	--create portrait
 	if self.cfg.portrait.show then

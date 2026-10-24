@@ -1,4 +1,4 @@
--- Orb defaults and per-character settings (Roth_UI_DB_CHAR).
+-- Orb defaults and per-character settings (DiabolusForeverDB_CHAR).
 
   local addon, ns = ...
 
@@ -21,7 +21,7 @@
       ["HEALTH"] = {
         --filling
         filling = {
-          texture     = "Interface\\AddOns\\DiabolusUnits\\media\\orb_filling16",
+          texture     = "Interface\\AddOns\\DiabolusForever\\media\\orb_filling16",
           color       = { r = .3, g = 0, b = 0, },
           colorAuto   = false, --automatic coloring based on class/powertype
         },
@@ -71,7 +71,7 @@
       ["POWER"] = {
         --filling
         filling = {
-          texture     = "Interface\\AddOns\\DiabolusUnits\\media\\orb_filling16",
+          texture     = "Interface\\AddOns\\DiabolusForever\\media\\orb_filling16",
           color       = { r = 0, g = .5, b = 1, },
           colorAuto   = true, --automatic coloring based on class/powertype
         },
@@ -129,7 +129,7 @@
       ["pearl"] = {
         --filling
         filling = {
-          texture     = "Interface\\AddOns\\DiabolusUnits\\media\\orb_filling15",
+          texture     = "Interface\\AddOns\\DiabolusForever\\media\\orb_filling15",
           color       = { r = 0.8, g = 0.8, b = 1, },
           colorAuto   = false, --automatic coloring based on class/powertype
         },
@@ -188,15 +188,21 @@
 
   --db script on variables loaded
   db:SetScript("OnEvent", function(self, event)
-    if Roth_UI_DB_GLOB and Roth_UI_DB_GLOB.reset then
-      Roth_UI_DB_GLOB.reset = nil
-      Roth_UI_DB_GLOB = db:GetTemplateDefaults()
-      Roth_UI_DB_GLOB.TEMPLATE_LIST = db:GetTemplateListDefaults()
+    if not DiabolusForeverDB_GLOB and rawget(_G, "Roth_UI_DB_GLOB") then
+      DiabolusForeverDB_GLOB = CopyTable and CopyTable(Roth_UI_DB_GLOB) or Roth_UI_DB_GLOB
+    end
+    if not DiabolusForeverDB_CHAR and rawget(_G, "Roth_UI_DB_CHAR") then
+      DiabolusForeverDB_CHAR = CopyTable and CopyTable(Roth_UI_DB_CHAR) or Roth_UI_DB_CHAR
+    end
+    if DiabolusForeverDB_GLOB and DiabolusForeverDB_GLOB.reset then
+      DiabolusForeverDB_GLOB.reset = nil
+      DiabolusForeverDB_GLOB = db:GetTemplateDefaults()
+      DiabolusForeverDB_GLOB.TEMPLATE_LIST = db:GetTemplateListDefaults()
     end
     --load global data
     self.loadGlobalData()
     --load character data
-    if not Roth_UI_DB_CHAR then
+    if not DiabolusForeverDB_CHAR then
       self.loadCharacterDataDefaults()
     else
       self.loadCharacterData()
@@ -209,7 +215,7 @@
 
   --full template reset
   db.resetTemplates = function()
-    Roth_UI_DB_GLOB.reset = true
+    DiabolusForeverDB_GLOB.reset = true
     ReloadUI()
   end
 
@@ -220,17 +226,17 @@
     local data = db:GetOrbDefaults()
     if type then
       if type == "HEALTH" then
-        Roth_UI_DB_CHAR[type] = data[type]
+        DiabolusForeverDB_CHAR[type] = data[type]
         print(addon..": health orb reseted to default")
       elseif type == "POWER" then
-        Roth_UI_DB_CHAR[type] = data[type]
+        DiabolusForeverDB_CHAR[type] = data[type]
         print(addon..": power orb reseted to default")
       end
     else
-      Roth_UI_DB_CHAR = data
+      DiabolusForeverDB_CHAR = data
       print(addon..": character data reset to default")
     end
-    db.char = Roth_UI_DB_CHAR
+    db.char = DiabolusForeverDB_CHAR
     --update the orb view
     ns.panel.updateOrbView()
   end
@@ -254,8 +260,8 @@
 
   --load character data
   db.loadCharacterData = function()
-    FillMissing(Roth_UI_DB_CHAR, db:GetOrbDefaults())
-    db.char = Roth_UI_DB_CHAR
+    FillMissing(DiabolusForeverDB_CHAR, db:GetOrbDefaults())
+    db.char = DiabolusForeverDB_CHAR
     if db.char.reload then
       if ns.UI and ns.UI.Panel then ns.UI.Panel.Open("health") end
       db.char.reload = false
@@ -269,18 +275,18 @@
   --load global data defaults
   db.loadGlobalDataDefaults = function()
     print(addon..": global data defaults loaded")
-    Roth_UI_DB_GLOB = db:GetTemplateDefaults()
-    Roth_UI_DB_GLOB.TEMPLATE_LIST = db:GetTemplateListDefaults()
-    db.glob = Roth_UI_DB_GLOB
-    db.list.template = Roth_UI_DB_GLOB.TEMPLATE_LIST
+    DiabolusForeverDB_GLOB = db:GetTemplateDefaults()
+    DiabolusForeverDB_GLOB.TEMPLATE_LIST = db:GetTemplateListDefaults()
+    db.glob = DiabolusForeverDB_GLOB
+    db.list.template = DiabolusForeverDB_GLOB.TEMPLATE_LIST
   end
 
   --load global data
   db.loadGlobalData = function()
-    Roth_UI_DB_GLOB = Roth_UI_DB_GLOB or db:GetTemplateDefaults()
-    Roth_UI_DB_GLOB.TEMPLATE_LIST = Roth_UI_DB_GLOB.TEMPLATE_LIST or db:GetTemplateListDefaults()
-    db.glob = Roth_UI_DB_GLOB
-    db.list.template = Roth_UI_DB_GLOB.TEMPLATE_LIST
+    DiabolusForeverDB_GLOB = DiabolusForeverDB_GLOB or db:GetTemplateDefaults()
+    DiabolusForeverDB_GLOB.TEMPLATE_LIST = DiabolusForeverDB_GLOB.TEMPLATE_LIST or db:GetTemplateListDefaults()
+    db.glob = DiabolusForeverDB_GLOB
+    db.list.template = DiabolusForeverDB_GLOB.TEMPLATE_LIST
   end
 
   --TEMPLATES
@@ -300,12 +306,12 @@
   --name: template name
   --type: orb type
   db.loadTemplate = function(name,type)
-    if not Roth_UI_DB_GLOB or not name then return end
-    if not Roth_UI_DB_GLOB[name] then
+    if not DiabolusForeverDB_GLOB or not name then return end
+    if not DiabolusForeverDB_GLOB[name] then
       print(addon..": template |c003399FF"..name.."|r not found")
       return
     end
-    db:CopyTable(Roth_UI_DB_GLOB[name],Roth_UI_DB_CHAR[type])
+    db:CopyTable(DiabolusForeverDB_GLOB[name],DiabolusForeverDB_CHAR[type])
     print(addon..": template |c003399FF"..name.."|r loaded into "..strlower(type).." orb")
     --update the orb view
     ns.panel.updateOrbView()
@@ -315,24 +321,24 @@
   --name: template name
   --type: orb type
   db.saveTemplate = function(name,type)
-    if not Roth_UI_DB_GLOB or not name then return end
+    if not DiabolusForeverDB_GLOB or not name then return end
     --adding template
-    if not Roth_UI_DB_GLOB[name] then
+    if not DiabolusForeverDB_GLOB[name] then
       --create default entry first
       local data = db:GetOrbDefaults()
-      Roth_UI_DB_GLOB[name] = data["HEALTH"]
+      DiabolusForeverDB_GLOB[name] = data["HEALTH"]
     end
-    db:CopyTable(db.char[type],Roth_UI_DB_GLOB[name])
+    db:CopyTable(db.char[type],DiabolusForeverDB_GLOB[name])
     --adding the template name to the key-value pair list
     local nameFound = false
-    for i,v in ipairs(Roth_UI_DB_GLOB.TEMPLATE_LIST) do
+    for i,v in ipairs(DiabolusForeverDB_GLOB.TEMPLATE_LIST) do
       if v.key == name then
         nameFound = true
         break
       end
     end
     if not nameFound then
-      tinsert(Roth_UI_DB_GLOB.TEMPLATE_LIST, { key = name, value = name, notCheckable = true, keepShownOnClick = false, })
+      tinsert(DiabolusForeverDB_GLOB.TEMPLATE_LIST, { key = name, value = name, notCheckable = true, keepShownOnClick = false, })
     end
     print(addon..": "..strlower(type).." orb data saved as template |c003399FF"..name.."|r")
     --update the panel view
@@ -342,24 +348,24 @@
   --delete template func
   --name: template name
   db.deleteTemplate = function(name)
-    if not Roth_UI_DB_GLOB or not name then return end
-    if not Roth_UI_DB_GLOB[name] then
+    if not DiabolusForeverDB_GLOB or not name then return end
+    if not DiabolusForeverDB_GLOB[name] then
       print(addon..": template |c003399FF"..name.."|r not found")
       return
     end
     --setting the template to nil
-    Roth_UI_DB_GLOB[name] = nil
+    DiabolusForeverDB_GLOB[name] = nil
     print(addon..": template |c003399FF"..name.."|r deleted")
     --removing the template name from the key-value pair list
     local indexFound
-    for i,v in ipairs(Roth_UI_DB_GLOB.TEMPLATE_LIST) do
+    for i,v in ipairs(DiabolusForeverDB_GLOB.TEMPLATE_LIST) do
       if v.key == name then
         indexFound = i
         break
       end
     end
     if indexFound then
-      tremove(Roth_UI_DB_GLOB.TEMPLATE_LIST, indexFound)
+      tremove(DiabolusForeverDB_GLOB.TEMPLATE_LIST, indexFound)
     end
     --update the panel view
     ns.panel.updatePanelView()
@@ -596,28 +602,28 @@
 
   --filling texture list for dropdown
   db.list.filling_texture = {
-    { value = "Interface\\AddOns\\DiabolusUnits\\media\\orb_filling1",  key = "moon", },
-    { value = "Interface\\AddOns\\DiabolusUnits\\media\\orb_filling2",  key = "earth", },
-    { value = "Interface\\AddOns\\DiabolusUnits\\media\\orb_filling3",  key = "mars", },
-    { value = "Interface\\AddOns\\DiabolusUnits\\media\\orb_filling4",  key = "galaxy", },
-    { value = "Interface\\AddOns\\DiabolusUnits\\media\\orb_filling5",  key = "jupiter", },
-    { value = "Interface\\AddOns\\DiabolusUnits\\media\\orb_filling6",  key = "fraktal circle", },
-    { value = "Interface\\AddOns\\DiabolusUnits\\media\\orb_filling7",  key = "sun", },
-    { value = "Interface\\AddOns\\DiabolusUnits\\media\\orb_filling8",  key = "icecream", },
-    { value = "Interface\\AddOns\\DiabolusUnits\\media\\orb_filling9",  key = "marble", },
-    { value = "Interface\\AddOns\\DiabolusUnits\\media\\orb_filling10", key = "gradient", },
-    { value = "Interface\\AddOns\\DiabolusUnits\\media\\orb_filling11", key = "bubbles", },
-    { value = "Interface\\AddOns\\DiabolusUnits\\media\\orb_filling12", key = "woodpepples", },
-    { value = "Interface\\AddOns\\DiabolusUnits\\media\\orb_filling13", key = "golf", },
-    { value = "Interface\\AddOns\\DiabolusUnits\\media\\orb_filling14", key = "darkstar", },
-    { value = "Interface\\AddOns\\DiabolusUnits\\media\\orb_filling15", key = "diablo3", },
-    { value = "Interface\\AddOns\\DiabolusUnits\\media\\orb_filling16", key = "fubble", },
-    { value = "Interface\\AddOns\\DiabolusUnits\\media\\orb_filling17", key = "silver", },
-    { value = "Interface\\AddOns\\DiabolusUnits\\media\\orb_filling18", key = "exile", },
-    { value = "Interface\\AddOns\\DiabolusUnits\\media\\orb_filling19", key = "dominion", },
-    { value = "Interface\\AddOns\\DiabolusUnits\\media\\orb_filling20", key = "runes", },
-    { value = "Interface\\AddOns\\DiabolusUnits\\media\\orb_filling21", key = "sigil orb", },
-	{ value = "Interface\\AddOns\\DiabolusUnits\\media\\orb_transparent", key = "transparent", },
+    { value = "Interface\\AddOns\\DiabolusForever\\media\\orb_filling1",  key = "moon", },
+    { value = "Interface\\AddOns\\DiabolusForever\\media\\orb_filling2",  key = "earth", },
+    { value = "Interface\\AddOns\\DiabolusForever\\media\\orb_filling3",  key = "mars", },
+    { value = "Interface\\AddOns\\DiabolusForever\\media\\orb_filling4",  key = "galaxy", },
+    { value = "Interface\\AddOns\\DiabolusForever\\media\\orb_filling5",  key = "jupiter", },
+    { value = "Interface\\AddOns\\DiabolusForever\\media\\orb_filling6",  key = "fraktal circle", },
+    { value = "Interface\\AddOns\\DiabolusForever\\media\\orb_filling7",  key = "sun", },
+    { value = "Interface\\AddOns\\DiabolusForever\\media\\orb_filling8",  key = "icecream", },
+    { value = "Interface\\AddOns\\DiabolusForever\\media\\orb_filling9",  key = "marble", },
+    { value = "Interface\\AddOns\\DiabolusForever\\media\\orb_filling10", key = "gradient", },
+    { value = "Interface\\AddOns\\DiabolusForever\\media\\orb_filling11", key = "bubbles", },
+    { value = "Interface\\AddOns\\DiabolusForever\\media\\orb_filling12", key = "woodpepples", },
+    { value = "Interface\\AddOns\\DiabolusForever\\media\\orb_filling13", key = "golf", },
+    { value = "Interface\\AddOns\\DiabolusForever\\media\\orb_filling14", key = "darkstar", },
+    { value = "Interface\\AddOns\\DiabolusForever\\media\\orb_filling15", key = "diablo3", },
+    { value = "Interface\\AddOns\\DiabolusForever\\media\\orb_filling16", key = "fubble", },
+    { value = "Interface\\AddOns\\DiabolusForever\\media\\orb_filling17", key = "silver", },
+    { value = "Interface\\AddOns\\DiabolusForever\\media\\orb_filling18", key = "exile", },
+    { value = "Interface\\AddOns\\DiabolusForever\\media\\orb_filling19", key = "dominion", },
+    { value = "Interface\\AddOns\\DiabolusForever\\media\\orb_filling20", key = "runes", },
+    { value = "Interface\\AddOns\\DiabolusForever\\media\\orb_filling21", key = "sigil orb", },
+	{ value = "Interface\\AddOns\\DiabolusForever\\media\\orb_transparent", key = "transparent", },
   }
   db.getListFillingTexture = function() return db.list.filling_texture end
 

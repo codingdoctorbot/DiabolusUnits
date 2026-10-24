@@ -1,6 +1,6 @@
-# DiabolusUnits
+# Diabolus Forever
 
-**DiabolusUnits** is a focused World of Warcraft (`_classic_beta_` / WoW Forever) unit frame, artwork, and status bar addon extracted from Roth UI (oUF_Diablo).
+**Diabolus Forever** (`DiabolusForever`) is a focused World of Warcraft (`_classic_beta_` / WoW Forever) unit frame, artwork, and status bar addon extracted and modernized from Roth UI (oUF_Diablo).
 
 ## Included Features
 - **Unit Frames (`units/`)**:
@@ -20,14 +20,14 @@
 - **Diablo Tooltips (`embeds/rTooltip/`)**:
   - Custom Diablo-bordered tooltips with item quality dressing and unit class/reaction coloring.
 - **Interactive Edit Mode (`core/editmode.lua`)**:
-  - Full mouse-driven Edit Mode (`/roth edit`, `/diabolus edit`, or Blizzard's Edit Mode) with per-element popup dialog for scale, X/Y offset, spacing/aura icon size, and enable/disable toggles.
+  - Full mouse-driven Edit Mode (`/diabolus edit`, `/dforever edit`, or Blizzard's Edit Mode) with per-element popup dialog for scale, X/Y offset, spacing/aura icon size, and enable/disable toggles.
 
 ## Slash Commands
-- `/roth edit` or `/diabolus edit` — Toggle Edit Mode (drag frames, click any frame for its settings popup)
-- `/roth lockall` — Finish editing and lock frames
-- `/roth resetall` — Reset all frames to default positions and scales
-- `/roth config` — Open the Orb Configuration panel (colors, 3D models, fillings, tags)
-- `/roth scale <50-150>` — Set global UI scale for all DiabolusUnits frames
-- `/roth autoscale [on|off]` — Toggle pixel-perfect (`768 / physicalHeight`) UI scaling
-- `/roth auras` — Inspect target aura API output
-- `/roth taint` — List refused actions and taint diagnostics
+- `/diabolus edit` or `/dforever edit` — Toggle Edit Mode (drag frames, click any frame for its settings popup)
+- `/diabolus lockall` — Finish editing and lock frames
+- `/diabolus resetall` — Reset all frames to default positions and scales
+- `/diabolus` or `/dforever` — Open the Settings and Orb Configuration panel
+- `/diabolus scale <50-150>` — Set global UI scale for all DiabolusForever frames
+- `/diabolus autoscale [on|off]` — Toggle pixel-perfect (`768 / physicalHeight`) UI scaling
+- `/diabolus auras` — Inspect target aura API output
+- `/diabolus taint` — List refused actions and taint diagnostics

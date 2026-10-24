@@ -8,7 +8,7 @@ local _, ns = ...
 local Art = {}
 ns.DiabolicArt = Art
 
-local MEDIA = "Interface\\AddOns\\DiabolusUnits\\media\\"
+local MEDIA = "Interface\\AddOns\\DiabolusForever\\media\\"
 local DIABOLIC = MEDIA .. "diabolic\\"
 
 local portraits, orbs, bars = {}, {}, {}

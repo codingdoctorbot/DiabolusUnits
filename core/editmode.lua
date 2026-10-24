@@ -57,7 +57,7 @@ end
 local HEADER_DEFAULT = { partyScale = 1.1, raidScale = 0.8 }
 
 local function Say(msg)
-	print("|c00FF3300DiabolusUnits:|r " .. msg)
+	print("|c00FF3300DiabolusForever:|r " .. msg)
 end
 
 -- Database helpers
@@ -66,7 +66,7 @@ function ns.BaseLayoutProfile()
 	if adb and adb.profile then
 		return adb.profile
 	end
-	local raw = rawget(_G, "Roth_UI_DB")
+	local raw = rawget(_G, "DiabolusForeverDB") or rawget(_G, "Roth_UI_DB")
 	if type(raw) == "table" then
 		raw.profile = raw.profile or {}
 		return raw.profile
@@ -1354,8 +1354,8 @@ local function CreateSettingsDialog()
 	end)
 
 	d:SetBackdrop({
-		bgFile = "Interface\\AddOns\\DiabolusUnits\\media\\Tooltip_Background",
-		edgeFile = "Interface\\AddOns\\DiabolusUnits\\media\\Tooltip_Border",
+		bgFile = "Interface\\AddOns\\DiabolusForever\\media\\Tooltip_Background",
+		edgeFile = "Interface\\AddOns\\DiabolusForever\\media\\Tooltip_Border",
 		edgeSize = 14,
 		insets = { left = 6, right = 6, top = 6, bottom = 6 },
 	})
@@ -1871,8 +1871,8 @@ local function CreateDropdownFrame()
 	d:SetClampedToScreen(true)
 	d:EnableMouse(true)
 	d:SetBackdrop({
-		bgFile = "Interface\\AddOns\\DiabolusUnits\\media\\Tooltip_Background",
-		edgeFile = "Interface\\AddOns\\DiabolusUnits\\media\\Tooltip_Border",
+		bgFile = "Interface\\AddOns\\DiabolusForever\\media\\Tooltip_Background",
+		edgeFile = "Interface\\AddOns\\DiabolusForever\\media\\Tooltip_Border",
 		edgeSize = 12,
 		insets = { left = 5, right = 5, top = 5, bottom = 5 },
 	})
@@ -1969,8 +1969,8 @@ local function DoneBar()
 	doneBar:SetScript("OnDragStop", doneBar.StopMovingOrSizing)
 
 	doneBar:SetBackdrop({
-		bgFile = "Interface\\AddOns\\DiabolusUnits\\media\\Tooltip_Background",
-		edgeFile = "Interface\\AddOns\\DiabolusUnits\\media\\Tooltip_Border",
+		bgFile = "Interface\\AddOns\\DiabolusForever\\media\\Tooltip_Background",
+		edgeFile = "Interface\\AddOns\\DiabolusForever\\media\\Tooltip_Border",
 		edgeSize = 12,
 		insets = { left = 6, right = 6, top = 6, bottom = 6 },
 	})
@@ -2085,8 +2085,8 @@ local function DoneBar()
 	shiftBar:SetPoint("TOP", doneBar, "BOTTOM", 0, 2)
 	shiftBar:EnableMouse(true)
 	shiftBar:SetBackdrop({
-		bgFile = "Interface\\AddOns\\DiabolusUnits\\media\\Tooltip_Background",
-		edgeFile = "Interface\\AddOns\\DiabolusUnits\\media\\Tooltip_Border",
+		bgFile = "Interface\\AddOns\\DiabolusForever\\media\\Tooltip_Background",
+		edgeFile = "Interface\\AddOns\\DiabolusForever\\media\\Tooltip_Border",
 		edgeSize = 12,
 		insets = { left = 6, right = 6, top = 6, bottom = 6 },
 	})

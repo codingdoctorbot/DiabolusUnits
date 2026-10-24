@@ -97,7 +97,7 @@ Theme.COLOR_TEXT_ACCENT = Theme.COLOR_ACCENT
 Theme.COLOR_LIVE = { r = 0.40, g = 0.80, b = 0.30 }
 
 -- A neutral typeface for controls; HUD font preferences remain independent.
-Theme.FONT_PATH = "Interface\\AddOns\\DiabolusUnits\\media\\Expressway.ttf"
+Theme.FONT_PATH = "Interface\\AddOns\\DiabolusForever\\media\\Expressway.ttf"
 Theme.COLOR_FOCUS = { r = 0.56, g = 0.72, b = 0.86 }
 local function font(name, size, color)
 	local f = CreateFont(name)

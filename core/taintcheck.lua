@@ -1,5 +1,5 @@
 -- Read-only Blizzard-state diagnostics: /roth taint and /roth auras.
--- Reports use issecurevariable and are saved in Roth_UI_DB_GLOB.taintReport/auraProbe
+-- Reports use issecurevariable and are saved in DiabolusForeverDB_GLOB.taintReport/auraProbe
 -- under the account's SavedVariables/DiabolusUnits.lua.
 
 local _, ns = ...
@@ -12,8 +12,8 @@ local function Say(msg)
 end
 
 local function Store(key, lines)
-	if type(Roth_UI_DB_GLOB) == "table" then
-		Roth_UI_DB_GLOB[key] = { time = date("%Y-%m-%d %H:%M:%S"), lines = lines }
+	if type(DiabolusForeverDB_GLOB) == "table" then
+		DiabolusForeverDB_GLOB[key] = { time = date("%Y-%m-%d %H:%M:%S"), lines = lines }
 	end
 end
 
@@ -124,7 +124,7 @@ function Check:Run()
 		add("  " .. foreign[i])
 	end
 
-	Say("taint report (also saved as Roth_UI_DB_GLOB.taintReport):")
+	Say("taint report (also saved as DiabolusForeverDB_GLOB.taintReport):")
 	for _, line in ipairs(lines) do
 		print("  " .. line)
 	end
@@ -211,7 +211,7 @@ function Check:ProbeAuras(unit)
 			)
 		)
 	end
-	Say("aura probe (also saved as Roth_UI_DB_GLOB.auraProbe):")
+	Say("aura probe (also saved as DiabolusForeverDB_GLOB.auraProbe):")
 	for _, line in ipairs(lines) do
 		print("  " .. line)
 	end

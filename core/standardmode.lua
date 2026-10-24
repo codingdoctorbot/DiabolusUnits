@@ -11,7 +11,7 @@ local func = ns.func
 local StandardMode = {}
 ns.StandardMode = StandardMode
 
-local MEDIA = "Interface\\AddOns\\DiabolusUnits\\media\\"
+local MEDIA = "Interface\\AddOns\\DiabolusForever\\media\\"
 
 local pendingApply = false
 local microDock = nil

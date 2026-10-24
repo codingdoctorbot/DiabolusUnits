@@ -10,7 +10,7 @@ local Secrets = ns.Secrets
 local Swing = {}
 ns.SwingTimer = Swing
 
-local MEDIA = "Interface\\AddOns\\DiabolusUnits\\media\\"
+local MEDIA = "Interface\\AddOns\\DiabolusForever\\media\\"
 local WIDTH, HEIGHT, CAP = 200, 26, 38
 local LINGER = 2 -- seconds the bar stays after the last swing
 

@@ -11,7 +11,7 @@ local Secrets = ns.Secrets
 local CastBars = {}
 ns.CastBars = CastBars
 
-local MEDIA = "Interface\\AddOns\\DiabolusUnits\\media\\"
+local MEDIA = "Interface\\AddOns\\DiabolusForever\\media\\"
 
 function CastBars.ApplyAppearance(bar)
  local opts = bar.cfg or {}

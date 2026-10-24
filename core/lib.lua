@@ -5,7 +5,7 @@ local Secrets = ns.Secrets
 local LSM = LibStub("LibSharedMedia-3.0")
 
 local cfg = ns.cfg
-local mediapath = "Interface\\AddOns\\DiabolusUnits\\media\\"
+local mediapath = "Interface\\AddOns\\DiabolusForever\\media\\"
 
 local func = CreateFrame("Frame")
 ns.func = func
@@ -1065,22 +1065,22 @@ end
 func.totalAbsorb = func.healPrediction
 
 --Register LSM media
-LSM:Register("border", "RB border", "Interface\\AddOns\\DiabolusUnits\\media\\5.tga")
-LSM:Register("statusbar", "Solid", "Interface\\AddOns\\DiabolusUnits\\media\\Solid.tga")
-LSM:Register("statusbar", "Roth_Statusbar1", "Interface\\AddOns\\DiabolusUnits\\media\\statusbar")
-LSM:Register("statusbar", "Roth_Statusbar2", "Interface\\AddOns\\DiabolusUnits\\media\\statusbar2")
-LSM:Register("statusbar", "Roth_Statusbar3", "Interface\\AddOns\\DiabolusUnits\\media\\statusbar3")
-LSM:Register("statusbar", "Roth_Statusbar4", "Interface\\AddOns\\DiabolusUnits\\media\\statusbar4")
-LSM:Register("statusbar", "Roth_Statusbar5", "Interface\\AddOns\\DiabolusUnits\\media\\statusbar5")
-LSM:Register("statusbar", "Roth_Statusbar6", "Interface\\AddOns\\DiabolusUnits\\media\\statusbar128")
-LSM:Register("statusbar", "Roth_Statusbar7", "Interface\\AddOns\\DiabolusUnits\\media\\statusbar128_3")
-LSM:Register("statusbar", "Roth_Statusbar8", "Interface\\AddOns\\DiabolusUnits\\media\\statusbar256")
-LSM:Register("statusbar", "Roth_Statusbar9", "Interface\\AddOns\\DiabolusUnits\\media\\statusbar256_2")
-LSM:Register("statusbar", "Roth_Statusbar10", "Interface\\AddOns\\DiabolusUnits\\media\\statusbar256_3")
-LSM:Register("background", "Solid", "Interface\\AddOns\\DiabolusUnits\\media\\Solid.tga")
-LSM:Register("font", "Cracked", "Interface\\AddOns\\DiabolusUnits\\media\\Cracked-Narrow.ttf")
-LSM:Register("font", "Expressway", "Interface\\AddOns\\DiabolusUnits\\media\\Expressway.ttf")
-LSM:Register("font", "Diablo", "Interface\\AddOns\\DiabolusUnits\\media\\Diablo Std Regular.otf")
+LSM:Register("border", "RB border", "Interface\\AddOns\\DiabolusForever\\media\\5.tga")
+LSM:Register("statusbar", "Solid", "Interface\\AddOns\\DiabolusForever\\media\\Solid.tga")
+LSM:Register("statusbar", "Roth_Statusbar1", "Interface\\AddOns\\DiabolusForever\\media\\statusbar")
+LSM:Register("statusbar", "Roth_Statusbar2", "Interface\\AddOns\\DiabolusForever\\media\\statusbar2")
+LSM:Register("statusbar", "Roth_Statusbar3", "Interface\\AddOns\\DiabolusForever\\media\\statusbar3")
+LSM:Register("statusbar", "Roth_Statusbar4", "Interface\\AddOns\\DiabolusForever\\media\\statusbar4")
+LSM:Register("statusbar", "Roth_Statusbar5", "Interface\\AddOns\\DiabolusForever\\media\\statusbar5")
+LSM:Register("statusbar", "Roth_Statusbar6", "Interface\\AddOns\\DiabolusForever\\media\\statusbar128")
+LSM:Register("statusbar", "Roth_Statusbar7", "Interface\\AddOns\\DiabolusForever\\media\\statusbar128_3")
+LSM:Register("statusbar", "Roth_Statusbar8", "Interface\\AddOns\\DiabolusForever\\media\\statusbar256")
+LSM:Register("statusbar", "Roth_Statusbar9", "Interface\\AddOns\\DiabolusForever\\media\\statusbar256_2")
+LSM:Register("statusbar", "Roth_Statusbar10", "Interface\\AddOns\\DiabolusForever\\media\\statusbar256_3")
+LSM:Register("background", "Solid", "Interface\\AddOns\\DiabolusForever\\media\\Solid.tga")
+LSM:Register("font", "Cracked", "Interface\\AddOns\\DiabolusForever\\media\\Cracked-Narrow.ttf")
+LSM:Register("font", "Expressway", "Interface\\AddOns\\DiabolusForever\\media\\Expressway.ttf")
+LSM:Register("font", "Diablo", "Interface\\AddOns\\DiabolusForever\\media\\Diablo Std Regular.otf")
 
 -- SCREEN & RESOLUTION METRICS
 function ns.GetScreenMetrics()

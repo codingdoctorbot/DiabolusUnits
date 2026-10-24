@@ -13,7 +13,7 @@ local Secrets = ns.Secrets
 local NP = {}
 ns.NamePlates = NP
 
-local MEDIA = "Interface\\AddOns\\DiabolusUnits\\media\\"
+local MEDIA = "Interface\\AddOns\\DiabolusForever\\media\\"
 local W, H = 128, 64 -- the targettarget art
 local HEALTH = { left = 24.5, right = -24.5, top = -21.9, bottom = 28.7 }
 local MAX_DEBUFFS = 5

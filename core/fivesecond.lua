@@ -10,7 +10,7 @@ local Secrets = ns.Secrets
 local FiveSecond = {}
 ns.FiveSecond = FiveSecond
 
-local MEDIA = "Interface\\AddOns\\DiabolusUnits\\media\\"
+local MEDIA = "Interface\\AddOns\\DiabolusForever\\media\\"
 local RULE = 5
 local MANA = (Enum and Enum.PowerType and Enum.PowerType.Mana) or 0
 

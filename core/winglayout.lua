@@ -6,7 +6,7 @@ ns.WingLayout = Layout
 
 local abs, min, max, huge = math.abs, math.min, math.max, math.huge
 local EPS = 0.0000001
-local MEDIA = "Interface\\AddOns\\DiabolusUnits\\media\\d3_wing_dock_v2"
+local MEDIA = "Interface\\AddOns\\DiabolusForever\\media\\d3_wing_dock_v2"
 
 Layout.Atlas = {
 	width = 256, height = 128, channel = 36, top = 4, base = 6,
@@ -365,7 +365,7 @@ function Layout.CanRender(first, second, third)
 	return true, count
 end
 
-local HARNESS_MEDIA = "Interface\\AddOns\\DiabolusUnits\\media\\harness\\"
+local HARNESS_MEDIA = "Interface\\AddOns\\DiabolusForever\\media\\harness\\"
 
 -- Caps are separate left/right textures, so neither side mirrors texcoords.
 -- Rails tile under the caps far enough to hide their inner silhouettes.

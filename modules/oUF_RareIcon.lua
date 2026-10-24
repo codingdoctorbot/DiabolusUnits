@@ -23,7 +23,7 @@ local _, ns = ...
 local oUF = ns.oUF
 local Secrets = ns.Secrets
 
-local MEDIA = "Interface\\AddOns\\DiabolusUnits\\media\\"
+local MEDIA = "Interface\\AddOns\\DiabolusForever\\media\\"
 
 local function Update(self, event, unit)
 	if unit ~= self.__unit then

@@ -427,7 +427,7 @@ end
 
 globals = globals or {}
 table.insert(globals, "Roth_UI_PadDB")
-table.insert(globals, "Roth_UI_DB_GLOB")
+table.insert(globals, "DiabolusForeverDB_GLOB")
 table.insert(globals, "Roth_UI_SpellRingDB")
 table.insert(read_globals, "ReloadUI")
 table.insert(read_globals, "AnchorUtil")

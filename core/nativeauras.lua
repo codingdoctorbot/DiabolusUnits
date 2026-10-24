@@ -10,7 +10,7 @@ local cfg = ns.cfg
 local NativeAuras = {}
 ns.NativeAuras = NativeAuras
 
-local MEDIA = "Interface\\AddOns\\DiabolusUnits\\media\\"
+local MEDIA = "Interface\\AddOns\\DiabolusForever\\media\\"
 
 -- The Diablo look: gloss rim, dark glow behind, stack count top right, the
 -- client's countdown numbers (our timer text cannot read a secret duration).

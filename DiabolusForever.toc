@@ -1,11 +1,11 @@
 ## Interface: 16001
 ## Author: codingdoctorbot (WoW Forever edition); zork (original), Galaxy119, EchoZulu69er
-## Title: DiabolusUnits
+## Title: Diabolus Forever
 ## Notes: Diablo-themed orbs, unit frames, nameplates, art, and status bars for WoW Forever.
 ## X-License: MIT (see LICENSE.txt; third-party parts: CREDITS.md)
 ## Version: 1.0.0
-## SavedVariables: Roth_UI_DB_GLOB, PhanxFontDB, Roth_UI_DB
-## SavedVariablesPerCharacter: Roth_UI_DB_CHAR
+## SavedVariables: DiabolusForeverDB_GLOB, PhanxFontDB, DiabolusForeverDB
+## SavedVariablesPerCharacter: DiabolusForeverDB_CHAR
 
 core\secrets.lua
 core\compat.lua

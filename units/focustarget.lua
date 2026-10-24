@@ -27,7 +27,7 @@ end
 local createArtwork = function(self)
 	local t = self:CreateTexture(nil, "BACKGROUND", nil, -8)
 	t:SetAllPoints(self)
-	t:SetTexture("Interface\\AddOns\\DiabolusUnits\\media\\targettarget")
+	t:SetTexture("Interface\\AddOns\\DiabolusForever\\media\\targettarget")
 end
 
 --create health frames
@@ -48,12 +48,12 @@ local createHealthFrame = function(self)
 	h.bg:SetAllPoints(h)
 
 	h.glow = h:CreateTexture(nil, "OVERLAY", nil, -5)
-	h.glow:SetTexture("Interface\\AddOns\\DiabolusUnits\\media\\targettarget_hpglow")
+	h.glow:SetTexture("Interface\\AddOns\\DiabolusForever\\media\\targettarget_hpglow")
 	h.glow:SetAllPoints(self)
 	h.glow:SetVertexColor(0, 0, 0, 1)
 
 	h.highlight = h:CreateTexture(nil, "OVERLAY", nil, -4)
-	h.highlight:SetTexture("Interface\\AddOns\\DiabolusUnits\\media\\targettarget_highlight")
+	h.highlight:SetTexture("Interface\\AddOns\\DiabolusForever\\media\\targettarget_highlight")
 	h.highlight:SetAllPoints(self)
 
 	self.Health = h
@@ -78,7 +78,7 @@ local createPowerFrame = function(self)
 	h.bg:SetAllPoints(h)
 
 	h.glow = h:CreateTexture(nil, "OVERLAY", nil, -5)
-	h.glow:SetTexture("Interface\\AddOns\\DiabolusUnits\\media\\targettarget_ppglow")
+	h.glow:SetTexture("Interface\\AddOns\\DiabolusForever\\media\\targettarget_ppglow")
 	h.glow:SetAllPoints(self)
 	h.glow:SetVertexColor(0, 0, 0, 1)
 

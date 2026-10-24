@@ -12,7 +12,7 @@ local Data = ns.BeltData
 local Belt = {}
 ns.Belt = Belt
 
-local MEDIA = "Interface\\AddOns\\DiabolusUnits\\media\\"
+local MEDIA = "Interface\\AddOns\\DiabolusForever\\media\\"
 local SLOTS = { "health", "healthstone", "mana", "food", "bandage", "drink" }
 local SIZE, GAP = 34, 8
 local LIQUID = {
@@ -890,7 +890,7 @@ events:SetScript("OnEvent", function(_, event)
 	end
 end)
 
-_G["BINDING_HEADER_DIABOLUSUNITS"] = "DiabolusUnits"
+_G["BINDING_HEADER_DIABOLUSFOREVER"] = "DiabolusUnits"
 for i = 1, #SLOTS do
 	_G["BINDING_NAME_CLICK Roth_UIBelt" .. i .. ":LeftButton"] = "Belt " .. i .. " — " .. LABELS[i]
 end

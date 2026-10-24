@@ -1,4 +1,4 @@
---  DiabolusUnits - slashcmd
+--  DiabolusForever - slashcmd
 
 local addon, ns = ...
 
@@ -72,7 +72,7 @@ end
 
 function Roth_UIUnlock(c, quiet)
 	if not quiet then
-		print("|c00FF3300DiabolusUnits:|r " .. c .. " unlocked")
+		print("|c00FF3300DiabolusForever:|r " .. c .. " unlocked")
 	end
 	for _, v in ipairs(GetFrameList(c)) do
 		local f = _G[v]
@@ -101,7 +101,7 @@ end
 
 function Roth_UILock(c, quiet)
 	if not quiet then
-		print("|c00FF3300DiabolusUnits:|r " .. c .. " locked")
+		print("|c00FF3300DiabolusForever:|r " .. c .. " locked")
 	end
 	for _, v in ipairs(GetFrameList(c)) do
 		local f = _G[v]
@@ -117,10 +117,10 @@ end
 
 function Roth_UIReset(c)
 	if InCombatLockdown() then
-		print("|c00FF3300DiabolusUnits:|r Resetting frames is not possible in combat.")
+		print("|c00FF3300DiabolusForever:|r Resetting frames is not possible in combat.")
 		return
 	end
-	print("|c00FF3300DiabolusUnits:|r " .. c .. " reset")
+	print("|c00FF3300DiabolusForever:|r " .. c .. " reset")
 	for _, v in ipairs(GetFrameList(c)) do
 		local f = _G[v]
 		if f and f.defaultPosition then
@@ -193,7 +193,7 @@ local function SlashCmd(cmd)
 	elseif cmd:match("screen") or cmd:match("res") then
 		local m = ns.GetScreenMetrics and ns.GetScreenMetrics()
 		if m then
-			print("|c00FF3300DiabolusUnits Screen Metrics:|r")
+			print("|c00FF3300DiabolusForever Screen Metrics:|r")
 			print(
 				string.format("  Physical: %d x %d (Aspect: %.2f:1)", m.physicalWidth, m.physicalHeight, m.aspectRatio)
 			)
@@ -223,7 +223,7 @@ local function SlashCmd(cmd)
 			if prof then
 				prof.autoScale = false
 			end
-			print("|c00FF3300DiabolusUnits:|r Auto UI scale disabled. Blizzard UI scale will not be modified.")
+			print("|c00FF3300DiabolusForever:|r Auto UI scale disabled. Blizzard UI scale will not be modified.")
 		elseif arg == "on" or arg == "enable" then
 			if prof then
 				prof.autoScale = true
@@ -234,7 +234,7 @@ local function SlashCmd(cmd)
 			local m = ns.GetScreenMetrics and ns.GetScreenMetrics()
 			print(
 				string.format(
-					"|c00FF3300DiabolusUnits:|r Auto UI scale enabled (768/h = %.1f%%).",
+					"|c00FF3300DiabolusForever:|r Auto UI scale enabled (768/h = %.1f%%).",
 					(m and m.pixelPerfectScale or 1) * 100
 				)
 			)
@@ -242,7 +242,7 @@ local function SlashCmd(cmd)
 			local state = (not prof or prof.autoScale ~= false) and "enabled" or "disabled"
 			print(
 				string.format(
-					"|c00FF3300DiabolusUnits:|r Auto UI scale is currently |cffffd100%s|r. Use |c00FF3300/roth autoscale on|r or |c00FF3300/roth autoscale off|r.",
+					"|c00FF3300DiabolusForever:|r Auto UI scale is currently |cffffd100%s|r. Use |c00FF3300/roth autoscale on|r or |c00FF3300/roth autoscale off|r.",
 					state
 				)
 			)
@@ -259,7 +259,7 @@ local function SlashCmd(cmd)
 					ns.EditMode:SetGlobalScale(val)
 					print(
 						string.format(
-							"|c00FF3300DiabolusUnits:|r Global UI size set to %d%%.",
+							"|c00FF3300DiabolusForever:|r Global UI size set to %d%%.",
 							math.floor(val * 100 + 0.5)
 						)
 					)
@@ -269,41 +269,42 @@ local function SlashCmd(cmd)
 			local gs = ns.EditMode and ns.EditMode.GetGlobalScale and ns.EditMode:GetGlobalScale() or 1.0
 			print(
 				string.format(
-					"|c00FF3300DiabolusUnits:|r Current Global UI size is %d%%. Use |c00FF3300/roth scale <number>|r to change it.",
+					"|c00FF3300DiabolusForever:|r Current Global UI size is %d%%. Use |c00FF3300/diabolus scale <number>|r to change it.",
 					math.floor(gs * 100 + 0.5)
 				)
 			)
 		end
 	else
-		print("|c00FF3300DiabolusUnits command list:|r")
+		print("|c00FF3300DiabolusForever command list:|r")
 		print(
-			"|c00FF3300/roth edit|r or |c00FF3300/roth unlockall|r, to toggle Edit Mode (move, resize, enable/disable frames)"
+			"|c00FF3300/diabolus edit|r or |c00FF3300/dforever edit|r, to toggle Edit Mode (move, resize, enable/disable frames)"
 		)
-		print("|c00FF3300/roth lockall|r, to finish editing and lock frames")
-		print("|c00FF3300/roth resetall|r, to reset all frames to default layout")
-		print("|c00FF3300/roth|r or |c00FF3300/roth config|r, to open the settings window")
-		print("|c00FF3300/roth resettemplates|r, to reset orb templates")
-		print("|c00FF3300/roth scale <number>|r, to scale all unit frames and art globally")
-		print("|c00FF3300/roth autoscale [on|off]|r, to toggle pixel-perfect (768/h) UI scaling")
-		print("|c00FF3300/roth screen|r, to display resolution, DPI, and pixel metrics")
-		print("|c00FF3300/roth belt|r, to inspect potion belt choices and context")
-		print("|c00FF3300/roth auras|r, to inspect target aura API output")
-		print("|c00FF3300/roth taint|r, to list refused actions and taint diagnostics")
+		print("|c00FF3300/diabolus lockall|r, to finish editing and lock frames")
+		print("|c00FF3300/diabolus resetall|r, to reset all frames to default layout")
+		print("|c00FF3300/diabolus|r or |c00FF3300/dforever|r, to open the settings window")
+		print("|c00FF3300/diabolus resettemplates|r, to reset orb templates")
+		print("|c00FF3300/diabolus scale <number>|r, to scale all unit frames and art globally")
+		print("|c00FF3300/diabolus autoscale [on|off]|r, to toggle pixel-perfect (768/h) UI scaling")
+		print("|c00FF3300/diabolus screen|r, to display resolution, DPI, and pixel metrics")
+		print("|c00FF3300/diabolus belt|r, to inspect potion belt choices and context")
+		print("|c00FF3300/diabolus auras|r, to inspect target aura API output")
+		print("|c00FF3300/diabolus taint|r, to list refused actions and taint diagnostics")
 	end
 end
 
--- Register /roth and /diabolus slash commands
+-- Register /roth, /diabolus, and /dforever slash commands
 if not SlashCmdList["roth"] then
 	SlashCmdList["roth"] = SlashCmd
 	SLASH_roth1 = "/roth"
 	SLASH_roth2 = "/diabolus"
+	SLASH_roth3 = "/dforever"
 
 	local loadMessagePrinted = _G.Roth_UI_loadMessagePrinted
 	if not loadMessagePrinted then
 		local meta = (C_AddOns and C_AddOns.GetAddOnMetadata) or GetAddOnMetadata
-		local version = (meta and (meta(addon, "Version") or meta("DiabolusUnits", "Version"))) or "1.0.0"
+		local version = (meta and (meta(addon, "Version") or meta("DiabolusForever", "Version") or meta("DiabolusUnits", "Version"))) or "1.0.0"
 		print(
-			"|c00FF3300DiabolusUnits v"
+			"|c00FF3300DiabolusForever v"
 				.. version
 				.. " loaded. Type |r|c00FF3300/diabolus edit|r|c00FF3300 to customize frames or |r|c00FF3300/diabolus|r|c00FF3300 for settings.|r"
 		)

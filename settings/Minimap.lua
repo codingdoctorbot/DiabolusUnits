@@ -1,5 +1,5 @@
 -- Minimap launcher: left-click settings, right-click edit layout, drag to reposition.
--- Account-wide state: Roth_UI_DB_GLOB.minimap = { hide, minimapPos }.
+-- Account-wide state: DiabolusForeverDB_GLOB.minimap = { hide, minimapPos }.
 -- Save the angle on drop, suppress minimap input propagation, and ignore SmartNavigation.
 -- Ported from PulseHaptics UI/Minimap.lua; also exposes a launcher when LDB is available.
 
@@ -9,20 +9,20 @@ ns.UI = ns.UI or {}
 local MinimapButton = {}
 ns.UI.Minimap = MinimapButton
 
-local ICON = "Interface\\AddOns\\DiabolusUnits\\media\\d2_skull"
+local ICON = "Interface\\AddOns\\DiabolusForever\\media\\d2_skull"
 local DEFAULT_ANGLE = 200
 
 local buttonFrame
 local isDragging = false
 
 local function config()
-	if type(Roth_UI_DB_GLOB) ~= "table" then
+	if type(DiabolusForeverDB_GLOB) ~= "table" then
 		return { hide = false, minimapPos = DEFAULT_ANGLE }
 	end
-	local cfg = Roth_UI_DB_GLOB.minimap
+	local cfg = DiabolusForeverDB_GLOB.minimap
 	if type(cfg) ~= "table" then
 		cfg = { hide = false, minimapPos = DEFAULT_ANGLE }
-		Roth_UI_DB_GLOB.minimap = cfg
+		DiabolusForeverDB_GLOB.minimap = cfg
 	end
 	return cfg
 end

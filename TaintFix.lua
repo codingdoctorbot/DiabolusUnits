@@ -26,9 +26,9 @@ local function Record(event, addon, func)
 	if #Blocked.recent > MAX_RECENT then
 		Blocked.recent[#Blocked.recent] = nil
 	end
-	if type(Roth_UI_DB_GLOB) == "table" then
-		local log = Roth_UI_DB_GLOB.blockedLog or {}
-		Roth_UI_DB_GLOB.blockedLog = log
+	if type(DiabolusForeverDB_GLOB) == "table" then
+		local log = DiabolusForeverDB_GLOB.blockedLog or {}
+		DiabolusForeverDB_GLOB.blockedLog = log
 		table.insert(log, 1, ("%s %s %s %s"):format(date("%m-%d %H:%M:%S"), event, addon, func))
 		for i = #log, 50 + 1, -1 do
 			log[i] = nil

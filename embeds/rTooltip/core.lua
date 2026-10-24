@@ -24,7 +24,7 @@ local GameTooltip = GameTooltip
 local GameTooltipStatusBar = GameTooltipStatusBar
 local Secrets = ns.Secrets
 local Compat = ns.Compat
-local mediapath = "Interface\\AddOns\\DiabolusUnits\\media\\"
+local mediapath = "Interface\\AddOns\\DiabolusForever\\media\\"
 local Tooltips = {}
 ns.Tooltips = Tooltips
 
@@ -386,11 +386,11 @@ OnTooltipData("Unit", "OnTooltipSetUnit", function(self, ...)
 			end
 			self:AppendText(" |TInterface\\TargetingFrame\\UI-TargetingFrame-Skull:14:14|t")
 		elseif unitClassification == "rare" then
-			self:AppendText(" |TInterface\\AddOns\\DiabolusUnits\\media\\diablo:14:14:0:0:16:16:0:15:0:14|t")
+			self:AppendText(" |TInterface\\AddOns\\DiabolusForever\\media\\diablo:14:14:0:0:16:16:0:15:0:14|t")
 		elseif unitClassification == "rareelite" then
-			self:AppendText(" |TInterface\\AddOns\\DiabolusUnits\\media\\diablo:14:14:0:0:16:16:0:15:0:14|t")
+			self:AppendText(" |TInterface\\AddOns\\DiabolusForever\\media\\diablo:14:14:0:0:16:16:0:15:0:14|t")
 		elseif unitClassification == "elite" then
-			self:AppendText(" |TInterface\\AddOns\\DiabolusUnits\\media\\plus:14:14|t")
+			self:AppendText(" |TInterface\\AddOns\\DiabolusForever\\media\\plus:14:14|t")
 		end
 	end
 

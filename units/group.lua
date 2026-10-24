@@ -7,7 +7,7 @@ local cfg = ns.cfg
 local func = ns.func
 local Secrets = ns.Secrets
 
-local MEDIA = "Interface\\AddOns\\DiabolusUnits\\media\\"
+local MEDIA = "Interface\\AddOns\\DiabolusForever\\media\\"
 
 local Group = {}
 ns.Group = Group

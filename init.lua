@@ -32,7 +32,7 @@ end
 LoadedHandler:RegisterEvent("ADDON_LOADED")
 LoadedHandler:SetScript("OnEvent", function(self, event, name)
 	if
-		(name == addonName or name == "DiabolusUnits")
+		(name == addonName or name == "DiabolusForever" or name == "DiabolusUnits")
 		and not Roth_UI_Protection.isLoggingOut
 		and not InCombatLockdown()
 	then

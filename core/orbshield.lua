@@ -9,7 +9,7 @@ local cfg = ns.cfg
 local OrbShield = {}
 ns.OrbShield = OrbShield
 
-local MEDIA = "Interface\\AddOns\\DiabolusUnits\\media\\"
+local MEDIA = "Interface\\AddOns\\DiabolusForever\\media\\"
 
 function OrbShield.Update(orb)
 	local bar = orb.RothShield

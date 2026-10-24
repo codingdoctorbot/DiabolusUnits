@@ -11,7 +11,7 @@ local cfg = ns.cfg
 local HealBars = {}
 ns.HealBars = HealBars
 
-local MEDIA = "Interface\\AddOns\\DiabolusUnits\\media\\"
+local MEDIA = "Interface\\AddOns\\DiabolusForever\\media\\"
 local WHITE = "Interface\\Buttons\\WHITE8X8"
 
 local function Opt(key, default)

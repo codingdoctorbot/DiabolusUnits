@@ -229,7 +229,10 @@ end
 
 -- Initialize profile storage and apply the existing resize/font defaults.
 function Roth_UI:LoadConfig()
-	Roth_UI.configDB = LibStub("AceDB-3.0"):New("Roth_UI_DB", defaults)
+	if not DiabolusForeverDB and rawget(_G, "Roth_UI_DB") then
+		DiabolusForeverDB = CopyTable and CopyTable(Roth_UI_DB) or Roth_UI_DB
+	end
+	Roth_UI.configDB = LibStub("AceDB-3.0"):New("DiabolusForeverDB", defaults)
 	Roth_UI.configDB.RegisterCallback(Roth_UI, "OnProfileChanged", function()
 		Roth_UI:ApplyResizeOptions()
 		ReloadUI()

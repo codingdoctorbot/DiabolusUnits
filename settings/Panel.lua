@@ -13,7 +13,7 @@ local Gamepad = Panel.Gamepad
 local Spec = Panel.Spec
 
 local FRAME_NAME = "DiabolusUnitsSettingsFrame"
-local MEDIA = "Interface\\AddOns\\DiabolusUnits\\media\\"
+local MEDIA = "Interface\\AddOns\\DiabolusForever\\media\\"
 
 local frame
 local dirty, dirtyScheduled = false, false
