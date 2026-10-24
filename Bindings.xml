@@ -1,8 +1,15 @@
 <Bindings>
-	<Binding name="CLICK Roth_UIBelt1:LeftButton" header="DIABOLUSFOREVER" category="ADDONS"/>
+	<!-- Potion Belt -->
+	<Binding name="CLICK Roth_UIBelt1:LeftButton" header="DIABOLUSFOREVER_BELT" category="ADDONS"/>
 	<Binding name="CLICK Roth_UIBelt2:LeftButton" category="ADDONS"/>
 	<Binding name="CLICK Roth_UIBelt3:LeftButton" category="ADDONS"/>
 	<Binding name="CLICK Roth_UIBelt4:LeftButton" category="ADDONS"/>
 	<Binding name="CLICK Roth_UIBelt5:LeftButton" category="ADDONS"/>
 	<Binding name="CLICK Roth_UIBelt6:LeftButton" category="ADDONS"/>
+
+	<!-- Radial Controller Menus -->
+	<Binding name="CLICK DiabolusForeverRingOpen_consume:LeftButton" header="DIABOLUSFOREVER_RINGS" category="ADDONS"/>
+	<Binding name="CLICK DiabolusForeverRingOpen_utility:LeftButton" category="ADDONS"/>
+	<Binding name="CLICK DiabolusForeverRingOpen_quest:LeftButton" category="ADDONS"/>
+	<Binding name="CLICK DiabolusForeverRingOpen_spells:LeftButton" category="ADDONS"/>
 </Bindings>

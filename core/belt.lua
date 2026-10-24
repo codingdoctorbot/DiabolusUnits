@@ -890,10 +890,15 @@ events:SetScript("OnEvent", function(_, event)
 	end
 end)
 
-_G["BINDING_HEADER_DIABOLUSFOREVER"] = "DiabolusUnits"
+_G["BINDING_HEADER_DIABOLUSFOREVER_BELT"] = "Diabolus Forever: Potion Belt"
+_G["BINDING_HEADER_DIABOLUSFOREVER_RINGS"] = "Diabolus Forever: Controller Radial Menus"
 for i = 1, #SLOTS do
-	_G["BINDING_NAME_CLICK Roth_UIBelt" .. i .. ":LeftButton"] = "Belt " .. i .. " — " .. LABELS[i]
+	_G["BINDING_NAME_CLICK Roth_UIBelt" .. i .. ":LeftButton"] = "Belt Slot " .. i .. " — " .. LABELS[i]
 end
+_G["BINDING_NAME_CLICK DiabolusForeverRingOpen_consume:LeftButton"] = "Open Consumables Ring"
+_G["BINDING_NAME_CLICK DiabolusForeverRingOpen_utility:LeftButton"] = "Open Utility Ring"
+_G["BINDING_NAME_CLICK DiabolusForeverRingOpen_quest:LeftButton"] = "Open Quest Items Ring"
+_G["BINDING_NAME_CLICK DiabolusForeverRingOpen_spells:LeftButton"] = "Open Spells Ring"
 
 -- which item IDs give Well Fed (only those make the food socket pulse)
 Belt.isBuffFood = {}

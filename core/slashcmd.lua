@@ -247,6 +247,15 @@ local function SlashCmd(cmd)
 				)
 			)
 		end
+	elseif cmd:match("^ring") then
+		local sub = cmd:match("^ring%s+(%a+)") or "consume"
+		if sub == "macro" or sub == "macros" then
+			if ns.Ring and ns.Ring.CreateMacros then
+				ns.Ring:CreateMacros()
+			end
+		elseif ns.Ring and ns.Ring.OpenFromInsecure then
+			ns.Ring:OpenFromInsecure(sub)
+		end
 	elseif cmd:match("scale") then
 		local numStr = cmd:match("scale%s+([%d%.]+)")
 		if numStr then
@@ -287,6 +296,7 @@ local function SlashCmd(cmd)
 		print("|c00FF3300/diabolus autoscale [on|off]|r, to toggle pixel-perfect (768/h) UI scaling")
 		print("|c00FF3300/diabolus screen|r, to display resolution, DPI, and pixel metrics")
 		print("|c00FF3300/diabolus belt|r, to inspect potion belt choices and context")
+		print("|c00FF3300/diabolus ring [consume|utility|quest|spells|macro]|r, to open radial menu or make macros")
 		print("|c00FF3300/diabolus auras|r, to inspect target aura API output")
 		print("|c00FF3300/diabolus taint|r, to list refused actions and taint diagnostics")
 	end
