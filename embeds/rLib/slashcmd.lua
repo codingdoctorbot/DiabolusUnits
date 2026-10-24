@@ -26,9 +26,9 @@ function rLib:CreateSlashCmd(addonName, shortcut, frames, color)
       L:ResetFrames(frames, "|c"..(color or defaultColor)..addonName.."|r frames reset")
     else
       print("|c"..(color or defaultColor)..addonName.." command list:|r")
-      print("|c"..(color or defaultColor).."\/"..shortcut.." lock|r, to lock all frames")
-      print("|c"..(color or defaultColor).."\/"..shortcut.." unlock|r, to unlock all frames")
-      print("|c"..(color or defaultColor).."\/"..shortcut.." reset|r, to reset all frames")
+      print("|c"..(color or defaultColor).."/"..shortcut.." lock|r, to lock all frames")
+      print("|c"..(color or defaultColor).."/"..shortcut.." unlock|r, to unlock all frames")
+      print("|c"..(color or defaultColor).."/"..shortcut.." reset|r, to reset all frames")
     end
   end
   _G["SLASH_"..shortcut.."1"] = "/"..shortcut
@@ -46,9 +46,9 @@ end
         L:ResetFrames(dragFrameList, addon..": frames reseted")
       else
         print("|c"..(color or defaultColor)..addon.." command list:|r")
-        print("|c"..(color or defaultColor).."\/"..shortcut.." lock|r, to lock all frames")
-        print("|c"..(color or defaultColor).."\/"..shortcut.." unlock|r, to unlock all frames")
-        print("|c"..(color or defaultColor).."\/"..shortcut.." reset|r, to reset all frames")
+        print("|c"..(color or defaultColor).."/"..shortcut.." lock|r, to lock all frames")
+        print("|c"..(color or defaultColor).."/"..shortcut.." unlock|r, to unlock all frames")
+        print("|c"..(color or defaultColor).."/"..shortcut.." reset|r, to reset all frames")
       end
     end
     return slashCmdFunction
