@@ -4,12 +4,12 @@
     "editor.formatOnSave": false
   },
   "stylua.styluaPath": "/opt/homebrew/bin/stylua",
-  "stylua.configPath": "/home/deck/developer/_wow/.devtools/stylua.toml",
+  "stylua.configPath": "/home/deck/developer/wow/.devtools/stylua.toml",
   "stylua.verify": true,
   "Lua.runtime.version": "Lua 5.1",
   "terminal.integrated.env.osx": {
-    "PATH": "/home/deck/developer/_wow/.devtools/bin:/opt/homebrew/bin:${env:PATH}",
-    "LUA": "/home/deck/developer/_wow/.devtools/lua51/bin/lua"
+    "PATH": "/home/deck/developer/wow/.devtools/bin:/opt/homebrew/bin:${env:PATH}",
+    "LUA": "/home/deck/developer/wow/.devtools/lua51/bin/lua"
   },
   "files.associations": {
     "*.toc": "plaintext"
